@@ -248,7 +248,7 @@ function QueueGroup({
                   <span className={cn("line-clamp-2 text-sm font-medium", !isOpen(status) && "text-muted-foreground")}>{a.action}</span>
                   <span className="truncate text-xs text-subtle-foreground">{threadTitle}</span>
                 </span>
-                <StatusBadge status={status} />
+                <QueueStatusBadge status={status} />
               </button>
             </li>
           );
@@ -258,7 +258,7 @@ function QueueGroup({
   );
 }
 
-function StatusBadge({ status }: { status: QueueStatus }) {
+function QueueStatusBadge({ status }: { status: QueueStatus }) {
   const s = STATUS[status];
   return (
     <Badge variant={s.variant} className="mt-0.5">
@@ -296,7 +296,7 @@ function QueueDetail({
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {KIND[a.step].label}
-            <StatusBadge status={status} />
+            <QueueStatusBadge status={status} />
             {a.edited && <Badge variant="outline">Edited by you</Badge>}
           </div>
           <h3 className="font-heading text-lg font-medium tracking-title">{a.action}</h3>

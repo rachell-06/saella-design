@@ -9,7 +9,8 @@ import { batches } from "@/lib/mock/workspace";
 // keyword from the user's text and play their steps on timers, so the live step list, Stop and approvals can be
 // tried without a backend. Numbers come from the shared campaign mock; names are fictional. "Now" is fixed.
 
-export const NOW = "2026-10-27T03:00:00Z";
+import { NOW } from "@/lib/mock/constants";
+export { NOW };
 
 /** The five gated flow steps (PRD-03 AC-AG-G-01; live app lib/agent/flow-steps.ts FLOW_STEPS). */
 export type FlowStep = "campaign" | "template" | "edit" | "activate" | "send";

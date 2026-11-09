@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { COUNTRIES, INDUSTRIES, TODAY, type Campaign, formatDate } from "@/lib/mock/campaigns";
+import { MARKETS, INDUSTRIES, TODAY, type Campaign, formatDate } from "@/lib/mock/campaigns";
 
 // Create-campaign form, fields and copy from the live app (EmailCampaignBoard modal) and PRD-02 AC-EC-C-01.
 export type StartWith = "empty" | "letter" | "poster";
@@ -134,7 +134,7 @@ export function NewCampaignDialog({
                 <FieldLabel htmlFor="nc-countries">Countries (optional)</FieldLabel>
                 <MultiSelect
                   id="nc-countries"
-                  options={COUNTRIES}
+                  options={MARKETS}
                   value={countries}
                   onChange={setCountries}
                   placeholder="Any country — pick one or more"

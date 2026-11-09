@@ -10,9 +10,7 @@ import { type Batch, type ContactList, type Sender, batches, contactLists, membe
 /** Hard ceiling per batch: live app `api/email/batches/route.ts:44` MAX_RECIPIENTS_PER_BATCH = 5000 (= PRD-02
  *  AC-EC-B-03 / BR-RULE-EC-06). An old product brief said 2,000; the repo enforces 5,000. */
 export const BATCH_CAP = 5000;
-/** Shared sender: 1,000 sends per calendar month (PRD-02 AC-EC-I-03, BR-RULE-EC-05). */
-export const SHARED_MONTHLY_CAP = 1000;
-export const SHARED_USED_THIS_MONTH = 0;
+export { SHARED_MONTHLY_CAP, SHARED_USED_THIS_MONTH } from "@/lib/mock/constants";
 /** Worker drip rate: 600 emails/hour (PRD-02 key numbers; live app sendRatePerHour). */
 export const SEND_PER_HOUR = 600;
 /** Today's safe volume (live app send-governor tier "up to 5,000 → 750/day"). Over it the batch spreads over
@@ -25,7 +23,8 @@ export const LOW_SAMPLE = 20;
 /** Workspace auto-pause level (BR-RULE-EC-18): 10% bounces over 7 days with ≥ 200 sends. */
 export const PAUSE_BOUNCE = 0.1;
 
-export const CURRENT_USER_ID = "u1";
+import { CURRENT_USER_ID } from "@/lib/mock/constants";
+export { CURRENT_USER_ID };
 
 export const allTemplates = sampleCampaigns.flatMap((c) => c.templates.map((t) => ({ template: t, campaign: c })));
 

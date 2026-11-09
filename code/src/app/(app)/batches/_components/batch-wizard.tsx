@@ -41,6 +41,7 @@ import {
   sampleCampaigns,
 } from "@/lib/mock/campaigns";
 import { useContactsStore } from "@/lib/mock/contacts";
+import { NOW } from "@/lib/mock/constants";
 import { PageHeader } from "@/components/layout/page-header";
 import { MultiSelect } from "@/components/saella/multi-select";
 import { StatusBadge } from "@/components/saella/status-badge";
@@ -130,8 +131,6 @@ const STEPS = [
   { id: "review", label: "Review" },
 ];
 
-// Fixed "now" for the mock: 2026-10-27 10:00 in the workspace time zone (GMT+7).
-const NOW = "2026-10-27T03:00:00Z";
 const TZ_LABEL = `${WORKSPACE_TZ} (${WORKSPACE_TZ_LABEL})`;
 
 // The picked day and time are workspace time (GMT+7); scheduledIso is UTC, so show it back in workspace time

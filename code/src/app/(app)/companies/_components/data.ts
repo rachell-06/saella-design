@@ -4,17 +4,8 @@
 // (lib/companies/serving.ts COMPANY_COUNTRY_OPTIONS); status is one of the 5 normalised buckets (STATUS_BUCKETS).
 // Only a subset of ISIC classes is mocked. Companies are fictional and generated deterministically.
 
-export const TODAY = "2026-10-27";
-
-export const COUNTRIES = [
-  { code: "SG", label: "Singapore" },
-  { code: "VN", label: "Vietnam" },
-  { code: "MY", label: "Malaysia" },
-  { code: "ID", label: "Indonesia" },
-  { code: "PH", label: "Philippines" },
-] as const;
-export type CountryCode = (typeof COUNTRIES)[number]["code"];
-export const countryLabel = (c: string) => COUNTRIES.find((x) => x.code === c)?.label ?? c;
+import { COUNTRIES, type CountryCode, TODAY, countryLabel } from "@/lib/mock/constants";
+export { COUNTRIES, type CountryCode, TODAY, countryLabel };
 
 export const STATUSES = [
   { value: "active", label: "Active" },
@@ -217,11 +208,8 @@ export function ageYears(iso: string) {
   return (new Date(`${TODAY}T00:00:00`).getTime() - new Date(`${iso}T00:00:00`).getTime()) / (365.25 * 864e5);
 }
 
-/** Masked like the registry API does before unlock: first letter + domain for email, last 3 digits for phone. */
-export function maskEmail(e: string) {
-  const [user, domain] = e.split("@");
-  return `${user[0]}•••@${domain}`;
-}
+export { maskEmail } from "@/lib/format";
+/** Masked like the registry API does before unlock: last 3 digits. */
 export function maskPhone(p: string) {
   return `${p.slice(0, 4)} ••• ••${p.slice(-3)}`;
 }

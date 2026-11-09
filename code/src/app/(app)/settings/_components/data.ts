@@ -11,15 +11,13 @@ import {
 } from "@/lib/mock/workspace";
 
 // Settings-only mock on top of lib/mock/workspace (2026-10-28). Names fictional, numbers illustrative.
-export const TODAY = "2026-10-27";
-export const CURRENT_USER_ID = "u1"; // Linh Tran, the workspace admin
+import { CURRENT_USER_ID, SHARED_MONTHLY_CAP, SHARED_USED_THIS_MONTH, TODAY } from "@/lib/mock/constants";
+export { CURRENT_USER_ID, SHARED_MONTHLY_CAP, SHARED_USED_THIS_MONTH, TODAY };
 
 // Limits (PRD-02): 3 domains per workspace (AC-EC-D-05); 10 senders per domain (BR-RULE-EC-04, CHANGED; AC-EC-S-05
 // still says 3); shared sender 1,000 sends a calendar month (BR-RULE-EC-05). Seats: 10 per org (PRD-05).
 export const MAX_DOMAINS = 3;
 export const MAX_SENDERS_PER_DOMAIN = 10;
-export const SHARED_MONTHLY_CAP = 1000;
-export const SHARED_USED_THIS_MONTH = 312;
 export const MAX_SEATS = 10;
 // The live app gives a new domain 72 hours to verify, then it expires (Repo messages.ts dom.window.*).
 export const VERIFY_WINDOW_H = 72;

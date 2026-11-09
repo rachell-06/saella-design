@@ -1,4 +1,4 @@
-import { type Campaign, COUNTRIES, INDUSTRIES, type Template, CURRENT_USER } from "@/lib/mock/campaigns";
+import { type Campaign, MARKETS, INDUSTRIES, type Template, CURRENT_USER } from "@/lib/mock/campaigns";
 
 // 60 fictional campaigns for the long-list preview (?state=many): 18 active, 5 not started, 37 ended.
 // Generated from fixed formulas (no randomness) so screenshots stay stable. Numbers are illustrative.
@@ -54,7 +54,7 @@ function templatesFor(i: number, ended: boolean, notStarted: boolean): Template[
 export const manyCampaigns: Campaign[] = Array.from({ length: 60 }, (_, i) => {
   const notStarted = i >= 18 && i < 23;
   const ended = i >= 23;
-  const country = COUNTRIES[i % COUNTRIES.length];
+  const country = MARKETS[i % MARKETS.length];
   const round = Math.floor(i / (SEGMENTS.length * 1)) + 1;
   return {
     id: `m${i}`,

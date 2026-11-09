@@ -37,11 +37,11 @@ export type Campaign = {
   templates: Template[];
 };
 
-export const CURRENT_USER = "linh@northwind-ceramics.com";
-// Fixed "today" keeps the derived statuses stable in screenshots.
-export const TODAY = "2026-10-27";
+import { CURRENT_USER, TODAY } from "@/lib/mock/constants";
+export { CURRENT_USER, TODAY };
 
-export const COUNTRIES = ["Vietnam", "Thailand", "Indonesia", "Malaysia", "Philippines", "Singapore"];
+// Markets a campaign targets (free text in the live app), not the company-registry COUNTRIES.
+export const MARKETS = ["Vietnam", "Thailand", "Indonesia", "Malaysia", "Philippines", "Singapore"];
 // ISIC sections, shortened. The live app uses the full ISIC tree.
 export const INDUSTRIES = [
   "Accommodation and food service",

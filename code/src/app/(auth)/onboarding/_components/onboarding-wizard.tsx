@@ -16,6 +16,7 @@ import {
   TrashIcon,
 } from "lucide-react";
 import { INDUSTRIES } from "@/lib/mock/campaigns";
+import { COUNTRIES } from "@/lib/mock/constants";
 import type { Locale } from "@/components/saella/language-picker";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -60,13 +61,6 @@ type Step = 0 | 1 | 2 | 3 | 4;
 
 // Fictional new sign-up (not a real customer).
 const SIGNUP = { email: "hoa@kestrel-logistics.vn", domain: "kestrel-logistics.vn" };
-const COUNTRIES = [
-  { code: "SG", label: "Singapore" },
-  { code: "VN", label: "Vietnam" },
-  { code: "MY", label: "Malaysia" },
-  { code: "ID", label: "Indonesia" },
-  { code: "PH", label: "Philippines" },
-];
 // Friendly names; the live app maps them to ISIC section letters on save (BR-RULE-ONB-03).
 const ALL_INDUSTRIES = [
   ...INDUSTRIES,

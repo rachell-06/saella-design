@@ -8,7 +8,8 @@ import { type ContactList, contactLists, members } from "@/lib/mock/workspace";
 // navigation (/contacts → /contacts/[listId] → /companies "Save as contact list"), which React state alone
 // would lose. Names are fictional; "today" is 2026-10-27.
 
-export const TODAY = "2026-10-27";
+import { CURRENT_USER_ID, TODAY } from "@/lib/mock/constants";
+export { CURRENT_USER_ID, TODAY };
 
 /** Why an address can't be reached (live app: lib/email/contact-status.ts), plus a manual flag. */
 export type UnreachableReason = "bad_format" | "no_mailbox" | "low_quality" | "complained" | "bounced" | "flagged";
@@ -232,7 +233,6 @@ export function normalizeTags(raw: string[]): string[] {
 // ---------------------------------------------------------------------------------------------------------
 // Actions
 
-export const CURRENT_USER_ID = "u1";
 
 export function createList(meta: Pick<ListMeta, "name" | "source"> & { tags?: string[] }, contacts: Contact[] = []): string {
   const id = `l-${Date.now().toString(36)}`;
@@ -313,7 +313,4 @@ export function formatDate(iso: string) {
 
 export const fmt = (n: number) => n.toLocaleString("en-US");
 
-export function maskEmail(e: string) {
-  const [user, domain] = e.split("@");
-  return `${user?.[0] ?? ""}•••@${domain ?? ""}`;
-}
+export { maskEmail } from "@/lib/format";
