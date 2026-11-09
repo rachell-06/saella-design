@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { allTemplates, findTemplate } from "../_components/data";
+import { allTemplates, findTemplate } from "@/lib/mock/templates";
 import { TemplateDetailScreen } from "../_components/template-detail";
 
 // Known ids are prerendered, so the shared sidebar's usePathname() has a value at build time (cacheComponents).

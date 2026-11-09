@@ -5,7 +5,7 @@
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileSpreadsheetIcon, SearchIcon } from "lucide-react";
-import { formatDateTime, rate } from "@/app/(app)/campaigns/_components/data";
+import { formatDateTime, rate } from "@/lib/mock/campaigns";
 import { KpiStrip, KpiStripItem } from "@/components/saella/kpi-strip";
 import { rateKpi } from "@/components/saella/rate-meter";
 import { Badge } from "@/components/ui/badge";
@@ -16,9 +16,9 @@ import { Progress } from "@/components/ui/progress";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { type RecipientEvent, type ReportBatch, domainStats, linkStats, recipientRows } from "./data";
+import { type RecipientEvent, type ReportBatch, domainStats, linkStats, recipientRows } from "@/lib/mock/batches";
 import { exportToast } from "./export";
-import { INTENTS, type ReplyIntent, type ReplyRow, withReplies } from "./replies";
+import { INTENTS, type ReplyIntent, type ReplyRow, withReplies } from "@/lib/mock/replies";
 
 const n = (x: number) => x.toLocaleString("en-US");
 

@@ -15,7 +15,7 @@ import {
   SparklesIcon,
   TrashIcon,
 } from "lucide-react";
-import { INDUSTRIES } from "@/app/(app)/campaigns/_components/data";
+import { INDUSTRIES } from "@/lib/mock/campaigns";
 import type { Locale } from "@/components/saella/language-picker";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";

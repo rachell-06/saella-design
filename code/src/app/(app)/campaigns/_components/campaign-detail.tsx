@@ -25,8 +25,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { type Campaign, campaignStatus, formatDate, totals } from "./data";
-import { TemplateTable, type TemplateTableProps } from "./template-table";
+import { type Campaign, campaignStatus, formatDate, totals } from "@/lib/mock/campaigns";
+import { TemplateTable, type TemplateTableProps } from "@/components/features/template-table";
 
 // Detail pane of the master–detail Campaigns screen. The live app has no campaign page: clicking a campaign
 // jumps to Metrics filtered by it. Here the campaign gets its own pane: targeting, the totals the live app

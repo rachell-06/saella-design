@@ -2,7 +2,7 @@
 // The backend does not classify replies yet: this mock spreads `metrics.replies` over recipients who opened, so the
 // Replied count always equals the batch's replies number shown elsewhere in the report.
 
-import type { RecipientRow, ReportBatch } from "./data";
+import type { RecipientRow, ReportBatch } from "@/lib/mock/batches";
 
 export type ReplyIntent = "meet" | "question" | "ooo" | "not-interested" | "wrong-person";
 

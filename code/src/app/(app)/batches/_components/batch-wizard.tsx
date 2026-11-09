@@ -39,8 +39,8 @@ import {
   CURRENT_USER,
   formatDate,
   sampleCampaigns,
-} from "@/app/(app)/campaigns/_components/data";
-import { useContactsStore } from "@/app/(app)/contacts/_components/data";
+} from "@/lib/mock/campaigns";
+import { useContactsStore } from "@/lib/mock/contacts";
 import { PageHeader } from "@/components/layout/page-header";
 import { MultiSelect } from "@/components/saella/multi-select";
 import { StatusBadge } from "@/components/saella/status-badge";
@@ -104,7 +104,7 @@ import {
   sendEstimate,
   senderAvailability,
   summarizeAudience,
-} from "./data";
+} from "@/lib/mock/batches";
 import { LeftOutDialog } from "./left-out-dialog";
 import {
   type RefinedAudience,

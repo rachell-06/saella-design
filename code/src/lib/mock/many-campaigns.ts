@@ -1,4 +1,4 @@
-import { type Campaign, COUNTRIES, INDUSTRIES, type Template, CURRENT_USER } from "@/app/(app)/campaigns/_components/data";
+import { type Campaign, COUNTRIES, INDUSTRIES, type Template, CURRENT_USER } from "@/lib/mock/campaigns";
 
 // 60 fictional campaigns for the long-list preview (?state=many): 18 active, 5 not started, 37 ended.
 // Generated from fixed formulas (no randomness) so screenshots stay stable. Numbers are illustrative.

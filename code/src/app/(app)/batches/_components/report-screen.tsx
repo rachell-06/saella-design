@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
-import { formatDate, formatDateTime, rate } from "@/app/(app)/campaigns/_components/data";
+import { formatDate, formatDateTime, rate } from "@/lib/mock/campaigns";
 import { PageHeader } from "@/components/layout/page-header";
 import { KpiStrip, KpiStripItem } from "@/components/saella/kpi-strip";
 import { rateKpi } from "@/components/saella/rate-meter";
@@ -57,7 +57,7 @@ import {
   memberById,
   senderById,
   updateCreatedBatch,
-} from "./data";
+} from "@/lib/mock/batches";
 import { exportToast } from "./export";
 import { ClicksTab, DeliverabilityTab, RecipientsTab } from "./report-tabs";
 import { SubjectText } from "./subject-text";

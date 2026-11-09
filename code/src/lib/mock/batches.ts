@@ -1,5 +1,5 @@
 import { workspaceParts } from "@/lib/time";
-import { type Campaign, type Template, TODAY, sampleCampaigns } from "@/app/(app)/campaigns/_components/data";
+import { type Campaign, type Template, TODAY, sampleCampaigns } from "@/lib/mock/campaigns";
 import { type Batch, type ContactList, type Sender, batches, contactLists, members, senders } from "@/lib/mock/workspace";
 
 // Sending + reports data (2026-10-28). The shared `batches` mock carries status and counts; everything a report

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileTextIcon, LayoutTemplateIcon } from "lucide-react";
-import { type Campaign, campaignStatus } from "@/app/(app)/campaigns/_components/data";
+import { type Campaign, campaignStatus } from "@/lib/mock/campaigns";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,7 +28,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { TemplateKind } from "./data";
+import type { TemplateKind } from "@/lib/mock/templates";
 
 // New template: name, campaign, kind (AC-EC-T-01), then the editor opens on an unsaved draft. The live app
 // also offers a starter gallery (StarterPicker, TemplateGalleryPicker); here new templates start from one

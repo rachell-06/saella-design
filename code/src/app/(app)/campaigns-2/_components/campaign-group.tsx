@@ -17,7 +17,7 @@ import {
   DeliveredCell,
   TemplateActions,
   TemplateName,
-} from "@/app/(app)/campaigns/_components/template-table";
+} from "@/components/features/template-table";
 import {
   type Campaign,
   type Template,
@@ -26,7 +26,7 @@ import {
   rate,
   totals,
   withFollowUps,
-} from "@/app/(app)/campaigns/_components/data";
+} from "@/lib/mock/campaigns";
 import { StatusBadge } from "@/components/saella/status-badge";
 import { Button } from "@/components/ui/button";
 import {

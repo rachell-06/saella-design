@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Toggle } from "@/components/ui/toggle";
-import { type TemplateKind } from "../data";
+import { type TemplateKind } from "@/lib/mock/templates";
 
 // Subject line in Write with AI (Competitor.md R4, after Apollo A4 + Mailchimp F1), 2026-10-29.
 // The agent suggests 3 subjects, written from the email body plus an optional prompt. They stream in one by

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { CircleAlertIcon, CircleCheckIcon, PlayIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
-import { PAUSE_BOUNCE, TODAY, allBatches } from "@/app/(app)/batches/_components/data";
+import { PAUSE_BOUNCE, TODAY, allBatches } from "@/lib/mock/batches";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";

@@ -2,7 +2,7 @@
 
 import { StatusBadge } from "@/components/saella/status-badge";
 import { cn } from "@/lib/utils";
-import { type Campaign, campaignStatus, rate, totals } from "./data";
+import { type Campaign, campaignStatus, rate, totals } from "@/lib/mock/campaigns";
 
 // Master list of the master–detail Campaigns screen (pattern learned from Studio Admin mail/logistics,
 // 2026-10-27). Name on the first line; status (only when not Active), template count and open rate on the second.

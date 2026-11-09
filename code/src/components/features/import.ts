@@ -1,4 +1,4 @@
-import { type Contact, isDuplicateIn } from "./data";
+import { type Contact, isDuplicateIn } from "@/lib/mock/contacts";
 
 // Contact import logic (PRD Contacts US-CON-I + live app import route, CON-SEQ-004), kept apart from the
 // dialog so the rules read in one place:

@@ -22,9 +22,9 @@ import {
   formatDateTime,
   sampleCampaigns,
   withFollowUps,
-} from "@/app/(app)/campaigns/_components/data";
-import { TemplateName } from "@/app/(app)/campaigns/_components/template-table";
-import { manyCampaigns } from "@/app/(app)/campaigns-2/_components/many-campaigns";
+} from "@/lib/mock/campaigns";
+import { TemplateName } from "@/components/features/template-table";
+import { manyCampaigns } from "@/lib/mock/many-campaigns";
 import { PageHeader } from "@/components/layout/page-header";
 import { revealOnRowHover } from "@/components/saella/data-table";
 import { FilterBar, type FilterValue } from "@/components/saella/filter-bar";
@@ -46,9 +46,9 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { AutomateDialog } from "./automate-dialog";
-import { currentSchedule, useAutomation } from "./automation";
-import { type TemplateRow, allTemplates, ownerName, viewerFor } from "./data";
+import { AutomateDialog } from "@/components/features/automate-dialog";
+import { currentSchedule, useAutomation } from "@/components/features/automation";
+import { type TemplateRow, allTemplates, ownerName, viewerFor } from "@/lib/mock/templates";
 import { NewTemplateDialog } from "./new-template-dialog";
 import { AutomateButton, SendButton, TemplateMenu } from "./template-actions";
 

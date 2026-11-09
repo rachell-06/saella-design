@@ -1,7 +1,7 @@
-import type { Contact } from "@/app/(app)/contacts/_components/data";
-import { KNOWN_TAGS, MERGE_TAGS, detailsFor, splitTags } from "@/app/(app)/templates/_components/data";
+import type { Contact } from "@/lib/mock/contacts";
+import { KNOWN_TAGS, MERGE_TAGS, detailsFor, splitTags } from "@/lib/mock/templates";
 import type { Sender } from "@/lib/mock/workspace";
-import { type AudienceSummary, BATCH_CAP, LIST_OVERLAP, SUBJECTS } from "./data";
+import { type AudienceSummary, BATCH_CAP, LIST_OVERLAP, SUBJECTS } from "@/lib/mock/batches";
 
 // Who a new batch really goes to, person by person (2026-10-29, Competitor.md R1–R3).
 // R1 "Don't send to": lists and contact tags left out on top of the live app's own exclusions (HubSpot "Don't

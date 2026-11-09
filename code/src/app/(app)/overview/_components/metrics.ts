@@ -1,5 +1,5 @@
-import { type ReportBatch, allBatches, findTemplate, senderById } from "@/app/(app)/batches/_components/data";
-import { TODAY, campaignStatus } from "@/app/(app)/campaigns/_components/data";
+import { type ReportBatch, allBatches, findTemplate, senderById } from "@/lib/mock/batches";
+import { TODAY, campaignStatus } from "@/lib/mock/campaigns";
 import type { CampaignStatus } from "@/components/saella/status-badge";
 
 // Overview metrics (live app app/dashboard/email/metrics + lib/email/metrics-window.ts + lib/email/ranking.ts),

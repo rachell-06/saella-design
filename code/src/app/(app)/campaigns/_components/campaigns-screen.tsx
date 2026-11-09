@@ -25,8 +25,8 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CampaignDetail } from "./campaign-detail";
 import { CampaignList } from "./campaign-list";
-import { type Campaign, CURRENT_USER, campaignStatus, sampleCampaigns } from "./data";
-import { NewCampaignDialog, type StartWith } from "./new-campaign-dialog";
+import { type Campaign, CURRENT_USER, campaignStatus, sampleCampaigns } from "@/lib/mock/campaigns";
+import { NewCampaignDialog, type StartWith } from "@/components/features/new-campaign-dialog";
 
 // Campaign screen (PRD-02 + live app /dashboard/email), master–detail layout (DESIGN.md §9.6):
 // status tabs with counts and search/country filter on top, campaign list on the left, the selected

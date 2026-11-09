@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { createList, fmt, normalizeTags, upsertContacts, useContactsStore } from "./data";
+import { createList, fmt, normalizeTags, upsertContacts, useContactsStore } from "@/lib/mock/contacts";
 import {
   type DuplicateMode,
   FIELDS,
@@ -37,7 +37,7 @@ import {
   guessField,
   parseCsv,
   templateCsv,
-} from "./import";
+} from "@/components/features/import";
 
 // Upload contacts: choose file → match columns → review → import (2026-10-28). Nothing is written until the
 // review is confirmed (PRD Contacts AC-CON-I-02, BR-RULE-CON-06). Tags apply to the whole upload and are never a

@@ -1,5 +1,5 @@
-import { type Block, KNOWN_TAGS, SAMPLE_VALUES, type TemplateKind, resolveTags, splitTags } from "../data";
-import { senderById } from "../data";
+import { type Block, KNOWN_TAGS, SAMPLE_VALUES, type TemplateKind, resolveTags, splitTags } from "@/lib/mock/templates";
+import { senderById } from "@/lib/mock/templates";
 
 // Content check before a template goes active. PRD-02 doesn't specify one and the live app has no editor check
 // (its pre-send check is about recipient lists, PreflightPanel); rules below are a proposal (ĐX 2026-10-28):

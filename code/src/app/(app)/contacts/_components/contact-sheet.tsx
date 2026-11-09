@@ -23,7 +23,7 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { type ActivityEvent, type ActivityKind, contactActivity, formatEventTime, groupByMonth, summarize } from "./contact-activity";
-import { type Contact, emailSafety, fmt, formatDate, maskEmail, safetyReason } from "./data";
+import { type Contact, emailSafety, fmt, formatDate, maskEmail, safetyReason } from "@/lib/mock/contacts";
 import { SafetyBadge } from "./email-safety";
 
 // Contact profile in a Sheet (DESIGN.md §8.1: Sheet for contact detail; R8 2026-10-29, HubSpot H3 + Apollo A2).

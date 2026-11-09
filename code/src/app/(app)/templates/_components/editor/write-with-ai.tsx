@@ -8,8 +8,8 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { type Block, type TemplateKind, newBlockId } from "../data";
-import { EmailBody } from "./email-body";
+import { type Block, type TemplateKind, newBlockId } from "@/lib/mock/templates";
+import { EmailBody } from "@/components/features/email-body";
 import { type SubjectPreview, WriteSubject } from "./write-subject";
 
 // "Write with AI" (PRD-02 AC-EC-G-01..06, live app EmailTemplateEditor runAiGenerate). The draft streams in

@@ -18,7 +18,7 @@ import {
   ZapIcon,
 } from "lucide-react";
 import { revealOnRowHover } from "@/components/saella/data-table";
-import { AutomateDialog } from "@/app/(app)/templates/_components/automate-dialog";
+import { AutomateDialog } from "@/components/features/automate-dialog";
 import { RateCell } from "@/components/saella/rate-meter";
 import { StatusBadge } from "@/components/saella/status-badge";
 import { members } from "@/lib/mock/workspace";
@@ -47,7 +47,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { CURRENT_USER, type Campaign, type Template, followUpRule, formatDate, rate, withFollowUps } from "./data";
+import { CURRENT_USER, type Campaign, type Template, followUpRule, formatDate, rate, withFollowUps } from "@/lib/mock/campaigns";
 
 export type TemplateTableProps = {
   campaign: Campaign;

@@ -20,14 +20,14 @@ import {
   RotateCwIcon,
   XIcon,
 } from "lucide-react";
-import { allBatches, batchTitle } from "@/app/(app)/batches/_components/data";
-import { INTENTS, type ReplyIntent } from "@/app/(app)/batches/_components/replies";
+import { allBatches, batchTitle } from "@/lib/mock/batches";
+import { INTENTS, type ReplyIntent } from "@/lib/mock/replies";
 import {
   campaignStatus,
   formatDate,
   formatDateTime,
   sampleCampaigns,
-} from "@/app/(app)/campaigns/_components/data";
+} from "@/lib/mock/campaigns";
 import { contactLists, senders, sendingDomains } from "@/lib/mock/workspace";
 import { PageHeader } from "@/components/layout/page-header";
 import { ChartCard } from "@/components/saella/chart-card";

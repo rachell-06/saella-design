@@ -1,7 +1,7 @@
 import type { ApprovalState } from "@/components/saella/approval-card";
 import type { AgentStep } from "@/components/saella/agent-steps";
-import { getBatch } from "@/app/(app)/batches/_components/data";
-import { rate, sampleCampaigns } from "@/app/(app)/campaigns/_components/data";
+import { getBatch } from "@/lib/mock/batches";
+import { rate, sampleCampaigns } from "@/lib/mock/campaigns";
 import { RATE_BANDS } from "@/components/saella/rate-meter";
 import { batches } from "@/lib/mock/workspace";
 

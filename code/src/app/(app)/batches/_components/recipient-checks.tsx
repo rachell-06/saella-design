@@ -9,7 +9,7 @@ import {
   TriangleAlertIcon,
   UsersIcon,
 } from "lucide-react";
-import { resolveTags } from "@/app/(app)/templates/_components/data";
+import { resolveTags } from "@/lib/mock/templates";
 import {
   Alert,
   AlertAction,
@@ -43,7 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { listById } from "./data";
+import { listById } from "@/lib/mock/batches";
 import {
   type DataIssue,
   type Recipient,

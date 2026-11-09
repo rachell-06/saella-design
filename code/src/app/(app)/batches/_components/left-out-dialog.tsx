@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { REASON_LABEL } from "@/app/(app)/contacts/_components/data";
-import { formatDate } from "@/app/(app)/campaigns/_components/data";
+import { REASON_LABEL } from "@/lib/mock/contacts";
+import { formatDate } from "@/lib/mock/campaigns";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { BATCH_CAP, allBatches, batchTitle, listById } from "./data";
+import { BATCH_CAP, allBatches, batchTitle, listById } from "@/lib/mock/batches";
 import type { RefinedAudience } from "./recipient-check";
 
 // "Review who is left out" (R1, 2026-10-29; HubSpot "Estimated recipients 2 out of 3 · review reasons").

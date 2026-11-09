@@ -15,7 +15,7 @@ import {
   UserRoundCogIcon,
   ZapIcon,
 } from "lucide-react";
-import type { Campaign, Template } from "@/app/(app)/campaigns/_components/data";
+import type { Campaign, Template } from "@/lib/mock/campaigns";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -29,8 +29,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LockedTip } from "./automate-dialog";
-import { type Viewer, accessFor, canEdit, canManage, canTransfer, lockReason } from "./data";
+import { LockedTip } from "@/components/features/automate-dialog";
+import { type Viewer, accessFor, canEdit, canManage, canTransfer, lockReason } from "@/lib/mock/templates";
 
 // Template actions for the Templates screens, with the live app's four permission tiers
 // (Repo src/lib/email/template-permissions.ts): Send/Automate/Edit/activate need canEdit; Share, View log and

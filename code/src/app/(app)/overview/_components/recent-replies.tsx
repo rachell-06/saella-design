@@ -14,9 +14,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRightIcon, CircleAlertIcon, InboxIcon, RotateCwIcon } from "lucide-react";
-import { type ReportBatch, batchTitle, recipientRows } from "@/app/(app)/batches/_components/data";
-import { INTENTS, type ReplyIntent, type ReplyRow, withReplies } from "@/app/(app)/batches/_components/replies";
-import { formatDateTime } from "@/app/(app)/campaigns/_components/data";
+import { type ReportBatch, batchTitle, recipientRows } from "@/lib/mock/batches";
+import { INTENTS, type ReplyIntent, type ReplyRow, withReplies } from "@/lib/mock/replies";
+import { formatDateTime } from "@/lib/mock/campaigns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

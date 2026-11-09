@@ -21,8 +21,8 @@ import {
   campaignStatus,
   sampleCampaigns,
   totals,
-} from "@/app/(app)/campaigns/_components/data";
-import { NewCampaignDialog, type StartWith } from "@/app/(app)/campaigns/_components/new-campaign-dialog";
+} from "@/lib/mock/campaigns";
+import { NewCampaignDialog, type StartWith } from "@/components/features/new-campaign-dialog";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -48,7 +48,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CampaignGroup } from "./campaign-group";
-import { manyCampaigns } from "./many-campaigns";
+import { manyCampaigns } from "@/lib/mock/many-campaigns";
 
 // Campaigns, option 2 (decisions.md, pending): every campaign is a collapsible card with its templates inside,
 // learned from Studio Admin /dashboard/infrastructure (wide search + "⊕ facet" buttons, grouped

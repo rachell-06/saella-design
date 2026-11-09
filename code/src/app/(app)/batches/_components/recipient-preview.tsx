@@ -7,8 +7,8 @@ import {
   MailIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { detailsFor } from "@/app/(app)/templates/_components/data";
-import { EmailBody, TagText } from "@/app/(app)/templates/_components/editor/email-body";
+import { detailsFor } from "@/lib/mock/templates";
+import { EmailBody, TagText } from "@/components/features/email-body";
 import { Button } from "@/components/ui/button";
 import {
   Card,

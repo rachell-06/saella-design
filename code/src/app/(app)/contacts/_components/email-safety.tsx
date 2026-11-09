@@ -2,7 +2,7 @@
 
 import { CircleCheckIcon, CircleSlashIcon, TriangleAlertIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { type EmailSafety, SAFETY_LABEL } from "./data";
+import { type EmailSafety, SAFETY_LABEL } from "@/lib/mock/contacts";
 
 // Email safety badge (R10, 2026-10-29). Only the two levels that need a look get colour: caution is warning,
 // do not send is destructive; safe stays neutral so a long, mostly safe list reads calm. Same badge in the

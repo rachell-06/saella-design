@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ClockIcon, CornerDownRightIcon, InfoIcon, LockIcon, RepeatIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
-import { type Campaign, campaignStatus, formatDate } from "@/app/(app)/campaigns/_components/data";
+import { type Campaign, campaignStatus, formatDate } from "@/lib/mock/campaigns";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,8 +40,8 @@ import {
   nextRun,
   scheduleWhen,
   useAutomation,
-} from "./automation";
-import { type Viewer, accessFor, canEdit, findTemplate, lockReason, viewerFor } from "./data";
+} from "@/components/features/automation";
+import { type Viewer, accessFor, canEdit, findTemplate, lockReason, viewerFor } from "@/lib/mock/templates";
 
 // Automate a template (live app TemplateAutomateModal + ScheduleConfigModal + FlowConfigModal, rebuilt
 // 2026-10-28). Two tabs:

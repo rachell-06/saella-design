@@ -22,7 +22,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { CURRENT_USER, type Template } from "@/app/(app)/campaigns/_components/data";
+import { CURRENT_USER, type Template } from "@/lib/mock/campaigns";
 import { PageHeader } from "@/components/layout/page-header";
 import { StatusBadge } from "@/components/saella/status-badge";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -46,7 +46,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
-import { LockedTip } from "../automate-dialog";
+import { LockedTip } from "@/components/features/automate-dialog";
 import {
   BLOCKS_FOR,
   BLOCK_LABEL,
@@ -68,10 +68,10 @@ import {
   senderOptions,
   starterBlocks,
   viewerFor,
-} from "../data";
+} from "@/lib/mock/templates";
 import { BlockInspector, TagField } from "./block-inspector";
 import { type Issue, checkContent, checkSubject } from "./content-check";
-import { EmailBody } from "./email-body";
+import { EmailBody } from "@/components/features/email-body";
 import { SubjectChecklist } from "./subject-checklist";
 import { WriteWithAi } from "./write-with-ai";
 

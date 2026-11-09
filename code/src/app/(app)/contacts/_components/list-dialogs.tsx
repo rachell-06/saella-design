@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { fmt, type ListMeta } from "./data";
+import { fmt, type ListMeta } from "@/lib/mock/contacts";
 
 // Rename and delete for a contact list, used on /contacts and /contacts/[listId].
 export function RenameListDialog({

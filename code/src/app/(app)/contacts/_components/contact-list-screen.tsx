@@ -70,9 +70,9 @@ import {
   updateContacts,
   upsertContacts,
   useContactsStore,
-} from "./data";
+} from "@/lib/mock/contacts";
 import { SAFETY_RANK, SafetyBadge } from "./email-safety";
-import { ImportDialog } from "./import-dialog";
+import { ImportDialog } from "@/components/features/import-dialog";
 import { DeleteListDialog, RenameListDialog } from "./list-dialogs";
 
 // One contact list (2026-10-28). Tabs All / Reachable / Unreachable with counts; one search across name, email,

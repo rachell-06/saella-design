@@ -1,4 +1,4 @@
-import { MERGE_TAGS, splitTags } from "@/app/(app)/templates/_components/data";
+import { MERGE_TAGS, splitTags } from "@/lib/mock/templates";
 
 const TAG_LABEL = new Map<string, string>(MERGE_TAGS.map((m) => [m.tag, m.label]));
 

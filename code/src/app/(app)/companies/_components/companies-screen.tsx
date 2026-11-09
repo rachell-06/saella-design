@@ -17,9 +17,9 @@ import {
   XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { createList, upsertContacts, useContactsStore } from "@/app/(app)/contacts/_components/data";
-import { ImportDialog } from "@/app/(app)/contacts/_components/import-dialog";
-import { LEADS_DESCRIPTION, LEADS_TITLE, LeadsTabs } from "@/components/layout/leads-tabs";
+import { createList, upsertContacts, useContactsStore } from "@/lib/mock/contacts";
+import { ImportDialog } from "@/components/features/import-dialog";
+import { LEADS_DESCRIPTION, LEADS_TITLE, LeadsTabs } from "@/components/saella/leads-tabs";
 import { PageHeader } from "@/components/layout/page-header";
 import { SaellaMini } from "@/components/saella/saella-mini";
 import { DataTable, type DataTableColumn } from "@/components/saella/data-table";

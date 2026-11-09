@@ -4,8 +4,8 @@ import {
   type Template,
   campaignStatus,
   sampleCampaigns,
-} from "@/app/(app)/campaigns/_components/data";
-import { getBatch } from "@/app/(app)/batches/_components/data";
+} from "@/lib/mock/campaigns";
+import { getBatch } from "@/lib/mock/batches";
 import { batches, members, senders, type Sender } from "@/lib/mock/workspace";
 
 // Template-level data the Campaigns mock doesn't carry: kind, subject, preheader, default sender, body and

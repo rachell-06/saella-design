@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { type Contact, normalizeTags } from "./data";
+import { type Contact, normalizeTags } from "@/lib/mock/contacts";
 
 // Add or edit one contact (PRD Contacts AC-CON-M-01 name, email, company, position; AC-CON-M-03 edit any
 // field). Email is the only required field (CON-SEQ-004). On edit, tags are replaced, not merged (CON-SEQ-003).

@@ -1,6 +1,6 @@
 import { WORKSPACE_TZ } from "@/lib/time";
-import { type ReportBatch, allBatches, batchTitle, findTemplate } from "@/app/(app)/batches/_components/data";
-import { type Contact, TODAY } from "./data";
+import { type ReportBatch, allBatches, batchTitle, findTemplate } from "@/lib/mock/batches";
+import { type Contact, TODAY } from "@/lib/mock/contacts";
 
 // Email activity of one contact (R8, 2026-10-29; HubSpot contact Activities tab, Apollo A2 engagement). The live
 // app keeps per-recipient events for each batch (report Recipients tab) but has no per-contact view or API yet;

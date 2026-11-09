@@ -31,7 +31,7 @@ import {
   formatDateTime,
   rate,
   sampleCampaigns,
-} from "@/app/(app)/campaigns/_components/data";
+} from "@/lib/mock/campaigns";
 import { PageHeader } from "@/components/layout/page-header";
 import { KpiStrip, KpiStripItem } from "@/components/saella/kpi-strip";
 import { StatusBadge } from "@/components/saella/status-badge";
@@ -45,10 +45,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { batches, contactLists, senders } from "@/lib/mock/workspace";
 import { cn } from "@/lib/utils";
-import { AutomateDialog } from "./automate-dialog";
-import { TRIGGERS, currentSchedule, delayLabel, nextRun, scheduleWhen, tzLabel, useAutomation } from "./automation";
-import { SAMPLE_VALUES, accessFor, canEdit, detailsFor, resolveTags, findTemplate, lockReason, ownerName, viewerFor, withBatchTotals } from "./data";
-import { EmailBody } from "./editor/email-body";
+import { AutomateDialog } from "@/components/features/automate-dialog";
+import { TRIGGERS, currentSchedule, delayLabel, nextRun, scheduleWhen, tzLabel, useAutomation } from "@/components/features/automation";
+import { SAMPLE_VALUES, accessFor, canEdit, detailsFor, resolveTags, findTemplate, lockReason, ownerName, viewerFor, withBatchTotals } from "@/lib/mock/templates";
+import { EmailBody } from "@/components/features/email-body";
 import { SendButton, TemplateMenu } from "./template-actions";
 
 // One template's results (live app EmailTemplateAnalytics + Repo src/lib/email/analytics.ts TemplateRollup):

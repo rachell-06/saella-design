@@ -15,7 +15,7 @@ import {
   UsersIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { LEADS_DESCRIPTION, LEADS_TITLE, LeadsTabs } from "@/components/layout/leads-tabs";
+import { LEADS_DESCRIPTION, LEADS_TITLE, LeadsTabs } from "@/components/saella/leads-tabs";
 import { PageHeader } from "@/components/layout/page-header";
 import { DataTable, type DataTableColumn, revealOnRowHover } from "@/components/saella/data-table";
 import { FilterBar, type FilterValue } from "@/components/saella/filter-bar";
@@ -32,8 +32,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { SOURCE_LABEL, deleteList, fmt, formatDate, type ListMeta, listStats, ownerName, renameList, useContactsStore } from "./data";
-import { ImportDialog } from "./import-dialog";
+import { SOURCE_LABEL, deleteList, fmt, formatDate, type ListMeta, listStats, ownerName, renameList, useContactsStore } from "@/lib/mock/contacts";
+import { ImportDialog } from "@/components/features/import-dialog";
 import { DeleteListDialog, RenameListDialog } from "./list-dialogs";
 
 // Contacts (PRD Contacts + live app /dashboard/email/contacts, 2026-10-28): the workspace's own contact lists.

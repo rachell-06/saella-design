@@ -1,8 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { type FollowUp, TODAY, sampleCampaigns } from "@/app/(app)/campaigns/_components/data";
-import { withBatchTotals } from "./data";
+import { type FollowUp, TODAY, sampleCampaigns } from "@/lib/mock/campaigns";
+import { withBatchTotals } from "@/lib/mock/templates";
 
 // Automations of a template, modelled on the live app (Repo supabase/migrations/20260714000001_email_automations.sql,
 // 20260720000002_automation_flows.sql; TemplateAutomateModal, ScheduleConfigModal, FlowConfigModal).
