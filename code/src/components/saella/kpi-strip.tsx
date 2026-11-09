@@ -1,0 +1,115 @@
+import Link from "next/link";
+import { ArrowDownRightIcon, ArrowRightIcon, ArrowUpRightIcon, CircleAlertIcon, TriangleAlertIcon } from "lucide-react";
+import type { MetricDelta } from "@/components/saella/metric-card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+
+// Joined KPI strip (2026-10-28): one bordered row of cells divided by hairlines, for a detail page's headline
+// numbers (learned from Studio Admin analytics; first used inline in campaigns/campaign-detail.tsx). Use
+// MetricCard instead when a number needs its own card; a small delta can sit next to the number here
+// (2026-10-28, Overview made compact). A value from too small a sample is greyed
+// and its note says so (BR-RULE-EC-21).
+// 2026-11-05: the one KPI pattern for Overview, Campaigns and the batch report. Rates come from rateKpi()
+// (rate-meter.tsx): note "2,349 of 5,968 delivered", counts and threshold in a tooltip, warning/danger in
+// soft-foreground text with an icon (only Bounce and Delivery, DESIGN.md §2).
+export function KpiStrip({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <dl className={cn("grid auto-cols-fr grid-flow-col divide-x rounded-lg border", className)}>{children}</dl>;
+}
+
+export function KpiStripItem({
+  label,
+  value,
+  note,
+  delta,
+  detail,
+  muted = false,
+  tone,
+  loading = false,
+  href,
+  hrefLabel,
+}: {
+  label: string;
+  /** Formatted value; undefined shows a dash. */
+  value?: string;
+  /** One short line under the number, e.g. "466 opened". */
+  note?: string;
+  /** Change vs a previous period, shown small next to the number; its period goes in the tooltip. */
+  delta?: MetricDelta;
+  /** Counts behind the number, shown on hover instead of an extra line (e.g. "2,349 opened"). */
+  detail?: string;
+  /** Grey number: too few to judge, or not available yet. */
+  muted?: boolean;
+  /** A value past a threshold (e.g. bounce ≥ 5% warning, ≥ 10% danger); shown with an icon, never colour alone. */
+  tone?: "warning" | "danger";
+  loading?: boolean;
+  /** Makes the whole cell a link, e.g. to the people behind the number (2026-10-29, learned from Mailchimp). */
+  href?: string;
+  /** Accessible name for the link; defaults to the label. */
+  hrefLabel?: string;
+}) {
+  const flagged = tone && !muted && value;
+  const Flag = tone === "danger" ? CircleAlertIcon : TriangleAlertIcon;
+  const cell = (
+    <div className={cn("group/kpi relative flex min-w-0 flex-col gap-1 px-4 py-3", href && "transition-colors first:rounded-l-lg last:rounded-r-lg hover:bg-muted/50")}>
+      {href && (
+        // A stretched link keeps dt/dd direct children of the cell (an <a> may not wrap them inside a <dl>).
+        <Link href={href} scroll={false} aria-label={hrefLabel ?? label} className="absolute inset-0 rounded-[inherit] outline-none focus-visible:ring-3 focus-visible:ring-ring/50" />
+      )}
+      <dt className="truncate text-sm text-muted-foreground">{label}</dt>
+      {loading ? (
+        <dd>
+          <Skeleton className="h-8 w-20" />
+        </dd>
+      ) : (
+        <dd className="flex flex-wrap items-baseline gap-x-2">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 text-2xl font-semibold tracking-title tabular-nums",
+              (muted || !value) && "text-subtle-foreground",
+              flagged && (tone === "danger" ? "text-destructive-soft-foreground" : "text-warning-soft-foreground")
+            )}
+          >
+            {flagged && <Flag aria-hidden className="size-5 shrink-0" />}
+            {value ?? "–"}
+            {flagged && <span className="sr-only">{tone === "danger" ? ", danger" : ", warning"}</span>}
+          </span>
+          {delta && value && !muted && <Delta delta={delta} />}
+        </dd>
+      )}
+      {note && !loading && (
+        // Wraps rather than truncates: in a narrow strip "667 of 1,850 delivered" lost its last word (2026-11-05).
+        <dd className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
+          <span className="min-w-0">{note}</span>
+          {/* R7 (2026-10-29): a linked cell says so before hover, with a small arrow that nudges on hover. */}
+          {href && <ArrowRightIcon aria-hidden className="size-3.5 shrink-0 transition-transform group-hover/kpi:translate-x-0.5" />}
+        </dd>
+      )}
+    </div>
+  );
+  if (!detail || loading) return cell;
+  // Counts and threshold on hover or focus (shadcn Tooltip, not a native title).
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{cell}</TooltipTrigger>
+      <TooltipContent className="max-w-64">{detail}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function Delta({ delta }: { delta: MetricDelta }) {
+  const Arrow = delta.direction === "down" ? ArrowDownRightIcon : ArrowUpRightIcon;
+  return (
+    <span
+      title={delta.period}
+      className={cn(
+        "inline-flex items-center gap-0.5 text-sm font-medium tabular-nums",
+        delta.good ? "text-success-soft-foreground" : "text-destructive-soft-foreground"
+      )}
+    >
+      <Arrow aria-hidden className="size-4" />
+      {delta.value}
+      <span className="sr-only">{delta.period}</span>
+    </span>
+  );
+}

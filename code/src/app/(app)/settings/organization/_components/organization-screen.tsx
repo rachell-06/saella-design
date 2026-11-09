@@ -1,0 +1,661 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import {
+  CircleAlertIcon,
+  CircleCheckIcon,
+  FileTextIcon,
+  InfoIcon,
+  LockIcon,
+  MoreHorizontalIcon,
+  ShieldIcon,
+  UserCheckIcon,
+  UserPlusIcon,
+  UserXIcon,
+  XIcon,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ConfirmDialog, type ConfirmRequest } from "../../_components/confirm-dialog";
+import {
+  CURRENT_USER_ID,
+  MAX_SEATS,
+  ORG,
+  type OrgMember,
+  canSendAs,
+  formatDay,
+  initialMembers,
+} from "../../_components/data";
+import { SectionHeader } from "../../_components/section-header";
+
+// Settings → Organization (PRD Organization & Roles, read 2026-10-28; live app components/email/UsersSection.tsx).
+// - One org per email domain; the first account to verify the domain becomes its admin (BR-ORG-01,
+//   BR-RULE-ORG-01, AC-ORG-A-01). Colleagues on the domain ask to join (BR-ORG-02).
+// - Members list is admin-only (AC-ORG-U-01); statuses Invited, Requested, Active, Disabled.
+// - Joins are approved, never automatic; approval permanently deletes the requester's own workspace and moves
+//   purchased credits across, and the dialog says so (BR-RULE-ORG-04/05, AC-ORG-U-03, AC-ORG-J-05).
+// - Invite by email; shows as Invited until first sign-in; an invite can be withdrawn (AC-ORG-U-02, live app).
+// - Disable is reversible and keeps history; their automations pause; the admin reassigns their templates
+//   (AC-ORG-U-04, BR-RULE-ORG-06, ORG-SEQ-004). The admin can't be disabled (EC-ORG-05).
+// - Send-as: only members with a confirmed sender on a verified org domain; the member is notified (BR-RULE-ORG-07,
+//   AC-ORG-U-05). The default sender is chosen in one place only, Settings › Sending › Senders (2026-11-05).
+// - One admin; transfer only to an Active member, with a type-to-confirm step (BR-RULE-ORG-03, AC-ORG-U-06).
+// - Seats: 10 per org (PRD-05).
+// Preview with ?state= loading | error | member | unclaimed | no-requests
+type Preview = "loading" | "error" | "member" | "unclaimed" | "no-requests" | "";
+
+const STATUS_LABEL: Record<OrgMember["status"], string> = {
+  invited: "Invited",
+  requested: "Requested",
+  active: "Active",
+  disabled: "Disabled",
+};
+
+export function OrganizationScreen() {
+  const preview = (useSearchParams().get("state") ?? "") as Preview;
+  const [loading, setLoading] = useState(preview === "loading");
+  const [loadError, setLoadError] = useState(preview === "error");
+  const [members, setMembers] = useState<OrgMember[]>(() =>
+    preview === "no-requests" ? initialMembers.filter((m) => m.status !== "requested") : initialMembers
+  );
+  const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
+  const [invite, setInvite] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [reassign, setReassign] = useState<{ from: OrgMember; to: string } | null>(null);
+  const [transferTo, setTransferTo] = useState("");
+  const [transferTyped, setTransferTyped] = useState("");
+  const [transferOpen, setTransferOpen] = useState(false);
+
+  const me = members.find((m) => m.id === CURRENT_USER_ID);
+  const isAdmin = preview !== "member" && me?.role === "admin";
+  const admin = members.find((m) => m.role === "admin");
+  const requests = members.filter((m) => m.status === "requested");
+  // Requests don't take a seat until approved; disabled members free theirs.
+  const seatsUsed = members.filter((m) => m.status === "active" || m.status === "invited").length;
+  const update = (id: string, patch: Partial<OrgMember>) =>
+    setMembers((list) => list.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4" aria-busy>
+        <span className="sr-only">Loading organization</span>
+        <Skeleton className="h-20 w-full rounded-card" />
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-72 w-full rounded-card" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Alert variant="destructive">
+        <CircleAlertIcon />
+        <AlertTitle>Couldn&apos;t load members</AlertTitle>
+        <AlertDescription>Check your connection and try again.</AlertDescription>
+        <AlertAction>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setLoadError(false);
+              setLoading(true);
+              setTimeout(() => setLoading(false), 700);
+            }}
+          >
+            Retry
+          </Button>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  // ---- actions ------------------------------------------------------------------------------------------
+
+  function approve(m: OrgMember) {
+    setConfirm({
+      title: `Approve ${m.email}?`,
+      description:
+        "If they built a workspace of their own before asking, it is permanently deleted. Credits they purchased move to this workspace. This can't be undone.",
+      confirmLabel: "Approve",
+      onConfirm: () => {
+        update(m.id, { status: "active", joinedOn: "2026-10-27", requestedOn: undefined });
+        toast.success(`${m.name || m.email} joined the workspace`, { description: "They get a welcome email." });
+      },
+    });
+  }
+
+  function decline(m: OrgMember) {
+    setConfirm({
+      title: `Decline ${m.email}?`,
+      description: "Nothing is deleted. They keep working in their own workspace and get an email saying so.",
+      confirmLabel: "Decline",
+      destructive: true,
+      onConfirm: () => {
+        setMembers((list) => list.filter((x) => x.id !== m.id));
+        toast(`Declined ${m.email}`);
+      },
+    });
+  }
+
+  function disable(m: OrgMember) {
+    setConfirm({
+      title: `Disable ${m.email}?`,
+      description: `They can't sign in. Automations on their ${m.templates} template${m.templates === 1 ? "" : "s"} pause; their history stays. You can enable them again.`,
+      confirmLabel: "Disable",
+      destructive: true,
+      onConfirm: () => {
+        update(m.id, { status: "disabled", sendAs: false, defaultSendAs: false });
+        toast(`Disabled ${m.email}`, { description: "Reassign their templates so the automations can resume." });
+      },
+    });
+  }
+
+  function removeInvite(m: OrgMember) {
+    setConfirm({
+      title: "Remove this invitation?",
+      description: `${m.email} won't be able to join with it. You can invite another address.`,
+      confirmLabel: "Remove",
+      destructive: true,
+      onConfirm: () => {
+        setMembers((list) => list.filter((x) => x.id !== m.id));
+        toast(`Removed the invitation for ${m.email}`);
+      },
+    });
+  }
+
+  function sendInvite(e: React.FormEvent) {
+    e.preventDefault();
+    const email = invite.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setInviteError("Enter a full email address.");
+    if (members.some((m) => m.email === email)) return setInviteError(`${email} is already on the list.`);
+    if (seatsUsed >= MAX_SEATS) return setInviteError(`All ${MAX_SEATS} seats are used. Disable a member or remove an invite first.`);
+    setMembers((list) => [
+      ...list,
+      { id: `u-${Date.now()}`, name: "", email, role: "member", status: "invited", invitedOn: "2026-10-27", sendAs: false, defaultSendAs: false, templates: 0 },
+    ]);
+    setInvite("");
+    toast.success(`Invited ${email}`, { description: "They show as Invited until they first sign in." });
+  }
+
+  function toggleSendAs(m: OrgMember, on: boolean) {
+    setMembers((list) => {
+      let next = list.map((x) => (x.id === m.id ? { ...x, sendAs: on, defaultSendAs: on ? x.defaultSendAs : false } : x));
+      // Exactly one default (BR-RULE-ORG-08): if the default was switched off, the first remaining one takes over.
+      if (!next.some((x) => x.defaultSendAs)) {
+        const first = next.find((x) => x.sendAs);
+        if (first) next = next.map((x) => ({ ...x, defaultSendAs: x.id === first.id }));
+      }
+      return next;
+    });
+    if (on) toast.success(`Teammates can now send as ${m.name || m.email}`, { description: "We let them know." });
+    else toast(`${m.name || m.email} is no longer a shared sender`);
+  }
+
+  const activeOthers = members.filter((m) => m.status === "active" && m.role !== "admin");
+  const transferTarget = members.find((m) => m.id === transferTo);
+
+  // ---- render -------------------------------------------------------------------------------------------
+
+  const claim = (
+    <section className="flex flex-col gap-4" aria-labelledby="claim-title">
+      <SectionHeader
+        id="claim-title"
+        title="Domain"
+        description="One workspace per email domain. Colleagues who sign up with this domain ask to join."
+      />
+      {preview === "unclaimed" ? (
+        <Alert variant="warning">
+          <CircleAlertIcon />
+          <AlertTitle>This workspace has no admin yet</AlertTitle>
+          <AlertDescription>
+            Nobody has proved control of {ORG.domain}, so join requests have no one to approve them. Publish the
+            domain&apos;s DNS records and press Verify to become the admin.
+          </AlertDescription>
+          <AlertAction>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/settings/sending">Go to Sending</Link>
+            </Button>
+          </AlertAction>
+        </Alert>
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-card border px-4 py-3">
+          <ShieldIcon className="size-4 text-muted-foreground" aria-hidden />
+          <span className="font-medium">{ORG.domain}</span>
+          <Badge variant="success">
+            <CircleCheckIcon data-icon="inline-start" />
+            Claimed
+          </Badge>
+          <span className="text-sm text-muted-foreground">
+            by {ORG.name} since {formatDay(ORG.claimedOn, true)} · Admin: {admin?.name ?? "none"}
+          </span>
+        </div>
+      )}
+    </section>
+  );
+
+  if (!isAdmin) {
+    return (
+      <>
+        {claim}
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <LockIcon />
+            </EmptyMedia>
+            <EmptyTitle>Only the admin manages members</EmptyTitle>
+            <EmptyDescription>
+              {admin ? `${admin.name} (${admin.email})` : "The workspace admin"} invites people, approves join requests
+              and chooses who teammates can send as.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+              How templates move between people <OwnershipInfo />
+            </span>
+          </EmptyContent>
+        </Empty>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {claim}
+
+      {requests.length > 0 && (
+        <section className="flex flex-col gap-3" aria-labelledby="requests-title">
+          <SectionHeader id="requests-title" title="Join requests" description="They can't use Saella until you decide." />
+          <ul className="flex flex-col divide-y rounded-card border">
+            {requests.map((m) => (
+              <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <MemberName m={m} />
+                <span className="text-sm text-muted-foreground tabular-nums">
+                  Asked {m.requestedOn ? formatDay(m.requestedOn) : "recently"}
+                </span>
+                <div className="ml-auto flex gap-2">
+                  <Button variant="outline" onClick={() => decline(m)}>
+                    <XIcon data-icon="inline-start" />
+                    Decline
+                  </Button>
+                  <Button onClick={() => approve(m)}>
+                    <UserCheckIcon data-icon="inline-start" />
+                    Approve
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="flex flex-col gap-4" aria-labelledby="members-title">
+        <SectionHeader
+          id="members-title"
+          title="Members"
+          description={
+            <span className="inline-flex items-center gap-1">
+              Everyone with access to this workspace. <OwnershipInfo />
+            </span>
+          }
+        />
+        {/* Studio pass 2026-10-28: invite + seats sit in a toolbar inside the table box (Studio Admin roles), so the
+            form reads as part of the list it adds to instead of a loose field between heading and table. */}
+        <div className="rounded-card border">
+          <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b px-4 py-3">
+            <form onSubmit={sendInvite} noValidate className="w-full max-w-md">
+              <Field data-invalid={inviteError ? true : undefined}>
+                <FieldLabel htmlFor="invite-email" className="sr-only">
+                  Invite by email
+                </FieldLabel>
+                <div className="flex gap-2">
+                  <Input
+                    id="invite-email"
+                    type="email"
+                    placeholder={`colleague@${ORG.domain}`}
+                    value={invite}
+                    onChange={(e) => {
+                      setInvite(e.target.value);
+                      setInviteError(null);
+                    }}
+                    aria-invalid={inviteError ? true : undefined}
+                    aria-describedby="invite-help"
+                  />
+                  <Button type="submit" variant="outline">
+                    <UserPlusIcon data-icon="inline-start" />
+                    Invite
+                  </Button>
+                </div>
+                {inviteError ? (
+                  <FieldError id="invite-help">{inviteError}</FieldError>
+                ) : (
+                  <FieldDescription id="invite-help">They join as a member when they first sign in.</FieldDescription>
+                )}
+              </Field>
+            </form>
+            <div className="flex w-48 flex-col gap-1.5 pt-1">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Seats</span>
+                <span className="tabular-nums">
+                  {seatsUsed} of {MAX_SEATS}
+                </span>
+              </div>
+              <Progress value={(seatsUsed / MAX_SEATS) * 100} aria-label={`${seatsUsed} of ${MAX_SEATS} seats used`} />
+            </div>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Member</TableHead>
+                <TableHead className="w-32">Role</TableHead>
+                <TableHead className="w-44">
+                  <span className="flex items-center gap-1">
+                    Send-as
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon-xs" aria-label="About send-as" className="text-muted-foreground">
+                          <InfoIcon />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-64">
+                        Teammates can pick these people as the “from” when they send. The default sender is set in
+                        Sending › Senders.
+                      </TooltipContent>
+                    </Tooltip>
+                  </span>
+                </TableHead>
+                <TableHead className="w-28">Joined</TableHead>
+                <TableHead className="w-14">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {members
+                .filter((m) => m.status !== "requested")
+                .map((m) => {
+                  const eligible = m.status === "active" && canSendAs(m);
+                  return (
+                    <TableRow key={m.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <MemberName m={m} />
+                          {m.status !== "active" && (
+                            <Badge variant={m.status === "disabled" ? "secondary" : "info"}>{STATUS_LABEL[m.status]}</Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {/* Plain text for both roles: one display type per column (DESIGN §2). */}
+                        {m.role === "admin" ? "Admin" : "Member"}
+                      </TableCell>
+                      <TableCell>
+                        {m.status === "active" ? (
+                          <div className="flex items-center gap-3">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span tabIndex={eligible ? undefined : 0}>
+                                  <Switch
+                                    checked={m.sendAs}
+                                    disabled={!eligible}
+                                    onCheckedChange={(on) => toggleSendAs(m, on)}
+                                    aria-label={`Teammates can send as ${m.name || m.email}`}
+                                  />
+                                </span>
+                              </TooltipTrigger>
+                              {!eligible && (
+                                <TooltipContent className="max-w-64">
+                                  Needs a confirmed sender on a verified domain first.
+                                </TooltipContent>
+                              )}
+                            </Tooltip>
+                          </div>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground tabular-nums">
+                        {/* Dates only; invited people already carry the Invited badge by their name. */}
+                        {m.joinedOn ? formatDay(m.joinedOn, true) : ""}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {m.role !== "admin" && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon-sm" aria-label={`More for ${m.email}`}>
+                                <MoreHorizontalIcon />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuGroup>
+                                {m.status === "active" && (
+                                  <DropdownMenuItem variant="destructive" onSelect={() => disable(m)}>
+                                    <UserXIcon />
+                                    Disable
+                                  </DropdownMenuItem>
+                                )}
+                                {m.status === "disabled" && (
+                                  <>
+                                    <DropdownMenuItem
+                                      onSelect={() => {
+                                        update(m.id, { status: "active" });
+                                        toast.success(`Enabled ${m.email}`);
+                                      }}
+                                    >
+                                      <UserCheckIcon />
+                                      Enable
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      disabled={m.templates === 0}
+                                      onSelect={() => setReassign({ from: m, to: activeOthers.find((x) => x.id !== m.id)?.id ?? CURRENT_USER_ID })}
+                                    >
+                                      <FileTextIcon />
+                                      Reassign templates{m.templates ? ` (${m.templates})` : ""}
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {m.status === "invited" && (
+                                  <DropdownMenuItem variant="destructive" onSelect={() => removeInvite(m)}>
+                                    <XIcon />
+                                    Remove invitation
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuGroup>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+            </TableBody>
+          </Table>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4" aria-labelledby="danger-title">
+        <SectionHeader id="danger-title" title="Transfer the admin role" />
+        <div className="flex flex-col gap-3 rounded-card border px-4 py-4">
+          <p className="text-muted-foreground">
+            Only an Active member of this workspace can receive it. After the transfer you become a regular member and
+            can&apos;t undo it yourself.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Select value={transferTo} onValueChange={setTransferTo} disabled={activeOthers.length === 0}>
+              <SelectTrigger className="w-72" aria-label="Choose the next admin">
+                <SelectValue placeholder={activeOthers.length ? "Choose the next admin" : "No other active members yet"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {activeOthers.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name} · {m.email}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Button variant="destructive" disabled={!transferTarget} onClick={() => setTransferOpen(true)}>
+              Transfer admin
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />
+
+      {/* Reassign a disabled member's templates (ORG-SEQ-004). */}
+      <ConfirmDialog
+        request={
+          reassign
+            ? {
+                title: `Reassign ${reassign.from.email}'s templates?`,
+                description:
+                  "Every template they own moves to the member you pick. Sent history keeps their name; paused automations stay paused until the new owner resumes them.",
+                confirmLabel: "Reassign templates",
+                onConfirm: () => {
+                  const to = members.find((x) => x.id === reassign.to);
+                  update(reassign.from.id, { templates: 0 });
+                  if (to) update(to.id, { templates: to.templates + reassign.from.templates });
+                  toast.success(`Reassigned ${reassign.from.templates} templates to ${to?.name}`, {
+                    description: "They get a notification.",
+                  });
+                },
+              }
+            : null
+        }
+        onClose={() => setReassign(null)}
+      >
+        {reassign && (
+          <Field>
+            <FieldLabel htmlFor="reassign-to">New owner</FieldLabel>
+            <Select value={reassign.to} onValueChange={(v) => setReassign({ ...reassign, to: v })}>
+              <SelectTrigger id="reassign-to" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {members
+                    .filter((x) => x.status === "active")
+                    .map((x) => (
+                      <SelectItem key={x.id} value={x.id}>
+                        {x.name} · {x.email}
+                      </SelectItem>
+                    ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+      </ConfirmDialog>
+
+      {/* GitHub-style confirm: type the new admin's email (AC-ORG-U-06). */}
+      <ConfirmDialog
+        request={
+          transferOpen && transferTarget
+            ? {
+                title: "Transfer the admin role?",
+                description: `${transferTarget.email} becomes the workspace admin. You become a regular member and cannot undo this yourself.`,
+                confirmLabel: "Transfer admin",
+                destructive: true,
+                onConfirm: () => {
+                  setMembers((list) =>
+                    list.map((x) =>
+                      x.id === transferTarget.id ? { ...x, role: "admin" } : x.role === "admin" ? { ...x, role: "member" } : x
+                    )
+                  );
+                  setTransferTo("");
+                  toast.success(`${transferTarget.email} is now the admin`, { description: "You both get a notification." });
+                },
+              }
+            : null
+        }
+        onClose={() => {
+          setTransferOpen(false);
+          setTransferTyped("");
+        }}
+        confirmDisabled={transferTyped.trim().toLowerCase() !== transferTarget?.email}
+      >
+        <Field>
+          <FieldLabel htmlFor="transfer-confirm">Type {transferTarget?.email} to confirm</FieldLabel>
+          <Input
+            id="transfer-confirm"
+            value={transferTyped}
+            onChange={(e) => setTransferTyped(e.target.value)}
+            autoComplete="off"
+          />
+        </Field>
+      </ConfirmDialog>
+    </>
+  );
+}
+
+function MemberName({ m }: { m: OrgMember }) {
+  const initials = (m.name || m.email)
+    .split(/[\s@.]/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join("");
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <Avatar className="size-8">
+        <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+      </Avatar>
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate font-medium">{m.name || m.email}</span>
+        {m.name && <span className="truncate text-sm text-muted-foreground">{m.email}</span>}
+      </div>
+    </div>
+  );
+}
+
+// Template ownership in one place (PRD-02 sharing rules as the live app states them in its notifications,
+// lib/i18n/messages.ts ntf.tpl.*, ntf.shared.*, ntf.revoked.*, ntf.owner.*; ORG-SEQ-004).
+// Studio pass 2026-10-28: was its own section of bullet text; now behind ⓘ (secondary info, DESIGN.md).
+const OWNERSHIP_RULES = [
+  "Each template has one owner: the person who created it, or whoever it was reassigned to.",
+  "The owner can share a template. People it's shared with can edit and send it; the owner is told about every edit, send and schedule change.",
+  "Removing someone's access leaves them able to view and copy the template, not edit or send it.",
+  "When a member is disabled, automations on their templates pause. Reassign the templates so the new owner can resume them; sent history keeps the original name.",
+  "Batches record who sent them and which address they sent as.",
+];
+
+function OwnershipInfo() {
+  return (
+    <HoverCard openDelay={150} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <Button variant="ghost" size="icon-xs" aria-label="How template ownership works" className="text-muted-foreground">
+          <InfoIcon />
+        </Button>
+      </HoverCardTrigger>
+      <HoverCardContent align="start" className="flex w-96 flex-col gap-2">
+        <p className="text-sm font-medium text-foreground">Template ownership</p>
+        <ul className="flex list-disc flex-col gap-1.5 pl-4 text-sm text-muted-foreground marker:text-subtle-foreground">
+          {OWNERSHIP_RULES.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}

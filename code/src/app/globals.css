@@ -1,0 +1,100 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+/* Token Saella: nguồn duy nhất của giá trị. Không khai báo lại :root ở file này. */
+@import "../styles/tokens.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Bộ :root/.dark mặc định của shadcn đã bỏ (2026-10-26): giá trị nằm ở src/styles/tokens.css. Dark mode có làm (chốt 2026-10-27), token dark sẽ thêm vào tokens.css. */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: var(--font-features);
+  }
+  ::selection {
+    background-color: var(--selection);
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Saella mini (components/saella/saella-mini.tsx): blink and head tilt only, as in the brand spec. Off with reduced motion. */
+@layer components {
+  .saella-mini .saella-mini-eyes,
+  .saella-mini .saella-mini-head {
+    transform-box: fill-box;
+  }
+  .saella-mini .saella-mini-eyes {
+    transform-origin: 50% 60%;
+    animation: saella-mini-blink 5s infinite;
+  }
+  .saella-mini[data-state="thinking"] .saella-mini-head {
+    transform-origin: 50% 100%;
+    animation: saella-mini-tilt 1.6s var(--ease-standard-curve) infinite alternate;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .saella-mini .saella-mini-eyes,
+    .saella-mini .saella-mini-head {
+      animation: none;
+    }
+  }
+}
+@keyframes saella-mini-blink {
+  0%, 94%, 100% { transform: scaleY(1); }
+  97% { transform: scaleY(0.1); }
+}
+@keyframes saella-mini-tilt {
+  from { transform: rotate(-6deg); }
+  to { transform: rotate(6deg); }
+}

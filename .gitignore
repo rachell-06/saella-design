@@ -1,0 +1,10 @@
+# code/.gitignore lo phần Next.js (node_modules, .next, AGENTS.md…); file này lo phần còn lại.
+
+# file bí mật
+.env*
+
+# file máy tự sinh
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
+desktop.ini
