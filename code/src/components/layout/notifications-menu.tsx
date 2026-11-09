@@ -1,6 +1,7 @@
 "use client";
 
 import { WORKSPACE_TZ } from "@/lib/time";
+import { NOW as MOCK_NOW } from "@/lib/mock/constants";
 import { useState } from "react";
 import Link from "next/link";
 import { BellIcon, Building2Icon, GlobeIcon, MailIcon, Share2Icon, UserPlusIcon } from "lucide-react";
@@ -24,8 +25,8 @@ const ICONS: Record<AppNotification["kind"], typeof BellIcon> = {
   share: Share2Icon,
 };
 
-// Fixed "today" (same as the mock data) keeps relative times stable in screenshots.
-const NOW = Date.parse("2026-10-27T05:00:00Z");
+// The shared mock clock keeps relative times stable in screenshots.
+const NOW = Date.parse(MOCK_NOW);
 
 function ago(iso: string) {
   const mins = Math.max(1, Math.round((NOW - Date.parse(iso)) / 60000));

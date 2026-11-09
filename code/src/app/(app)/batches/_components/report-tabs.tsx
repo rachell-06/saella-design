@@ -7,7 +7,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileSpreadsheetIcon, SearchIcon } from "lucide-react";
 import { formatDateTime, rate } from "@/lib/mock/campaigns";
 import { KpiStrip, KpiStripItem } from "@/components/saella/kpi-strip";
-import { rateKpi } from "@/components/saella/rate-meter";
+import { RateCell, rateKpi } from "@/components/saella/rate-meter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -61,21 +61,17 @@ export function DeliverabilityTab({ batch }: { batch: ReportBatch }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {shown.map((d) => {
-              const bounced = rate(d.bounced, d.sends);
-              const high = !!bounced && !bounced.lowSample && d.bounced / d.sends >= 0.1;
-              return (
-                <TableRow key={d.domain}>
-                  <TableCell className="font-medium">{d.domain}</TableCell>
-                  <TableCell className="text-right tabular-nums">{n(d.sends)}</TableCell>
-                  <RateCell part={d.delivered} whole={d.sends} />
-                  <RateCell part={d.bounced} whole={d.sends} danger={high} />
-                  <RateCell part={d.opened} whole={d.delivered} />
-                  <RateCell part={d.clicked} whole={d.delivered} />
-                  <RateCell part={d.unsubscribed} whole={d.delivered} />
-                </TableRow>
-              );
-            })}
+            {shown.map((d) => (
+              <TableRow key={d.domain}>
+                <TableCell className="font-medium">{d.domain}</TableCell>
+                <TableCell className="text-right tabular-nums">{n(d.sends)}</TableCell>
+                <RateCell kind="delivery" part={d.delivered} whole={d.sends} />
+                <RateCell kind="bounce" part={d.bounced} whole={d.sends} />
+                <RateCell kind="open" part={d.opened} whole={d.delivered} />
+                <RateCell kind="click" part={d.clicked} whole={d.delivered} />
+                <RateCell kind="unsub" part={d.unsubscribed} whole={d.delivered} />
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
         {domains.length > shown.length && (
@@ -87,18 +83,6 @@ export function DeliverabilityTab({ batch }: { batch: ReportBatch }) {
         )}
       </div>
     </div>
-  );
-}
-
-function RateCell({ part, whole, danger }: { part: number; whole: number; danger?: boolean }) {
-  const r = rate(part, whole);
-  return (
-    <TableCell
-      className={cn("text-right tabular-nums", r?.lowSample && "text-subtle-foreground", danger && "font-medium text-destructive")}
-      title={r ? `${n(part)} of ${n(whole)}${r.lowSample ? " · too few to judge" : ""}` : undefined}
-    >
-      {r?.text ?? ""}
-    </TableCell>
   );
 }
 

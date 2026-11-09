@@ -1,6 +1,7 @@
 import { WORKSPACE_TZ } from "@/lib/time";
 import { type ReportBatch, allBatches, batchTitle, findTemplate } from "@/lib/mock/batches";
-import { type Contact, TODAY } from "@/lib/mock/contacts";
+import { type Contact } from "@/lib/mock/contacts";
+import { NOW as MOCK_NOW } from "@/lib/mock/constants";
 
 // Email activity of one contact (R8, 2026-10-29; HubSpot contact Activities tab, Apollo A2 engagement). The live
 // app keeps per-recipient events for each batch (report Recipients tab) but has no per-contact view or API yet;
@@ -25,8 +26,8 @@ export type ActivityEvent = {
 
 export type ActivitySummary = { received: number; opened: number; clicked: number; replied: number; bounced: number };
 
-/** "Now" for the mock: end of the working day on TODAY, workspace time. Events after it haven't happened yet. */
-const NOW = new Date(`${TODAY}T11:00:00Z`).getTime();
+/** The shared mock clock. Events after it haven't happened yet. */
+const NOW = Date.parse(MOCK_NOW);
 
 const LINKS = ["northwind-ceramics.com/catalog-2026", "northwind-ceramics.com/samples", "northwind-ceramics.com/price-list"];
 

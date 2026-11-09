@@ -34,6 +34,7 @@ import {
 } from "@/lib/mock/campaigns";
 import { PageHeader } from "@/components/layout/page-header";
 import { KpiStrip, KpiStripItem } from "@/components/saella/kpi-strip";
+import { RateCell } from "@/components/saella/rate-meter";
 import { StatusBadge } from "@/components/saella/status-badge";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +45,6 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { batches, contactLists, senders } from "@/lib/mock/workspace";
-import { cn } from "@/lib/utils";
 import { AutomateDialog } from "@/components/features/automate-dialog";
 import { TRIGGERS, currentSchedule, delayLabel, nextRun, scheduleWhen, tzLabel, useAutomation } from "@/components/features/automation";
 import { SAMPLE_VALUES, accessFor, canEdit, detailsFor, resolveTags, findTemplate, lockReason, ownerName, viewerFor, withBatchTotals } from "@/lib/mock/templates";
@@ -255,8 +255,8 @@ export function TemplateDetailScreen({ id }: { id: string }) {
                     <col />
                     <col className="w-36" />
                     <col className="w-28" />
-                    <col className="w-20" />
-                    <col className="w-24" />
+                    <col className="w-28" />
+                    <col className="w-28" />
                   </colgroup>
                   <TableHeader>
                     <TableRow>
@@ -305,11 +305,17 @@ export function TemplateDetailScreen({ id }: { id: string }) {
                             {b.status === "sending" ? `${b.sent.toLocaleString("en-US")} / ` : ""}
                             {b.recipients.toLocaleString("en-US")}
                           </TableCell>
-                          <RateCell value={hasReport && b.sent > 0 ? rate(Math.round(template.opens * share), delivered) : null} />
-                          <RateCell
-                            className="pr-3"
-                            value={hasReport && b.sent > 0 ? rate(Math.round(template.clicks * share), delivered) : null}
-                          />
+                          {hasReport && b.sent > 0 ? (
+                            <>
+                              <RateCell kind="open" part={Math.round(template.opens * share)} whole={delivered} />
+                              <RateCell kind="click" part={Math.round(template.clicks * share)} whole={delivered} className="pr-3" />
+                            </>
+                          ) : (
+                            <>
+                              <TableCell />
+                              <TableCell className="pr-3" />
+                            </>
+                          )}
                         </TableRow>
                       );
                     })}
@@ -508,17 +514,6 @@ function KpiRate({
       tone={danger ? "danger" : undefined}
       note={value ? (value.lowSample ? lowNote : note) : undefined}
     />
-  );
-}
-
-function RateCell({ value, className }: { value: Rate; className?: string }) {
-  return (
-    <TableCell
-      className={cn("text-right tabular-nums", value?.lowSample && "text-subtle-foreground", className)}
-      title={value?.lowSample ? "Fewer than 20 sends: too few to judge" : undefined}
-    >
-      {value?.text}
-    </TableCell>
   );
 }
 
