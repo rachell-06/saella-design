@@ -224,6 +224,8 @@ Nút `sm` / `xs` có chữ < 14px: chỉ dùng cho nút icon hoặc trong bảng
 | `rounded-card` | 12px | Card (`card.tsx`), dialog, khối Saella |
 | `rounded-full` | pill | Badge, tag, avatar, chấm trạng thái |
 
+**Khung lồng nhau: ngoài bo lớn hơn trong.** Khối có viền đứng thẳng trên trang (khung bao bảng, khối thông tin, panel) bo `rounded-card` như Card. Khối có viền nằm **bên trong** một khung khác (dialog, card, bước wizard, panel chi tiết, tin nhắn agent) bo `rounded-lg`. Cùng là khung bao bảng nhưng bo theo vị trí, không theo nội dung.
+
 **Viền và độ nổi.**
 
 | Lớp | Cách tách |

@@ -47,7 +47,7 @@ export function DeliverabilityTab({ batch }: { batch: ReportBatch }) {
         high bounce rate usually means old addresses at that company.
       </p>
 
-      <div className="overflow-hidden rounded-lg border">
+      <div className="overflow-hidden rounded-card border">
         <Table aria-label="Results by recipient domain">
           <TableHeader>
             <TableRow>
@@ -135,7 +135,7 @@ export function ClicksTab({ batch, fileBase }: { batch: ReportBatch; fileBase: s
           )}
         </Empty>
       ) : (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-hidden rounded-card border">
           <Table aria-label="Link performance">
             <TableHeader>
               <TableRow>
@@ -362,7 +362,7 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
           )}
         </Empty>
       ) : (
-        <div className="overflow-hidden rounded-lg border">
+        <div className="overflow-hidden rounded-card border">
           <Table aria-label="Recipient activity" className="text-dense">
             <TableHeader>
               <TableRow>

@@ -287,7 +287,7 @@ function StatusPanel({ batch }: { batch: ReportBatch }) {
     const left = batch.recipients - batch.sent;
     const minutes = Math.ceil(left / (SEND_PER_HOUR / 60));
     return (
-      <div className="flex flex-col gap-2 rounded-lg border p-4" role="status" aria-live="polite">
+      <div className="flex flex-col gap-2 rounded-card border p-4" role="status" aria-live="polite">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="font-medium tabular-nums">
             Sending: {n(batch.sent)} of {n(batch.recipients)} ({pct}%)
@@ -512,7 +512,7 @@ function OverviewTab({
         <h2 id="more-details" className="font-heading text-base font-medium">
           More details
         </h2>
-        <dl className="grid grid-cols-2 gap-x-8 gap-y-2 rounded-lg border p-4 text-sm tabular-nums md:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-8 gap-y-2 rounded-card border p-4 text-sm tabular-nums md:grid-cols-4">
           <Detail label="Total opens" value={n(met.totalOpens)} />
           <Detail label="Total clicks" value={n(met.totalClicks)} />
           <Detail label="Clicks per unique open" value={ctor?.text ?? "–"} />
