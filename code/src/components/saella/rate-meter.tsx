@@ -3,7 +3,7 @@ import { TableCell } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-// Email rates (DESIGN.md §2 "Số liệu", §9.7; 2026-11-03/05): a plain number, the count behind it grey in brackets
+// Email rates (DESIGN.md §2 "Số liệu", PATTERNS.md §9.7; 2026-11-03/05): a plain number, the count behind it grey in brackets
 // ("38.3% (467)"), the denominator in a tooltip. Only Bounce and Delivery are ever coloured, from RATE_BANDS below,
 // always with an icon and the threshold in the tooltip. Under 20 sends the number is grey: too few to judge.
 // Use RateCell in tables (one right-aligned column per rate), RateValue inline, rateKpi for a KpiStripItem.
@@ -59,7 +59,7 @@ export function bandHint(kind: RateKind, band: RateBand | undefined) {
 
 const num = (x: number) => x.toLocaleString("en-US");
 
-/** What the denominator counts, for the KPI note "2,349 of 5,968 delivered" (§9.7). */
+/** What the denominator counts, for the KPI note "2,349 of 5,968 delivered" (PATTERNS.md §9.7). */
 const DENOMINATOR: Record<RateKind, "delivered" | "sent"> = {
   delivery: "sent",
   open: "delivered",
@@ -164,7 +164,7 @@ export function RateValue({
   );
 }
 
-/** One rate as a right-aligned table cell (one column per rate, §9.7). */
+/** One rate as a right-aligned table cell (one column per rate, PATTERNS.md §9.7). */
 export function RateCell({ className, ...props }: React.ComponentProps<typeof RateValue>) {
   return (
     <TableCell className={cn("text-right", className)}>

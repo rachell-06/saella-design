@@ -66,7 +66,7 @@ export type TemplateTableProps = {
 // rates. Row actions appear on hover or keyboard focus (DESIGN.md, table rules). Actions the viewer can't take stay
 // visible-on-hover but disabled, with the reason in a tooltip.
 // 2026-11-05: fixed column widths so the Template name gets the room (it wrapped to 2–4 lines while an empty actions
-// column sat at the end). Rates read "38.3% (466)" with the denominator in the tooltip (§9.7), which is what the
+// column sat at the end). Rates read "38.3% (466)" with the denominator in the tooltip (PATTERNS.md §9.7), which is what the
 // Delivered column showed, so that column went (the campaign's delivery rate is in the KPI strip above). The row
 // actions, icon-only, float over Last sent on hover instead of holding their own column.
 export function TemplateTable({ campaign, campaigns, sendingBlocked, onToast, onToggleStatus, onDelete, onCopy }: TemplateTableProps) {

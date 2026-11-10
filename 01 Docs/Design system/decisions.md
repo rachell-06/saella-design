@@ -1,10 +1,10 @@
 # Quyết định
 
-Chỉ ghi **thay đổi lớn so với app hiện tại** (Repo: Next 14 + antd 5) và việc đang chờ duyệt. Quy tắc thiết kế đang áp dụng nằm ở `DESIGN.md`; chi tiết màn hình tra PRD. **ĐX** = đề xuất, khác cả repo lẫn PRD.
+Chỉ ghi **thay đổi lớn so với app hiện tại** (Repo: Next 14 + antd 5) và việc đang chờ duyệt. Quy tắc thiết kế đang áp dụng nằm ở `DESIGN.md` và `PATTERNS.md`; chi tiết màn hình tra PRD. **ĐX** = đề xuất, khác cả repo lẫn PRD.
 
 ## Chưa chốt
 
-Chưa có hiệu lực: agent không áp các việc dưới đây như quy tắc. Chốt xong thì chuyển quy tắc sang `DESIGN.md` và xoá dòng ở đây.
+Chưa có hiệu lực: agent không áp các việc dưới đây như quy tắc. Chốt xong thì chuyển quy tắc sang `DESIGN.md` (hoặc `PATTERNS.md` nếu là pattern) và xoá dòng ở đây.
 
 ### Bạn quyết (thiết kế)
 - **Campaigns: phương án 1 hay 2.** 1 = danh sách trái, chi tiết phải (`/campaigns`). 2 = mỗi campaign một thẻ thu gọn được (`/campaigns-2`, thêm `?state=many` để xem 60 campaign). Chọn xong xoá phương án còn lại và mục "Campaign 2" trên sidebar.
@@ -14,7 +14,7 @@ Chưa có hiệu lực: agent không áp các việc dưới đây như quy tắ
 - **Credits** (canvas, 2026-11-05): bỏ khỏi header, đặt ở cuối sidebar: "820 left · Starter plan · +600 on Nov 12", không thanh (credits = gói + gói mua thêm, không có mức trần). Theo PRD billing, tự gửi email miễn phí; agent tốn 1/yêu cầu và 1/batch nó gửi; mở khoá liên hệ 1; tính phí đang tắt. Chưa chốt: có cảnh báo sắp hết credits không, ngưỡng bao nhiêu.
 - **Ngưỡng Bounce lệch 5% / 7%:** số Bounce tô cảnh báo từ 5% (`RATE_BANDS`), nhưng nhãn "Near limit" ở Sending health bật từ 70% ngưỡng tự dừng = 7%. Chọn một mức cho cả hai.
 - **Nhân vật chibi ở dark mode:** nét đổi thành màu chữ, thân màu nền (nét ink gốc biến mất trên nền tối).
-- **DESIGN.md 9.9–9.14: các dòng đánh dấu ĐX** (2026-11-10): không mở dialog chồng dialog; bấm lưu khi còn lỗi thì focus về trường lỗi đầu tiên; URL dài cắt ở giữa. PRD và app thật không nói.
+- **PATTERNS.md 9.9–9.14: các dòng đánh dấu ĐX** (2026-11-10): không mở dialog chồng dialog; bấm lưu khi còn lỗi thì focus về trường lỗi đầu tiên; URL dài cắt ở giữa. PRD và app thật không nói.
 
 ### Hỏi team dev / product owner
 - **Agent chặn chờ duyệt 2 hay 5 bước.** Repo chặn 2 (activate template, gửi thật), PRD-03 chặn 5. Đang theo repo; xem kiểu PRD bằng `/agent?gates=all`.

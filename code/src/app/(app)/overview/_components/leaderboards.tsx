@@ -4,7 +4,7 @@
 // app's logic 2026-10-28: five rank choices, Highest/Lowest, gate on the metric's own denominator, Replies as a
 // count on the campaign board. Each board shows its top three and links to the full list.
 // Default is "All metrics" (user request 2026-10-29): most emails sent first, no medals. Picking a metric ranks the
-// board by it. 2026-11-05: one right-aligned column per rate ("38.3% (467)", DESIGN.md §9.7) replaces the 3-step
+// board by it. 2026-11-05: one right-aligned column per rate ("38.3% (467)", PATTERNS.md §9.7) replaces the 3-step
 // meters; every rate stays visible and the ranked one is in medium weight, so rows compare across metrics.
 
 import { useState } from "react";

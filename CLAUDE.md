@@ -7,7 +7,8 @@ Thiết kế lại toàn bộ giao diện app Saella (không phải landing page
 | Câu hỏi | Nguồn duy nhất |
 |---|---|
 | Sản phẩm cho ai, để làm gì, nguyên tắc thiết kế (vì sao) | `01 Docs/PRODUCT.md` |
-| Quy tắc và pattern giao diện (làm thế nào) | `01 Docs/Design system/DESIGN.md`. Đọc mục 2 và bảng "Tra nhanh" ở đầu file trước mỗi việc |
+| Quy tắc giao diện nền: quy tắc đã chốt, token, màu, chữ, component (làm thế nào) | `01 Docs/Design system/DESIGN.md`. Đọc mục 2 và bảng "Tra nhanh" ở đầu file trước mỗi việc |
+| Pattern theo bài toán: bảng, form, số liệu, phản hồi, quyền, chữ trên màn | `01 Docs/Design system/PATTERNS.md` (mục 9.1–9.15). Chỉ đọc mục bảng "Tra nhanh" trỏ tới |
 | Giá trị màu, chữ, bo góc, bóng | `code/src/styles/tokens.css` |
 | Cách dùng một component | File `<tên>.meta.ts` cạnh component (khuôn: `code/src/components/meta.ts`) |
 | Việc chưa chốt; khác gì app hiện tại | `01 Docs/Design system/decisions.md`. Mục "Chưa chốt" **chưa có hiệu lực** |
@@ -19,7 +20,7 @@ Khi các nguồn nói khác nhau: **CLAUDE.md > DESIGN.md > PRODUCT.md > skill**
 ## Thư mục
 
 ```
-01 Docs/            PRODUCT.md · Design system/ (DESIGN.md, decisions.md) · Research/ (nghiên cứu, ghi chú)
+01 Docs/            PRODUCT.md · Design system/ (DESIGN.md, PATTERNS.md, decisions.md) · Research/ (nghiên cứu, ghi chú)
 03 Brand/           logo, nhân vật chibi, Saella mini
 code/               app Next.js; chạy lệnh npm trong thư mục này
 ```
@@ -35,7 +36,7 @@ code/               app Next.js; chạy lệnh npm trong thư mục này
 
 ## Quy trình khi dựng hoặc sửa màn
 
-1. **Hiểu màn:** đọc PRD module và code màn đó trong Repo để biết nó hoạt động thế nào. Đây là để hiểu, **không phải danh sách thứ cần hiện** lên màn (`DESIGN.md` mục 9.15).
+1. **Hiểu màn:** đọc PRD module và code màn đó trong Repo để biết nó hoạt động thế nào. Đây là để hiểu, **không phải danh sách thứ cần hiện** lên màn (`PATTERNS.md` mục 9.15).
 2. **Đọc quy tắc:** `DESIGN.md` mục 2 + các mục bảng "Tra nhanh" trỏ tới; `*.meta.ts` của component sẽ dùng.
 3. **Lấy component** từ `code/src/components/ui/` hoặc `components/saella/`. Thiếu thì `npx shadcn@latest add` (dùng skill `shadcn`), không tự vẽ control. Không chạy `shadcn apply` hay `init --preset`: chúng ghi đè token Saella.
 4. **Lấy bố cục** từ trang tương ứng của Studio Admin (`page.tsx` + `_components/`), dựng lại bằng component và token Saella. Khác quyết định Saella thì Saella thắng.
@@ -52,5 +53,5 @@ Skill thiết kế: dùng `interface-design` (app, dashboard), không dùng `fro
 
 ## Ghi chép
 
-- Ghi vào docs, không chỉ nói trong chat. Quy tắc thiết kế mới → `DESIGN.md` (đánh số tiếp, không đánh số lại vì code trích dẫn số mục). Việc chờ duyệt → `decisions.md` "Chưa chốt", đúng nhóm. Thay đổi lớn so với app hiện tại → `decisions.md`, một dòng mỗi thay đổi.
+- Ghi vào docs, không chỉ nói trong chat. Quy tắc thiết kế mới → `DESIGN.md`, pattern mới → `PATTERNS.md` (đánh số tiếp, không đánh số lại vì code trích dẫn số mục). Việc chờ duyệt → `decisions.md` "Chưa chốt", đúng nhóm. Thay đổi lớn so với app hiện tại → `decisions.md`, một dòng mỗi thay đổi.
 - Không ghi nhật ký quy trình (dọn file, sửa lỗi nhỏ, ngày bỏ cái gì): git đã lưu.

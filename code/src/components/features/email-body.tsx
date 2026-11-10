@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { type Block, KNOWN_TAGS, type TemplateKind, splitTags } from "@/lib/mock/templates";
 
 // Renders a template body as the recipient sees it (preview) or as editable blocks (edit). Wrap it in
-// `.email-canvas` (tokens.css) so it keeps the light email palette in dark mode; not Saella brand colours, except the button (DESIGN.md §9.3: template colours are separate
+// `.email-canvas` (tokens.css) so it keeps the light email palette in dark mode; not Saella brand colours, except the button (PATTERNS.md §9.3: template colours are separate
 // from UI colours; a first build has no per-template palette yet, so buttons use `primary`).
 // Images are placeholders (no upload storage in the mock).
 

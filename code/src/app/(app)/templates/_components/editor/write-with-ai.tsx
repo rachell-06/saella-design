@@ -13,7 +13,7 @@ import { EmailBody } from "@/components/features/email-body";
 import { type SubjectPreview, WriteSubject } from "./write-subject";
 
 // "Write with AI" (PRD-02 AC-EC-G-01..06, live app EmailTemplateEditor runAiGenerate). The draft streams in
-// block by block (G-01) into this panel, never straight into the email (DESIGN.md §9.3): the user picks
+// block by block (G-01) into this panel, never straight into the email (PATTERNS.md §9.3): the user picks
 // "Use this draft" or "Try again". A fresh letter/design gets the business signature (G-05); refine and
 // single block don't. Using a draft only changes the editor; nothing is saved until Save.
 // The subject line has its own tab: 3 options to pick from (write-subject.tsx, R4 2026-10-29). Both tabs stay

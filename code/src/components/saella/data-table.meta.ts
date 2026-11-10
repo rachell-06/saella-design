@@ -16,7 +16,7 @@ export const dataTableMeta: ComponentMeta = {
   relationships: {
     usedIn: ["Leads (companies, contacts)", "Templates", "Batch recipients"],
     preferInstead: {
-      "filters / search": "FilterBar above the table; filter data before passing it in (DESIGN.md §9.1)",
+      "filters / search": "FilterBar above the table; filter data before passing it in (PATTERNS.md §9.1)",
       "rate columns": "RateCell (components/saella/rate-meter)",
       "status column": "StatusBadge",
       "full-height table": "TableFill (temporary, see DESIGN.md §8.2)",

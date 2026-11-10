@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { BLOCK_LABEL, type Block, type HeroTone, MERGE_TAGS } from "@/lib/mock/templates";
 
-// Properties of the selected block (DESIGN.md §9.3, right panel). Text fields take merge tags; they are typed
+// Properties of the selected block (PATTERNS.md §9.3, right panel). Text fields take merge tags; they are typed
 // as {{tag}} or inserted from the Merge tag menu at the cursor (live app TagsButton).
 
 export function BlockInspector({

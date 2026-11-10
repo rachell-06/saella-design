@@ -4,7 +4,7 @@ export const rateMeterMeta: ComponentMeta = {
   name: "RateCell / RateValue / rateKpi",
   category: "molecule",
   description:
-    "The only way to show an email rate (delivery, open, click, reply, unsub, bounce): '38.3% (466)', denominator in a tooltip, threshold colour only for Bounce and Delivery (DESIGN.md §2 Số liệu, §9.7).",
+    "The only way to show an email rate (delivery, open, click, reply, unsub, bounce): '38.3% (466)', denominator in a tooltip, threshold colour only for Bounce and Delivery (DESIGN.md §2 Số liệu, PATTERNS.md §9.7).",
   variants: {
     RateCell: "One rate in a table: a right-aligned TableCell, one column per rate.",
     RateValue: "One rate inline in text or a list row.",
@@ -16,7 +16,7 @@ export const rateMeterMeta: ComponentMeta = {
     usedIn: ["KpiStrip (via rateKpi)", "Batch report Deliverability table", "Template detail Batches table"],
     preferInstead: {
       "a plain count (sent, recipients)": "a right-aligned TableCell with tabular-nums",
-      "share of a total, e.g. link clicks": "a Progress bar equal to the exact share, with the % printed (DESIGN.md §9.7)",
+      "share of a total, e.g. link clicks": "a Progress bar equal to the exact share, with the % printed (PATTERNS.md §9.7)",
     },
   },
   tokens: ["--foreground", "--muted-foreground", "--subtle-foreground", "--warning-soft-foreground", "--destructive-soft-foreground", "--ring"],

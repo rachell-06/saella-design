@@ -75,7 +75,7 @@ import { EmailBody } from "@/components/features/email-body";
 import { SubjectChecklist } from "./subject-checklist";
 import { WriteWithAi } from "./write-with-ai";
 
-// The email editor (live app EmailTemplateEditor; DESIGN.md §9.3), first build 2026-10-28.
+// The email editor (live app EmailTemplateEditor; PATTERNS.md §9.3), first build 2026-10-28.
 // Layout: envelope (name, sender, subject, preheader, kind) + the email on a canvas in the middle; on the right
 // a panel with Block (properties of the clicked block), Check (content check) and Write with AI.
 // Simplified on purpose, to be decided with the user:

@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import { type DomainRow, VERIFY_WINDOW_H, agoShort, formatDay, hoursLeft } from "../../_components/data";
 
 // One sending domain (PRD-02 US-EC-D / US-EC-DV; live app EmailDomainsManager.tsx).
-// - Records are copyable with a status per record (AC-EC-D-02, DESIGN.md §9.2). DKIM first: it proves ownership.
+// - Records are copyable with a status per record (AC-EC-D-02, PATTERNS.md §9.2). DKIM first: it proves ownership.
 // - "Verify" re-checks now and reports the result (AC-EC-D-04); the list also re-checks on open (AC-EC-D-03).
 // - The DNS host is detected from nameservers; "couldn't read nameservers" is never shown as "no API"
 //   (AC-EC-DV-04). Automatic record writing (AC-EC-DV-02) is behind a flag in the live app, so it isn't offered.

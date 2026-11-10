@@ -25,7 +25,7 @@ export const buttonMeta: ComponentMeta = {
   aiHints: [
     "Exactly one variant=default per page; everything else is outline or ghost.",
     "Delete flow: Button (ghost/outline) → AlertDialog → confirm with variant=destructive, cancel with outline.",
-    "Wizard footer: Back = outline on the left, Continue = default on the right (DESIGN.md §9.2).",
+    "Wizard footer: Back = outline on the left, Continue = default on the right (PATTERNS.md §9.2).",
     "Loading: keep the width, put <Spinner /> inside and set disabled + aria-busy.",
   ],
   invalid: [

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { type Message as Msg, type Part, type SendSplit, canSplit, confirmLabelOf, noteOf, splitOf } from "./data";
 import { SendSplitChoice, TestSendView } from "./send-split";
 
-// One message of the full-page transcript (DESIGN.md §9.4): the user's text in a muted bubble on the right;
+// One message of the full-page transcript (PATTERNS.md §9.4): the user's text in a muted bubble on the right;
 // the agent's turn full width with no bubble, so tables, dashboards and approval cards have room.
 // Agent answers about performance read table → "Verdict:" → numbered advice (PRD-03 AC-AG-D-03).
 export type PartHandlers = {

@@ -61,7 +61,7 @@ import { cn } from "@/lib/utils";
 
 // One campaign as a collapsible card (pattern learned from Studio Admin /dashboard/infrastructure, 2026-10-27):
 // header = chevron + name + status, an ⓘ hover card with targeting and totals, Add template and a ⋯ menu; body = its templates in a
-// fixed-layout table, one right-aligned column per rate ("38.3% (467)", DESIGN.md §9.7, 2026-11-05). A campaign without templates shows a quiet muted band instead.
+// fixed-layout table, one right-aligned column per rate ("38.3% (467)", PATTERNS.md §9.7, 2026-11-05). A campaign without templates shows a quiet muted band instead.
 
 
 // Templates shown per campaign before "Show all N templates" (follow-ups don't count).

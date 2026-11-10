@@ -23,7 +23,7 @@ export const alertMeta: ComponentMeta = {
   aiHints: [
     "Start with a lucide icon that matches the tone; the title says what happened, the description says how to fix it.",
     "Put the fix as an AlertAction button (outline or ghost, never a second primary).",
-    "Load errors: variant=destructive + 'Retry' (DESIGN.md §9.1).",
+    "Load errors: variant=destructive + 'Retry' (PATTERNS.md §9.1).",
     "At most one Alert per area; stack the most severe first.",
   ],
   invalid: [

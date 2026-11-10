@@ -4,7 +4,7 @@ export const kpiStripMeta: ComponentMeta = {
   name: "KpiStrip / KpiStripItem",
   category: "molecule",
   description:
-    "The one KPI pattern for every screen (Overview, Campaigns, batch report, template detail, Billing): a single bordered row of cells split by hairlines (DESIGN.md §8.2, §9.7).",
+    "The one KPI pattern for every screen (Overview, Campaigns, batch report, template detail, Billing): a single bordered row of cells split by hairlines (DESIGN.md §8.2, PATTERNS.md §9.7).",
   variants: {
     default: "Label, value, one short note under it.",
     "detail=": "Counts or threshold behind the number, shown in a tooltip instead of an extra line.",
@@ -25,7 +25,7 @@ export const kpiStripMeta: ComponentMeta = {
   aiHints: [
     "One KpiStrip per block; 4–7 items read well at 1440px.",
     "Rates: always {...rateKpi(kind, part, whole)} so wording, note and colour match every other screen.",
-    "Note wording for rates: delivery and bounce '8,479 of 8,675 sent'; others '3,462 of 8,479 delivered' (DESIGN.md §9.7).",
+    "Note wording for rates: delivery and bounce '8,479 of 8,675 sent'; others '3,462 of 8,479 delivered' (PATTERNS.md §9.7).",
     "KPI numbers, charts and tables in the same filter block must come from the same filtered data.",
   ],
   invalid: [

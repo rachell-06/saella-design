@@ -41,7 +41,7 @@ import {
 import { type DataTableFeatures, dataTableFeatures } from "@/lib/data-table-features";
 import { cn } from "@/lib/utils";
 
-// List table for Campaigns, Contacts, Companies (DESIGN.md §9.1). Structure learned from Studio Admin's
+// List table for Campaigns, Contacts, Companies (PATTERNS.md §9.1). Structure learned from Studio Admin's
 // customers table (2026-10-27), rebuilt on Saella's Table/Checkbox/Select and tokens.
 // Filtering happens before `data` comes in (FilterBar), so this only sorts, selects and pages.
 export type DataTableColumn<TData extends RowData> = ColumnDef<DataTableFeatures, TData>;

@@ -54,7 +54,7 @@ import { AutomateButton, SendButton, TemplateMenu } from "./template-actions";
 
 // All templates across campaigns (live app /dashboard/email/templates, EmailTemplatesList). Same rows, rates
 // and actions as the Campaigns screens; filters by campaign, status, owner and kind; follow-ups stay under
-// the template whose automation sends them (DESIGN.md §9.6).
+// the template whose automation sends them (PATTERNS.md §9.6).
 // Preview states: ?state=loading | error | empty | paused | locked | member (Linh as a plain member, not admin)
 // | many (the 60 fictional campaigns of /campaigns-2?state=many, ~150 templates; their rows open no detail page).
 // Long lists (2026-10-28, Studio Admin products/tasks): the header row sticks to the top while scrolling, so the

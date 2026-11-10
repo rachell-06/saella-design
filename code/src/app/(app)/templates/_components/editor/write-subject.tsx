@@ -17,7 +17,7 @@ import { type TemplateKind } from "@/lib/mock/templates";
 // Subject line in Write with AI (Competitor.md R4, after Apollo A4 + Mailchimp F1), 2026-10-29.
 // The agent suggests 3 subjects, written from the email body plus an optional prompt. They stream in one by
 // one; the user picks one (radio) and presses "Use this subject". The subject field never changes on its own
-// (DESIGN.md §9.3). Each option has thumbs up/down: feedback only, it doesn't pick or hide anything.
+// (PATTERNS.md §9.3). Each option has thumbs up/down: feedback only, it doesn't pick or hide anything.
 // Mock: options are canned and rotate on Try again. ?state=ai-error fails after the first option.
 
 type Phase = "idle" | "streaming" | "done" | "error";
