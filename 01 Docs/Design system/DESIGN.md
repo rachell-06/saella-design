@@ -116,6 +116,8 @@ Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại 
 | `ease-standard`, `ease-emphasized`, `--motion-fast/base/slow` | Chuyển động (mục 7) |
 | `--email-*` (`.email-canvas`) | Khung xem email, chỉ light (`PATTERNS.md` 9.3) |
 
+**Token mới không phải màu** (bo góc, bóng, cỡ chữ, giãn chữ, easing, họ font) phải khai báo thêm trong `src/lib/utils.ts`, để `cn` biết nó xung đột với class nào. Thiếu bước này, `cn` giữ cả hai class xung đột hoặc xoá nhầm (từng làm mọi tiêu đề cột bảng mất cỡ `text-dense`). `tsconfig.json` trỏ `import { cn } from "cn"` của component shadcn về file này.
+
 ## 4. Màu
 
 ### 4.1 Nguyên tắc
