@@ -2,6 +2,8 @@
 
 Quy tắc và pattern giao diện của app Saella: **làm thế nào**. Vì sao làm vậy và cho ai: `PRODUCT.md`. Giá trị màu, cỡ, bóng: `tokens.css` (file này chỉ ghi vai trò, không chép giá trị). Bản đồ đầy đủ các tài liệu: `CLAUDE.md`.
 
+**Phạm vi so với Studio Admin** (CLAUDE.md bước 4): màn dựng từ Studio Admin giữ bố cục và cách thể hiện element của nó; các mẫu trình bày trong file này và `PATTERNS.md` áp cho phần Studio Admin không có. Màu, font, bo góc và logic số liệu (mục 2 "Số liệu", "Bảng") thì luôn theo file này.
+
 Số mục trong file này được code và docs trích dẫn (`DESIGN.md §2`, `PATTERNS.md §9.7`…): **thêm mục mới thì đánh số tiếp, không đánh số lại**.
 
 **Tra nhanh: đang làm gì thì đọc mục nào.** "PATTERNS 9.x" là mục trong `PATTERNS.md`.
@@ -77,7 +79,7 @@ Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại 
 **Control**
 - Component lấy từ `components/ui/` hoặc `components/saella/`; thiếu thì `npx shadcn@latest add`, không tự vẽ.
 - Không control native: không `<input type="date|time">` (dùng `DatePicker`, `DateRangePicker`, `TimePicker`), không `<select>` thô.
-- Không `<button>`, `<input>` thô ngoài `components/ui/`: nút dùng `Button` (chữ bấm được trong câu hoặc trong bảng: `variant="link"` + `h-auto border-0 p-0`), dòng bấm được dùng `Item` hoặc `ListRow`. Bọc thẻ thô bằng component shadcn qua `asChild` thì được. Hai ngoại lệ: `<input type="file">` ẩn, mở bằng một `Button`; khối nội dung chọn được trong trình soạn email (`email-body.tsx`).
+- Không `<button>`, `<input>` thô ngoài `components/ui/`: nút dùng `Button` (chữ bấm được trong câu hoặc trong bảng: `variant="link"` + `h-auto border-0 p-0`), dòng bấm được dùng `Item` hoặc `ListRow`. Bọc thẻ thô bằng component shadcn qua `asChild` thì được. Hai ngoại lệ: `<input type="file">` ẩn, mở bằng một `Button`; khối nội dung chọn được trong trình soạn email (`email-body.tsx`). `npm run lint` tự chặn: luật `saella/no-raw-control` (thẻ thô) và `saella/no-native-title` (`title=` ngoài chữ bị cắt) trong `code/eslint.config.mjs`. Ngoại lệ khác phải ghi `eslint-disable-next-line` kèm lý do.
 
 **Không nên**
 
@@ -300,7 +302,7 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 | Component | Vai trò |
 |---|---|
 | `StatusBadge` | Trạng thái campaign / template / batch: chấm tĩnh + chữ (mục 4.2) |
-| `KpiStrip` | Mẫu KPI **duy nhất** (Overview, Campaigns, báo cáo batch, Billing): một dải liền khối chia bằng hairline, không icon trang trí. Ô có `href` thì bấm được; `detail` vào tooltip; tông `warning` / `danger` khi vượt ngưỡng |
+| `KpiStrip` | Mẫu KPI hiện dùng (Overview, Campaigns, báo cáo batch, Billing); màn dựng lại từ Studio Admin thì dùng kiểu KPI của trang mẫu: một dải liền khối chia bằng hairline, không icon trang trí. Ô có `href` thì bấm được; `detail` vào tooltip; tông `warning` / `danger` khi vượt ngưỡng |
 | `RateCell`, `RateValue`, `rateKpi` | Cách duy nhất để hiện tỉ lệ email (`rate-meter.tsx`): "38.3% (466)", mẫu số trong tooltip, màu theo `RATE_BANDS`. `RateCell` cho bảng, `RateValue` nội dòng, `rateKpi` cho ô `KpiStrip` |
 | `DataTable` | Bảng TanStack v9: sắp xếp, chọn nhiều + thanh thao tác phía trên, phân trang, loading, empty, mở rộng dòng (`renderExpanded`), thao tác hiện khi rê chuột (`revealOnRowHover`) |
 | `FilterBar` | Ô tìm + menu lọc + chip giá trị + Clear all; điều khiển được từ ngoài (URL, agent) |
@@ -377,7 +379,7 @@ Nguồn ngoài để học hỏi (chốt 2026-11-10). Không ghi đè quy tắc 
 
 | Khi nào | Nguồn | Học gì |
 |---|---|---|
-| Hay dùng, khi dựng màn | **Studio Admin** (bản clone chỉ đọc `D:\Workspace\Saella\Studio Admin`, demo https://studio-admin.arhamkhnz.com) | Bố cục, spacing, cấu trúc trang. Dựng lại bằng component + token Saella; không chép CSS, màu, `components/ui/` |
+| Hay dùng, khi dựng màn | **Studio Admin** (bản clone chỉ đọc `D:\Workspace\Saella\Studio Admin`, demo https://studio-admin.arhamkhnz.com) | Bố cục và cách thể hiện element. Được chép `page.tsx` + `_components/`, giữ cách thể hiện, chỉ đổi màu, nhận diện, dữ liệu, logic số liệu (CLAUDE.md bước 4); không chép `components/ui/`, `globals.css`, theme preset |
 | Hay dùng, khi dựng màn | **Đối thủ** (Mailchimp, Apollo, HubSpot, Clay, Unify, Hunter, Buffer, qua Mobbin) | Luồng nghiệp vụ; ghi ở `01 Docs/Research/Competitor.md` |
 | Chỉ khi cần | **saella.ai** (source `D:\Workspace\Saella\Saella LP`) | Thêm token mới cho hợp brand, tài sản brand (logo, chibi, Saella mini), giọng văn |
 | Chỉ khi cần | Shopify Polaris | Empty state, UI copy |

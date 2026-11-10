@@ -15,7 +15,7 @@ Thiết kế lại toàn bộ giao diện app Saella (không phải landing page
 | Nghiệp vụ, chi tiết từng màn | PRD Master https://pgg-prd-lib.vercel.app/docs/saella-prd-master và PRD từng module. Không đoán |
 | Nghiên cứu đối thủ | `01 Docs/Research/Competitor.md`. Tài liệu lớn: chỉ đọc mục cần, không đọc cả file |
 
-Khi các nguồn nói khác nhau: **CLAUDE.md > DESIGN.md > PRODUCT.md > skill** (impeccable, interface-design…) **> tham chiếu ngoài** (Studio Admin, Mobbin, đối thủ). Skill bảo đổi font, thêm màu hay "bold direction" trái DS thì theo DS.
+Khi các nguồn nói khác nhau: **CLAUDE.md > DESIGN.md > PRODUCT.md > skill** (impeccable, interface-design…) **> tham chiếu ngoài** (Mobbin, đối thủ). Skill bảo đổi font, thêm màu hay "bold direction" trái DS thì theo DS. **Riêng Studio Admin** chia theo việc: bố cục và cách thể hiện element theo Studio Admin; màu, font, bo góc và logic số liệu theo DESIGN.md (bước 4).
 
 ## Thư mục
 
@@ -31,15 +31,15 @@ code/               app Next.js; chạy lệnh npm trong thư mục này
 ## Nguồn bên ngoài (chỉ đọc, không sửa)
 
 - **App hiện tại:** `D:\Workspace\Saella\Repo` (`github.com/Phong-Gia-Group/saella-platform`, Next 14 + antd 5). Đọc để hiểu chức năng; DS mới thay antd, người dùng tự quyết không cần chờ team. Không mở file `.env*`.
-- **Studio Admin:** `D:\Workspace\Saella\Studio Admin` (cập nhật: `git -C "D:\Workspace\Saella\Studio Admin" pull`), trang ở `src/app/(main)/dashboard/<trang>/`, demo https://studio-admin.arhamkhnz.com. Học bố cục, không chép CSS, màu, `components/ui/`.
+- **Studio Admin:** `D:\Workspace\Saella\Studio Admin` (cập nhật: `git -C "D:\Workspace\Saella\Studio Admin" pull`), trang ở `src/app/(main)/dashboard/<trang>/`, demo https://studio-admin.arhamkhnz.com. Được chép `page.tsx` + `_components/` của màn mẫu (cách làm: bước 4 dưới). Không chép `components/ui/` (shadcn nguyên bản, thiếu thì `add`), `globals.css`, theme preset. Không lấy màn `(legacy)` làm mẫu.
 - **Landing page:** `D:\Workspace\Saella\Saella LP`. Chỉ dùng chung brand (màu gốc, font Geist, logo, nhân vật: mô tả ở `docs/visual-direction.md` mục 9). Quy tắc khác trong CLAUDE.md của LP **không áp** ở đây.
 
 ## Quy trình khi dựng hoặc sửa màn
 
 1. **Hiểu màn:** đọc PRD module và code màn đó trong Repo để biết nó hoạt động thế nào. Đây là để hiểu, **không phải danh sách thứ cần hiện** lên màn (`PATTERNS.md` mục 9.15).
 2. **Đọc quy tắc:** `DESIGN.md` mục 2 + các mục bảng "Tra nhanh" trỏ tới; `*.meta.ts` của component sẽ dùng.
-3. **Lấy component** từ `code/src/components/ui/` hoặc `components/saella/`. Thiếu thì `npx shadcn@latest add` (dùng skill `shadcn`), không tự vẽ control. Không chạy `shadcn apply` hay `init --preset`: chúng ghi đè token Saella.
-4. **Lấy bố cục** từ trang tương ứng của Studio Admin (`page.tsx` + `_components/`), dựng lại bằng component và token Saella. Khác quyết định Saella thì Saella thắng.
+3. **Lấy component** từ `code/src/components/ui/`, `components/saella/`, hoặc component của Studio Admin (`_components/` của màn mẫu, không lấy `components/ui/` của nó), rồi tuỳ chỉnh thành component Saella (token, `DESIGN.md`). Thiếu thì `npx shadcn@latest add` (dùng skill `shadcn`), không tự vẽ control. Không chạy `shadcn apply` hay `init --preset`: chúng ghi đè token Saella.
+4. **Lấy bố cục và cách thể hiện** từ trang tương ứng của Studio Admin: chép `page.tsx` + `_components/` vào màn Saella và **giữ nguyên cách thể hiện element** (thẻ KPI, bảng, toolbar, bộ lọc, badge, tabs, biểu đồ…). Chỉ đổi: (a) màu viết cứng (`text-green-500`, `bg-amber-100`…) sang token Saella; (b) nhận diện theo `DESIGN.md`: màu, font, bo góc; (c) dữ liệu, cột, hành động theo PRD; (d) logic số liệu theo `DESIGN.md` mục 2 và `PATTERNS.md` 9.7 (cách tính tỉ lệ, ngưỡng tô màu, ô trống). Phần Studio Admin không có mẫu thì theo `DESIGN.md` và `PATTERNS.md`.
 5. **Dựng**, rồi kiểm tra theo `DESIGN.md` mục 10, gồm lượt cắt gọt chữ. Chưa đạt thì chưa báo xong.
 
 Skill thiết kế: dùng `interface-design` (app, dashboard), không dùng `frontend-design` (marketing). Tra pattern qua MCP `mobbin`; nguồn đáng giữ ghi vào `DESIGN.md` mục 11.

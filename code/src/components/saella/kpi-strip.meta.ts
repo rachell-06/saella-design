@@ -4,7 +4,7 @@ export const kpiStripMeta: ComponentMeta = {
   name: "KpiStrip / KpiStripItem",
   category: "molecule",
   description:
-    "The one KPI pattern for every screen (Overview, Campaigns, batch report, template detail, Billing): a single bordered row of cells split by hairlines (DESIGN.md §8.2, PATTERNS.md §9.7).",
+    "The KPI pattern the current screens use (Overview, Campaigns, batch report, template detail, Billing): a single bordered row of cells split by hairlines (DESIGN.md §8.2, PATTERNS.md §9.7). A screen rebuilt from a Studio Admin page uses that page's KPI presentation instead (CLAUDE.md step 4); the rate logic (rateKpi) stays.",
   variants: {
     default: "Label, value, one short note under it.",
     "detail=": "Counts or threshold behind the number, shown in a tooltip instead of an extra line.",

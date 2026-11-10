@@ -232,7 +232,7 @@ Lỗi hay gặp: agent đọc PRD và code rồi đưa hết lên màn, làm mà
 
 ## 9.16 Quy ước lấy từ Studio Admin (chốt 2026-11-10)
 
-Người dùng chốt lấy Studio Admin (`D:\Workspace\Saella\Studio Admin`, trang `src/app/(main)/dashboard/`) làm chuẩn cho mật độ, cỡ chữ và các chi tiết Saella chưa quy định. Màu, font, bo góc và các quyết định Saella đã chốt (một nút cam, `KpiStrip`, `FilterBar` dạng chip, `StatusBadge`) vẫn giữ.
+Người dùng chốt lấy Studio Admin (`D:\Workspace\Saella\Studio Admin`, trang `src/app/(main)/dashboard/`) làm chuẩn cho bố cục, cách thể hiện element và mật độ (CLAUDE.md bước 4). Bảng dưới là các quy ước chung rút từ Studio Admin; màn có trang mẫu tương ứng thì theo trang mẫu. Màu, font, bo góc và logic số liệu vẫn theo Saella.
 
 | Chủ đề | Quy ước |
 |---|---|
