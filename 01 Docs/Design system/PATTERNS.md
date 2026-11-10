@@ -190,6 +190,7 @@ Các mục 9.9–9.14 viết ngày 2026-11-10 từ PRD (các module Contacts, Em
 
 **Cắt chữ.**
 - Một dòng, "…" ở cuối, tooltip hiện đủ khi rê chuột hoặc Tab tới (app thật `CompaniesTable.tsx`).
+- **Tooltip luôn dùng `Hint`** (`components/saella/hint.tsx`, bọc Tooltip của shadcn), không dùng `title=` native: nó hiện chậm, không theo token, không mở bằng bàn phím. Hint mang thông tin cần thiết trên phần tử không bấm được (vd. icon "Email on file") thì thêm `tabIndex={0}`. Ngoại lệ duy nhất: chữ bị cắt dùng `title=` lặp lại đủ chữ.
 - Cột tên chính không bị bóp khi thêm cột; dòng phụ trong bảng cắt trước, tên cắt sau.
 - URL dài cắt ở giữa, giữ tên miền và phần cuối (**ĐX**).
 

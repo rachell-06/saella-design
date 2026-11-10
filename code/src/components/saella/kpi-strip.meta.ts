@@ -18,7 +18,7 @@ export const kpiStripMeta: ComponentMeta = {
     usedIn: ["Overview", "Campaign detail", "Batch report (all tabs)", "Template detail", "Settings / Billing"],
     preferInstead: {
       "an email rate in a cell": "spread rateKpi(kind, part, whole) into KpiStripItem",
-      "a number that needs its own card": "do not build one; MetricCard is retired for new screens",
+      "a number that needs its own card": "do not build one; put it in a KpiStrip cell",
     },
   },
   tokens: ["--border", "--muted", "--muted-foreground", "--subtle-foreground", "--warning-soft-foreground", "--destructive-soft-foreground", "--success-soft-foreground", "--ring", "--tracking-title"],

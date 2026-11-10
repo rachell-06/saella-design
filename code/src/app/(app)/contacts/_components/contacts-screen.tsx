@@ -35,6 +35,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SOURCE_LABEL, deleteList, fmt, formatDate, type ListMeta, listStats, ownerName, renameList, useContactsStore } from "@/lib/mock/contacts";
 import { ImportDialog } from "@/components/features/import-dialog";
 import { DeleteListDialog, RenameListDialog } from "./list-dialogs";
+import { Hint } from "@/components/saella/hint";
 
 // Contacts (PRD Contacts + live app /dashboard/email/contacts, 2026-10-28): the workspace's own contact lists.
 // A list is what a batch sends to; lists come from an upload, from Companies ("Save as contact list") or from
@@ -132,11 +133,11 @@ export function ContactsScreen() {
       meta: { align: "end" },
       cell: ({ row }) =>
         row.original.unreachable > 0 ? (
-          <span
-            title={`${((row.original.unreachable / Math.max(row.original.contacts, 1)) * 100).toFixed(1)}% of the list. Left out when you send.`}
-          >
-            {fmt(row.original.unreachable)}
-          </span>
+          <Hint label={`${((row.original.unreachable / Math.max(row.original.contacts, 1)) * 100).toFixed(1)}% of the list. Left out when you send.`}>
+            <span>
+              {fmt(row.original.unreachable)}
+            </span>
+          </Hint>
         ) : null,
     },
     {

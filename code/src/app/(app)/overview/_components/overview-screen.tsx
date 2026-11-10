@@ -93,6 +93,7 @@ import {
   sum,
   trend,
 } from "./metrics";
+import { Hint } from "@/components/saella/hint";
 
 const VIEWS = [
   { value: "campaign", label: "Campaigns" },
@@ -557,29 +558,29 @@ function RecentBatches({
                       : "too few to judge"
                     : undefined;
               return (
-                <Item
-                  key={b.id}
-                  size="sm"
-                  asChild
-                  className="px-2 [a]:hover:bg-transparent"
-                  title={result}
-                >
-                  <Link href={`/batches/${b.id}/report`}>
-                    <ItemContent className="min-w-0">
-                      <ItemTitle className="w-full truncate group-hover/item:underline">
-                        {batchTitle(b)}
-                      </ItemTitle>
-                      <ItemDescription className="truncate">
-                        {/* Day and time it went out; a failed batch never went out, so only its day. */}
-                        {b.sentAt ? formatDateTime(b.sentAt) : formatDate(when)}{" "}
-                        · {templateName(b.templateId)}
-                      </ItemDescription>
-                    </ItemContent>
-                    <ItemActions>
-                      <StatusBadge status={b.status} />
-                    </ItemActions>
-                  </Link>
-                </Item>
+                <Hint key={b.id} label={result}>
+                  <Item
+                    size="sm"
+                    asChild
+                    className="px-2 [a]:hover:bg-transparent"
+                  >
+                    <Link href={`/batches/${b.id}/report`}>
+                      <ItemContent className="min-w-0">
+                        <ItemTitle className="w-full truncate group-hover/item:underline">
+                          {batchTitle(b)}
+                        </ItemTitle>
+                        <ItemDescription className="truncate">
+                          {/* Day and time it went out; a failed batch never went out, so only its day. */}
+                          {b.sentAt ? formatDateTime(b.sentAt) : formatDate(when)}{" "}
+                          · {templateName(b.templateId)}
+                        </ItemDescription>
+                      </ItemContent>
+                      <ItemActions>
+                        <StatusBadge status={b.status} />
+                      </ItemActions>
+                    </Link>
+                  </Item>
+                </Hint>
               );
             })}
           </ItemGroup>

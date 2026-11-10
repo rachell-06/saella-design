@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/item";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { Hint } from "@/components/saella/hint";
 
 // "Get started" card for a new workspace (R14, learned from Mailchimp F5 setup guide + Apollo A5 Next steps).
 // Four steps in the order sending needs them; done steps are inferred from data the workspace already has
@@ -90,16 +91,17 @@ export function SetupGuide({
           Four steps to your first send. Each one opens where it&apos;s done.
         </CardDescription>
         <CardAction>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="-mt-1 -mr-1 text-muted-foreground"
-            aria-label="Hide the setup guide"
-            title="Hide the setup guide"
-            onClick={onDismiss}
-          >
-            <XIcon />
-          </Button>
+          <Hint label="Hide the setup guide">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="-mt-1 -mr-1 text-muted-foreground"
+              aria-label="Hide the setup guide"
+              onClick={onDismiss}
+            >
+              <XIcon />
+            </Button>
+          </Hint>
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

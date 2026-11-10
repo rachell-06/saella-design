@@ -3,6 +3,7 @@
 import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Block, KNOWN_TAGS, type TemplateKind, splitTags } from "@/lib/mock/templates";
+import { Hint } from "@/components/saella/hint";
 
 // Renders a template body as the recipient sees it (preview) or as editable blocks (edit). Wrap it in
 // `.email-canvas` (tokens.css) so it keeps the light email palette in dark mode; not Saella brand colours, except the button (PATTERNS.md §9.3: template colours are separate
@@ -54,7 +55,7 @@ export function EmailBody({
             )}
           >
             {issueIds?.has(b.id) && (
-              <span aria-hidden className="absolute top-1 right-1 size-2 rounded-full bg-warning" title="See Check" />
+              <Hint label="See Check"><span aria-hidden className="absolute top-1 right-1 size-2 rounded-full bg-warning" /></Hint>
             )}
             {content}
           </button>
@@ -155,16 +156,16 @@ export function TagText({ text, mode, values }: { text: string; mode: "edit" | "
         const known = KNOWN_TAGS.has(p.tag);
         if (mode === "preview" && known) return <span key={i}>{values?.[p.tag] ?? p.text}</span>;
         return (
-          <span
-            key={i}
-            title={known ? `Merge tag: ${p.tag}` : `Unknown merge tag: ${p.tag}`}
-            className={cn(
-              "mx-0.5 inline-flex items-center rounded-sm px-1 align-baseline font-mono text-xs leading-5",
-              known ? "bg-primary-subtle text-foreground" : "border border-destructive bg-destructive-soft text-destructive-soft-foreground"
-            )}
-          >
-            {p.tag}
-          </span>
+          <Hint key={i} label={known ? `Merge tag: ${p.tag}` : `Unknown merge tag: ${p.tag}`}>
+            <span
+              className={cn(
+                "mx-0.5 inline-flex items-center rounded-sm px-1 align-baseline font-mono text-xs leading-5",
+                known ? "bg-primary-subtle text-foreground" : "border border-destructive bg-destructive-soft text-destructive-soft-foreground"
+              )}
+            >
+              {p.tag}
+            </span>
+          </Hint>
         );
       })}
     </>

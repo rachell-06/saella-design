@@ -13,6 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { Toggle } from "@/components/ui/toggle";
 import { type TemplateKind } from "@/lib/mock/templates";
+import { Hint } from "@/components/saella/hint";
 
 // Subject line in Write with AI (Competitor.md R4, after Apollo A4 + Mailchimp F1), 2026-10-29.
 // The agent suggests 3 subjects, written from the email body plus an optional prompt. They stream in one by
@@ -177,12 +178,16 @@ export function WriteSubject({
                     </span>
                   </Label>
                   <div className="-my-0.5 flex shrink-0 gap-0.5">
-                    <Toggle size="sm" pressed={rating === "up"} onPressedChange={rate("up")} aria-label="Good suggestion" title="Good suggestion">
-                      <ThumbsUpIcon />
-                    </Toggle>
-                    <Toggle size="sm" pressed={rating === "down"} onPressedChange={rate("down")} aria-label="Bad suggestion" title="Bad suggestion">
-                      <ThumbsDownIcon />
-                    </Toggle>
+                    <Hint label="Good suggestion">
+                      <Toggle size="sm" pressed={rating === "up"} onPressedChange={rate("up")} aria-label="Good suggestion">
+                        <ThumbsUpIcon />
+                      </Toggle>
+                    </Hint>
+                    <Hint label="Bad suggestion">
+                      <Toggle size="sm" pressed={rating === "down"} onPressedChange={rate("down")} aria-label="Bad suggestion">
+                        <ThumbsDownIcon />
+                      </Toggle>
+                    </Hint>
                   </div>
                 </div>
               );

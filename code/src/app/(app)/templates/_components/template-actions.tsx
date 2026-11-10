@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { LockedTip } from "@/components/features/automate-dialog";
 import { type Viewer, accessFor, canEdit, canManage, canTransfer, lockReason } from "@/lib/mock/templates";
+import { Hint } from "@/components/saella/hint";
 
 // Template actions for the Templates screens, with the live app's four permission tiers
 // (Repo src/lib/email/template-permissions.ts): Send/Automate/Edit/activate need canEdit; Share, View log and
@@ -198,15 +199,16 @@ export function AutomateButton({
   const edit = canEdit(accessFor(template, viewer));
   // Viewers may still open it to read the settings; the dialog is read-only for them.
   return (
-    <Button
-      variant={label ? "outline" : "ghost"}
-      size={label ? (size === "icon-sm" ? "default" : size) : "icon-sm"}
-      aria-label={label ? undefined : edit ? "Automate" : "View automation"}
-      title={label ? undefined : edit ? "Automate: schedule and follow-up" : "View automation (read-only)"}
-      onClick={onOpen}
-    >
-      <ZapIcon data-icon={label ? "inline-start" : undefined} />
-      {label && "Automate"}
-    </Button>
+    <Hint label={label ? undefined : edit ? "Automate: schedule and follow-up" : "View automation (read-only)"}>
+      <Button
+        variant={label ? "outline" : "ghost"}
+        size={label ? (size === "icon-sm" ? "default" : size) : "icon-sm"}
+        aria-label={label ? undefined : edit ? "Automate" : "View automation"}
+        onClick={onOpen}
+      >
+        <ZapIcon data-icon={label ? "inline-start" : undefined} />
+        {label && "Automate"}
+      </Button>
+    </Hint>
   );
 }

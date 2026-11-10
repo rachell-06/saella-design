@@ -50,6 +50,7 @@ import { TRIGGERS, currentSchedule, delayLabel, nextRun, scheduleWhen, tzLabel, 
 import { SAMPLE_VALUES, accessFor, canEdit, detailsFor, resolveTags, findTemplate, lockReason, ownerName, viewerFor, withBatchTotals } from "@/lib/mock/templates";
 import { EmailBody } from "@/components/features/email-body";
 import { SendButton, TemplateMenu } from "./template-actions";
+import { Hint } from "@/components/saella/hint";
 
 // One template's results (live app EmailTemplateAnalytics + Repo src/lib/email/analytics.ts TemplateRollup):
 // KPI strip (delivered, open, click, click-to-open, bounce, unsubscribe, reply), the batches sent with it
@@ -166,7 +167,7 @@ export function TemplateDetailScreen({ id }: { id: string }) {
             {access === "shared" && " · shared with you"}
           </dd>
           <dt className="sr-only">Updated</dt>
-          <dd title={formatDateTime(details.updatedAt)}>Edited {formatDate(details.updatedAt)}</dd>
+          <Hint label={formatDateTime(details.updatedAt)}><dd>Edited {formatDate(details.updatedAt)}</dd></Hint>
         </dl>
       </PageHeader>
 
@@ -285,7 +286,6 @@ export function TemplateDetailScreen({ id }: { id: string }) {
                                 <Link
                                   href={`/batches/${b.id}/report`}
                                   className="truncate rounded-sm font-medium tabular-nums underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                                  title="Open the batch report"
                                 >
                                   {label}
                                 </Link>
@@ -346,9 +346,11 @@ export function TemplateDetailScreen({ id }: { id: string }) {
                       <span className="truncate" title={l.url}>
                         {l.url}
                       </span>
-                      <span className="tabular-nums" title={`${share.toFixed(1)}% of ${total.toLocaleString("en-US")} link clicks`}>
-                        {share.toFixed(1)}% <span className="text-muted-foreground">({l.clicks.toLocaleString("en-US")})</span>
-                      </span>
+                      <Hint label={`${share.toFixed(1)}% of ${total.toLocaleString("en-US")} link clicks`}>
+                        <span className="tabular-nums">
+                          {share.toFixed(1)}% <span className="text-muted-foreground">({l.clicks.toLocaleString("en-US")})</span>
+                        </span>
+                      </Hint>
                       <Progress
                         value={share}
                         aria-label={`${share.toFixed(1)}% of link clicks (${l.clicks})`}

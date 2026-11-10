@@ -58,6 +58,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { Hint } from "@/components/saella/hint";
 
 // One campaign as a collapsible card (pattern learned from Studio Admin /dashboard/infrastructure, 2026-10-27):
 // header = chevron + name + status, an ⓘ hover card with targeting and totals, Add template and a ⋯ menu; body = its templates in a
@@ -262,16 +263,11 @@ export function CampaignGroup({
                           No sends yet
                         </TableCell>
                       )}
-                      <TableCell
-                        className="pl-6 text-muted-foreground"
-                        title={
-                          tpl.lastSent
-                            ? formatDateTime(tpl.lastSent)
-                            : undefined
-                        }
-                      >
-                        {tpl.lastSent ? formatDate(tpl.lastSent) : null}
-                      </TableCell>
+                      <Hint label={tpl.lastSent ? formatDateTime(tpl.lastSent) : undefined}>
+                        <TableCell className="pl-6 text-muted-foreground">
+                          {tpl.lastSent ? formatDate(tpl.lastSent) : null}
+                        </TableCell>
+                      </Hint>
                       <TableCell className="pr-4">
                         <TemplateActions
                           template={tpl}

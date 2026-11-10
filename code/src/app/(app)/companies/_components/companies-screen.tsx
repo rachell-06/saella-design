@@ -75,6 +75,7 @@ import {
   workSearchPrompt,
 } from "./searches";
 import { StartPanel } from "./start-panel";
+import { Hint } from "@/components/saella/hint";
 
 // Companies (PRD-04 Company Data Hub + live app /dashboard/companies, 2026-10-28): search the SEA registry,
 // filter by country, ISIC industry (country-independent, section → class), status bucket, founded and data
@@ -256,16 +257,20 @@ export function CompaniesScreen() {
       cell: ({ row: { original: c } }) => (
         <span className="flex items-center gap-2 text-muted-foreground [&_svg]:size-4">
           {c.email && (
-            <span title="Email on file (masked)" className="flex items-center gap-1">
-              <MailIcon aria-hidden />
-              <span className="sr-only">Email on file</span>
-            </span>
+            <Hint label="Email on file (masked)">
+              <span tabIndex={0} className="flex items-center gap-1">
+                <MailIcon aria-hidden />
+                <span className="sr-only">Email on file</span>
+              </span>
+            </Hint>
           )}
           {c.phone && (
-            <span title="Phone on file (masked)" className="flex items-center gap-1">
-              <PhoneIcon aria-hidden />
-              <span className="sr-only">Phone on file</span>
-            </span>
+            <Hint label="Phone on file (masked)">
+              <span tabIndex={0} className="flex items-center gap-1">
+                <PhoneIcon aria-hidden />
+                <span className="sr-only">Phone on file</span>
+              </span>
+            </Hint>
           )}
         </span>
       ),

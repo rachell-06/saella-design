@@ -51,6 +51,7 @@ import { currentSchedule, useAutomation } from "@/components/features/automation
 import { type TemplateRow, allTemplates, ownerName, viewerFor } from "@/lib/mock/templates";
 import { NewTemplateDialog } from "./new-template-dialog";
 import { AutomateButton, SendButton, TemplateMenu } from "./template-actions";
+import { Hint } from "@/components/saella/hint";
 
 // All templates across campaigns (live app /dashboard/email/templates, EmailTemplatesList). Same rows, rates
 // and actions as the Campaigns screens; filters by campaign, status, owner and kind; follow-ups stay under
@@ -317,10 +318,12 @@ export function TemplatesScreen() {
                         const KindIcon = t.kind === "design" ? LayoutTemplateIcon : FileTextIcon;
                         return (
                           <TableRow key={t.id} className={cn("group/row", hasChildren && "border-b-0")}>
-                            <TableCell className="pl-4 text-muted-foreground" title={KIND_LABEL[t.kind]}>
-                              <KindIcon aria-hidden className="size-4" />
-                              <span className="sr-only">{KIND_LABEL[t.kind]}</span>
-                            </TableCell>
+                            <Hint label={KIND_LABEL[t.kind]}>
+                              <TableCell className="pl-4 text-muted-foreground">
+                                <KindIcon aria-hidden className="size-4" />
+                                <span className="sr-only">{KIND_LABEL[t.kind]}</span>
+                              </TableCell>
+                            </Hint>
                             {/* Names wrap to two lines before they cut; the grey lines under them stay one line. */}
                             <TableCell className="whitespace-normal [&_a]:line-clamp-2 [&_a]:break-words [&_span]:truncate">
                               {/* TemplateName links to /templates/[id] itself (shared with Campaigns). */}
@@ -331,9 +334,11 @@ export function TemplatesScreen() {
                                 {t.campaignName}
                               </span>
                               {schedule && (
-                                <span className="block truncate text-xs" title="This template has a schedule">
-                                  {schedule.status === "active" ? "Scheduled" : "Schedule paused"}
-                                </span>
+                                <Hint label="This template has a schedule">
+                                  <span className="block truncate text-xs">
+                                    {schedule.status === "active" ? "Scheduled" : "Schedule paused"}
+                                  </span>
+                                </Hint>
                               )}
                             </TableCell>
                             <TableCell>
@@ -350,9 +355,11 @@ export function TemplatesScreen() {
                                 <RateCell kind="bounce" part={t.bounces} whole={t.recipients} />
                               </>
                             )}
-                            <TableCell className="text-muted-foreground" title={t.lastSent ? formatDateTime(t.lastSent) : undefined}>
-                              {t.lastSent ? formatDate(t.lastSent) : null}
-                            </TableCell>
+                            <Hint label={t.lastSent ? formatDateTime(t.lastSent) : undefined}>
+                              <TableCell className="text-muted-foreground">
+                                {t.lastSent ? formatDate(t.lastSent) : null}
+                              </TableCell>
+                            </Hint>
                             <TableCell className="pr-4">
                               <div className={cn("flex items-center justify-end gap-1", revealOnRowHover)}>
                                 <SendButton template={t} viewer={viewer} sendingBlocked={sendingBlocked} />

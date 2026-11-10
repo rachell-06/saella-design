@@ -1,13 +1,23 @@
 import Link from "next/link";
 import { ArrowDownRightIcon, ArrowRightIcon, ArrowUpRightIcon, CircleAlertIcon, TriangleAlertIcon } from "lucide-react";
-import type { MetricDelta } from "@/components/saella/metric-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { Hint } from "@/components/saella/hint";
+
+export type MetricDelta = {
+  /** Already formatted, e.g. "+4.2 pts" or "−12%". */
+  value: string;
+  direction: "up" | "down";
+  /** Whether this change is good news. A falling bounce rate is good. */
+  good: boolean;
+  /** Comparison period, e.g. "vs last 30 days". */
+  period: string;
+};
 
 // Joined KPI strip (2026-10-28): one bordered row of cells divided by hairlines, for a detail page's headline
-// numbers (learned from Studio Admin analytics; first used inline in campaigns/campaign-detail.tsx). Use
-// MetricCard instead when a number needs its own card; a small delta can sit next to the number here
+// numbers (learned from Studio Admin analytics; first used inline in campaigns/campaign-detail.tsx). A small
+// delta can sit next to the number here
 // (2026-10-28, Overview made compact). A value from too small a sample is greyed
 // and its note says so (BR-RULE-EC-21).
 // 2026-11-05: the one KPI pattern for Overview, Campaigns and the batch report. Rates come from rateKpi()
@@ -100,16 +110,17 @@ export function KpiStripItem({
 function Delta({ delta }: { delta: MetricDelta }) {
   const Arrow = delta.direction === "down" ? ArrowDownRightIcon : ArrowUpRightIcon;
   return (
-    <span
-      title={delta.period}
-      className={cn(
-        "inline-flex items-center gap-0.5 text-sm font-medium tabular-nums",
-        delta.good ? "text-success-soft-foreground" : "text-destructive-soft-foreground"
-      )}
-    >
-      <Arrow aria-hidden className="size-4" />
-      {delta.value}
-      <span className="sr-only">{delta.period}</span>
-    </span>
+    <Hint label={delta.period}>
+      <span
+        className={cn(
+          "inline-flex items-center gap-0.5 text-sm font-medium tabular-nums",
+          delta.good ? "text-success-soft-foreground" : "text-destructive-soft-foreground"
+        )}
+      >
+        <Arrow aria-hidden className="size-4" />
+        {delta.value}
+        <span className="sr-only">{delta.period}</span>
+      </span>
+    </Hint>
   );
 }

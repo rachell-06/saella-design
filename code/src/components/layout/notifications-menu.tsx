@@ -6,6 +6,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { BellIcon, Building2Icon, GlobeIcon, MailIcon, Share2Icon, UserPlusIcon } from "lucide-react";
 import { type AppNotification, notifications as seed } from "@/lib/mock/workspace";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Item } from "@/components/ui/item";
@@ -58,9 +59,9 @@ export function NotificationsMenu({ items: initial = seed }: { items?: AppNotifi
         >
           <BellIcon />
           {unread > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-xs leading-none font-semibold text-primary-foreground tabular-nums">
+            <Badge className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 leading-none tabular-nums">
               {unread > 9 ? "9+" : unread}
-            </span>
+            </Badge>
           )}
         </Button>
       </PopoverTrigger>

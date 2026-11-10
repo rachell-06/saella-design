@@ -48,6 +48,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { CURRENT_USER, type Campaign, type Template, followUpRule, formatDate, rate, withFollowUps } from "@/lib/mock/campaigns";
+import { Hint } from "@/components/saella/hint";
 
 export type TemplateTableProps = {
   campaign: Campaign;
@@ -184,12 +185,11 @@ export function TemplateName({ template, isChild, truncate }: { template: Templa
         {template.followUp && (
           // Under its template the arrow already says "follow-up"; a follow-up of a template in another
           // campaign keeps the word.
-          <span
-            className={cn("text-xs text-muted-foreground", truncate && "truncate")}
-            title={`Sent as a follow-up: ${followUpRule(template.followUp)}`}
-          >
-            {isChild ? followUpRule(template.followUp) : `Follow-up · ${followUpRule(template.followUp)}`}
-          </span>
+          <Hint label={`Sent as a follow-up: ${followUpRule(template.followUp)}`}>
+            <span className={cn("text-xs text-muted-foreground", truncate && "truncate")}>
+              {isChild ? followUpRule(template.followUp) : `Follow-up · ${followUpRule(template.followUp)}`}
+            </span>
+          </Hint>
         )}
         {template.owner !== CURRENT_USER && (
           <span className={cn("text-xs text-muted-foreground", truncate && "truncate")}>

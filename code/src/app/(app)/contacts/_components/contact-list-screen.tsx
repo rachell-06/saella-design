@@ -74,6 +74,7 @@ import {
 import { SAFETY_RANK, SafetyBadge } from "./email-safety";
 import { ImportDialog } from "@/components/features/import-dialog";
 import { DeleteListDialog, RenameListDialog } from "./list-dialogs";
+import { Hint } from "@/components/saella/hint";
 
 // One contact list (2026-10-28). Tabs All / Reachable / Unreachable with counts; one search across name, email,
 // company and position (PRD Contacts AC-CON-L-01); tag filter, case-insensitive with sorted options (CON-SEQ-002).
@@ -201,12 +202,13 @@ export function ContactListScreen({ listId }: { listId: string }) {
               {`${c.firstName} ${c.lastName}`.trim() || (c.masked ? c.company : c.email)}
             </button>
           </span>
-          <span
-            className="truncate text-sm text-muted-foreground"
-            title={c.masked ? "Hidden until unlocked. Sending to it still works." : undefined}
-          >
-            {c.masked ? maskEmail(c.email) : c.email}
-          </span>
+          <Hint label={c.masked ? "Hidden until unlocked. Sending to it still works." : undefined}>
+            <span tabIndex={0}
+              className="truncate text-sm text-muted-foreground"
+            >
+              {c.masked ? maskEmail(c.email) : c.email}
+            </span>
+          </Hint>
         </div>
       ),
     },
@@ -257,9 +259,11 @@ export function ContactListScreen({ listId }: { listId: string }) {
       accessorFn: (c) => c.lastSent?.on ?? "",
       cell: ({ row: { original: c } }) =>
         c.lastSent ? (
-          <span className="text-muted-foreground" title={c.lastSent.template}>
-            {formatDate(c.lastSent.on)}
-          </span>
+          <Hint label={c.lastSent.template}>
+            <span className="text-muted-foreground">
+              {formatDate(c.lastSent.on)}
+            </span>
+          </Hint>
         ) : null,
     },
     {

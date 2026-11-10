@@ -122,6 +122,7 @@ import {
 } from "./recipient-checks";
 import { RecipientPreview } from "./recipient-preview";
 import { SubjectText } from "./subject-text";
+import { Hint } from "@/components/saella/hint";
 
 const STEPS = [
   { id: "template", label: "Template" },
@@ -996,12 +997,11 @@ function RecipientsStep({
             <dd className="text-right">{n(audience.contacts)}</dd>
             <dt className="text-muted-foreground">In more than one list</dt>
             <dd className="text-right">−{n(audience.duplicates)}</dd>
-            <dt
-              className="text-muted-foreground"
-              title="Unsubscribed, bounced before, or an address that can't receive mail"
-            >
-              Unsubscribed, bounced or invalid
-            </dt>
+            <Hint label="Unsubscribed, bounced before, or an address that can't receive mail">
+              <dt className="text-muted-foreground">
+                Unsubscribed, bounced or invalid
+              </dt>
+            </Hint>
             <dd className="text-right">−{n(audience.unreachable)}</dd>
             <dt className="text-muted-foreground">
               Already received this template

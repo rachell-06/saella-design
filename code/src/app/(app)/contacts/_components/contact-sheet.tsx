@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { type ActivityEvent, type ActivityKind, contactActivity, formatEventTime, groupByMonth, summarize } from "./contact-activity";
 import { type Contact, emailSafety, fmt, formatDate, maskEmail, safetyReason } from "@/lib/mock/contacts";
 import { SafetyBadge } from "./email-safety";
+import { Hint } from "@/components/saella/hint";
 
 // Contact profile in a Sheet (DESIGN.md §8.1: Sheet for contact detail; R8 2026-10-29, HubSpot H3 + Apollo A2).
 // Details on top, then the email activity timeline: one line per event, grouped by month, newest first, with a
@@ -86,7 +87,7 @@ export function ContactSheet({
               <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
                 <Fact label="Email">
                   {c.masked ? (
-                    <span title="Hidden until unlocked. Sending to it still works.">{maskEmail(c.email)}</span>
+                    <Hint label="Hidden until unlocked. Sending to it still works."><span tabIndex={0}>{maskEmail(c.email)}</span></Hint>
                   ) : (
                     c.email
                   )}

@@ -3,6 +3,7 @@
 import { StatusBadge } from "@/components/saella/status-badge";
 import { cn } from "@/lib/utils";
 import { type Campaign, campaignStatus, rate, totals } from "@/lib/mock/campaigns";
+import { Hint } from "@/components/saella/hint";
 
 // Master list of the master–detail Campaigns screen (pattern learned from Studio Admin mail/logistics,
 // 2026-10-27). Name on the first line; status (only when not Active), template count and open rate on the second.
@@ -46,12 +47,11 @@ export function CampaignList({
                       : `${c.templates.length} ${c.templates.length === 1 ? "template" : "templates"}`}
                   </span>
                   {open && (
-                    <span
-                      className={cn("ml-auto shrink-0 tabular-nums", open.lowSample ? "text-subtle-foreground" : "text-foreground")}
-                      title={open.lowSample ? "Fewer than 20 sends: too few to judge" : "Open rate"}
-                    >
-                      {open.text} <span className="text-muted-foreground">open</span>
-                    </span>
+                    <Hint label={open.lowSample ? "Fewer than 20 sends: too few to judge" : "Open rate"}>
+                      <span className={cn("ml-auto shrink-0 tabular-nums", open.lowSample ? "text-subtle-foreground" : "text-foreground")}>
+                        {open.text} <span className="text-muted-foreground">open</span>
+                      </span>
+                    </Hint>
                   )}
                 </span>
               </button>

@@ -304,12 +304,13 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 | `ApprovalCard`, `AgentSteps` | Đề xuất chờ duyệt, các bước agent đang chạy (`PATTERNS.md` 9.4) |
 | `SaellaMini` | Gương mặt agent: nền tròn `primary-soft`, 20–96px, `state` idle / thinking |
 | `CopyButton`, `LanguagePicker` | Copy giá trị (DNS record…), chọn ngôn ngữ |
+| `Hint` | Tooltip ngắn cho mọi phần tử, thay `title=` native (`PATTERNS.md` 9.13) |
 
 **Đang bỏ (không dùng cho màn mới)**
 
 | Component | Thay bằng | Ghi chú |
 |---|---|---|
-| `MetricCard` | `KpiStrip` | Overview đổi sang `KpiStrip` 2026-11-05 |
+| `MetricCard` | `KpiStrip` | Đã xoá; số nào cần nổi bật thì vào một ô `KpiStrip` |
 | `RateMeters` (thang 3 nấc) | `RateCell` / `RateValue` | Đã xoá 2026-11-05 |
 | `TableFill` | Tuỳ chọn `fill` / `stickyHeader` của `DataTable` (chưa làm) | Tạm dùng cho bảng cao hết trang; nợ kỹ thuật vì chỉnh `DataTable` từ bên ngoài |
 

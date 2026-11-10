@@ -45,6 +45,7 @@ import {
   gateUnit,
   rank,
 } from "./metrics";
+import { Hint } from "@/components/saella/hint";
 
 const n = (x: number) => x.toLocaleString("en-US");
 // Table layout from Studio Admin /dashboard/infrastructure (user request 2026-10-28): cells and heads px-5,
@@ -534,20 +535,18 @@ export function SenderBoard({
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="truncate font-medium">{r.name}</span>
                         {r.flag === "shared" && (
-                          <Badge
-                            variant="info"
-                            title="Shared sender: up to 1,000 emails a month"
-                          >
-                            Shared
-                          </Badge>
+                          <Hint label="Shared sender: up to 1,000 emails a month">
+                            <Badge variant="info">
+                              Shared
+                            </Badge>
+                          </Hint>
                         )}
                         {r.flag === "unconfirmed" && (
-                          <Badge
-                            variant="warning"
-                            title="Not confirmed: this address can't send until it is"
-                          >
-                            Unconfirmed
-                          </Badge>
+                          <Hint label="Not confirmed: this address can't send until it is">
+                            <Badge variant="warning">
+                              Unconfirmed
+                            </Badge>
+                          </Hint>
                         )}
                       </span>
                       <span
@@ -565,23 +564,23 @@ export function SenderBoard({
                     {r.domain}
                   </TableCell>
                   {/* Share of the period's volume; neutral color because more volume is neither good nor bad. */}
-                  <TableCell
-                    title={`${(share * 100).toFixed(1)}% of emails sent ${span.label}`}
-                  >
-                    <div className="flex flex-col gap-1">
-                      <span className="flex items-baseline justify-between gap-2 text-dense font-medium">
-                        <span className="tabular-nums">{n(t.sends)}</span>
-                        <span className="text-muted-foreground tabular-nums">
-                          {Math.round(share * 100)}%
+                  <Hint label={`${(share * 100).toFixed(1)}% of emails sent ${span.label}`}>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <span className="flex items-baseline justify-between gap-2 text-dense font-medium">
+                          <span className="tabular-nums">{n(t.sends)}</span>
+                          <span className="text-muted-foreground tabular-nums">
+                            {Math.round(share * 100)}%
+                          </span>
                         </span>
-                      </span>
-                      <Progress
-                        value={share * 100}
-                        aria-label={`${Math.round(share * 100)}% of emails sent`}
-                        className="h-1.5 bg-muted-foreground/20 *:data-[slot=progress-indicator]:bg-muted-foreground"
-                      />
-                    </div>
-                  </TableCell>
+                        <Progress
+                          value={share * 100}
+                          aria-label={`${Math.round(share * 100)}% of emails sent`}
+                          className="h-1.5 bg-muted-foreground/20 *:data-[slot=progress-indicator]:bg-muted-foreground"
+                        />
+                      </div>
+                    </TableCell>
+                  </Hint>
                   {SENDER_RATES.map((k) => {
                     const [part, whole] = rateParts(t, k);
                     return (
@@ -632,15 +631,16 @@ const MEDALS = [
 function Medal({ place }: { place: number }) {
   const m = MEDALS[place - 1];
   return (
-    <span
-      title={m.label}
-      aria-label={m.label}
-      className={cn(
-        "inline-flex size-6 items-center justify-center rounded-full text-dense font-semibold ring-2",
-        m.className,
-      )}
-    >
-      {place}
-    </span>
+    <Hint label={m.label}>
+      <span
+        aria-label={m.label}
+        className={cn(
+          "inline-flex size-6 items-center justify-center rounded-full text-dense font-semibold ring-2",
+          m.className,
+        )}
+      >
+        {place}
+      </span>
+    </Hint>
   );
 }

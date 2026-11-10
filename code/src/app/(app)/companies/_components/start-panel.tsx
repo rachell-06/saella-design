@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupText, InputGroupTextarea } from "@/components/ui/input-group";
 import { COUNTRIES, isicLabel } from "./data";
 import { EMPTY_FILTERS, type SavedSearch, type Search, agentHref, describeSearch } from "./searches";
+import { Hint } from "@/components/saella/hint";
 
 // First open / nothing filtered (R13, 2026-10-29; Apollo A1 A-P5, Clay): describe the buyers in a sentence and
 // the agent sets the search up, or start from a quick filter. The agent is reached through its own page
@@ -100,10 +101,12 @@ export function StartPanel({
           {saved.length > 0 && (
             <QuickRow label="Saved">
               {saved.slice(0, 3).map((s) => (
-                <Button key={s.id} variant="outline" className="rounded-full font-normal" title={describeSearch(s)} onClick={() => onOpenSaved(s)}>
-                  <BookmarkIcon data-icon="inline-start" className="text-muted-foreground" />
-                  {s.name}
-                </Button>
+                <Hint key={s.id} label={describeSearch(s)}>
+                  <Button variant="outline" className="rounded-full font-normal" onClick={() => onOpenSaved(s)}>
+                    <BookmarkIcon data-icon="inline-start" className="text-muted-foreground" />
+                    {s.name}
+                  </Button>
+                </Hint>
               ))}
             </QuickRow>
           )}
