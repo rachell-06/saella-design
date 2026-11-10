@@ -5,11 +5,11 @@ Thiết kế lại **toàn bộ giao diện app Saella** (không phải landing 
 ## Thư mục (sắp xếp 2026-10-27 cho người không làm code)
 
 ```
-01 Docs/           Competitor.md (tham khảo) + Design system/ (DESIGN.md, decisions.md)
+01 Docs/           PRODUCT.md, Competitor.md (tham khảo) + Design system/ (DESIGN.md, decisions.md)
 03 Brand/          logo, tài sản brand
 code/              toàn bộ app Next.js (chạy lệnh npm trong thư mục này)
 
-Tên file/thư mục đặt bằng tiếng Anh (chốt 2026-10-27); nội dung docs viết tiếng Việt.
+Tên file/thư mục đặt bằng tiếng Anh (chốt 2026-10-27); nội dung docs viết tiếng Việt, riêng PRODUCT.md viết tiếng Anh (chốt 2026-11-09).
 ```
 
 Không để file kỹ thuật ở gốc. File mới phải vào đúng một trong các thư mục trên; việc chờ duyệt ghi vào mục "Chưa chốt" đầu `01 Docs/Design system/decisions.md` (chốt 2026-11-02, bỏ `00 Start here.md`).
@@ -24,7 +24,10 @@ Landing page là project riêng ở `D:\Workspace\Saella\Saella LP`. Quy tắc t
 ## Đọc trước khi làm
 
 1. PRD Master (https://pgg-prd-lib.vercel.app/docs/saella-prd-master), do team dev viết và cập nhật mỗi version: tổng quan sản phẩm, tab Upcoming. Cần chi tiết màn hình thì tra thẳng PRD từng module, không đoán. (Bản chép `Product brief.md` đã bỏ ngày 2026-11-02 vì cũ, v1.5.9.)
-2. `01 Docs/Design system/DESIGN.md` (quy tắc, màu, chữ, component, pattern) và `decisions.md` (khác gì app hiện tại, việc chờ duyệt). Giá trị token chỉ nằm ở `code/src/styles/tokens.css`. Mọi màn phải dùng token, không tự đặt màu/cỡ chữ.
+2. `01 Docs/PRODUCT.md` (Design Context): người dùng, việc chính, tính cách giao diện, không được giống gì, nguyên tắc thiết kế. Chỉ ghi phần ít đổi; trạng thái module xem PRD. Skill `impeccable` và các lệnh của nó (critique, audit, polish…) lấy context ở đây, không cần chạy `impeccable teach` hay tạo `.impeccable.md`.
+3. `01 Docs/Design system/DESIGN.md` (quy tắc, màu, chữ, component, pattern) và `decisions.md` (khác gì app hiện tại, việc chờ duyệt). Giá trị token chỉ nằm ở `code/src/styles/tokens.css`. Mọi màn phải dùng token, không tự đặt màu/cỡ chữ.
+
+Thứ tự ưu tiên khi các nguồn khác nhau (chốt 2026-11-09): **CLAUDE.md > DESIGN.md > PRODUCT.md > skill** (impeccable, interface-design, emil-design-eng…) và tham chiếu ngoài (Studio Admin, Mobbin, đối thủ). Skill bảo đổi font, thêm màu, "bold direction" mà trái DS thì theo DS. Việc trong mục "Chưa chốt" của `decisions.md` chưa có hiệu lực, không file nào được coi là đã chốt.
 
 ## Dùng chung với LP
 
@@ -43,15 +46,15 @@ Landing page là project riêng ở `D:\Workspace\Saella\Saella LP`. Quy tắc t
 Làm đúng thứ tự, không bỏ bước:
 
 1. **Component lấy từ shadcn.** Dùng component có sẵn trong `code/src/components/ui/` hoặc `components/saella/` (ghép từ shadcn). Component có file `<tên>.meta.ts` cạnh nó thì đọc trước khi dùng (khi nào dùng biến thể nào, tổ hợp cấm); component mới hoặc hay bị dùng sai thì viết thêm meta theo khuôn `components/meta.ts` (chốt 2026-11-09). Thiếu thì thêm bằng `npx shadcn@latest add`, không tự vẽ control. Không dùng control native của trình duyệt: không `<input type="date|time">` (dùng `DatePicker`, `DateRangePicker`, `TimePicker` ở `components/saella/date-picker.tsx`), không `<select>` thô.
-2. **Tuân theo design system Saella.** Màu, chữ, bo góc chỉ lấy từ token trong `tokens.css`; đọc `DESIGN.md` mục 2 "Quy tắc đã chốt" trước khi làm vì có nhiều quy tắc người dùng đã chốt, tóm tắt: không nền hiệu ứng / bóng đổ trên thẻ danh sách, không đổi nền khi rê chuột dòng bảng, thông tin phụ vào ⓘ hoặc tooltip, không chú thích phương pháp cuối trang, mỗi trang một nút cam đặc, tỉ lệ % chỉ hiện số (bỏ thang 3 nấc 2026-11-03), chỉ Bounce và Delivery được tô màu theo ngưỡng của app thật trong `RATE_BANDS` (`components/saella/rate-meter.tsx`, chốt 2026-11-05), mọi giờ hiện theo GMT+7 (`src/lib/time.ts`).
+2. **Tuân theo design system Saella.** Màu, chữ, bo góc chỉ lấy từ token trong `tokens.css`; đọc `DESIGN.md` mục 2 "Quy tắc đã chốt" trước khi làm vì có nhiều quy tắc người dùng đã chốt, tóm tắt: không nền hiệu ứng / bóng đổ trên thẻ danh sách, không đổi nền khi rê chuột dòng bảng, thông tin phụ vào ⓘ hoặc tooltip, không chú thích phương pháp cuối trang, mỗi trang một nút cam đặc, tỉ lệ % chỉ hiện số (bỏ thang 3 nấc 2026-11-03), chỉ Bounce và Delivery được tô màu theo ngưỡng của app thật trong `RATE_BANDS` (`components/saella/rate-meter.tsx`, chốt 2026-11-05), mọi giờ hiện theo múi giờ workspace, mặc định GMT+7 (`src/lib/time.ts`), giờ gắn với hành động ghi kèm múi giờ (`DESIGN.md` mục 9.8, chốt 2026-11-10).
 3. **Học pattern từ Studio Admin**: bản clone chỉ đọc ở `D:\Workspace\Saella\Studio Admin` (clone 2026-10-28, commit `89f28da`; cập nhật bằng `git -C "D:\Workspace\Saella\Studio Admin" pull`), các trang ở `src/app/(main)/dashboard/<trang>/`; demo https://studio-admin.arhamkhnz.com. Mở đúng trang tương ứng, đọc `page.tsx` + `_components/*` để lấy bố cục, spacing, cấu trúc; dựng lại bằng component + token Saella. Không chép CSS, màu, `components/ui/` của họ. Khi khác quyết định Saella thì Saella thắng.
-4. **Sau đó mới gen UI**, rồi tự kiểm tra trước khi báo xong (mục "Kiểm tra trước khi báo xong").
+4. **Sau đó mới gen UI**, rồi tự kiểm tra trước khi báo xong (mục "Kiểm tra trước khi báo xong"), gồm một **lượt cắt gọt chữ** theo `DESIGN.md` mục 9.15: PRD và code là để hiểu màn hoạt động thế nào, không phải danh sách thứ cần hiện; chữ nào người dùng không dùng để làm gì thì bỏ (chốt 2026-11-10).
 
 Lỗi đã gặp, không lặp lại:
 - Ô chọn ngày/giờ native của trình duyệt (không phải shadcn).
 - Giới hạn bề rộng cả thanh header làm vạch kẻ hụt cạnh sidebar: chỉ giới hạn phần bên trong, thanh và vạch kẻ trải hết bề ngang.
 - Thanh progress không khớp con số (so với "dòng tốt nhất", để rỗng khi ít dữ liệu). Tỉ lệ email chỉ hiện số; nơi nào còn dùng thanh Progress thì thanh luôn = đúng con số.
-- Ngưỡng màu khác nhau giữa các cột cùng loại: mọi tỉ lệ tốt dùng chung một bộ ngưỡng, Bounce và Unsub (tỉ lệ xấu) dùng chung một bộ riêng.
+- Tô màu tỉ lệ theo ngưỡng tự đặt: chỉ Bounce và Delivery có ngưỡng (`RATE_BANDS`, `DESIGN.md` mục 2), các tỉ lệ khác không tô màu.
 - Badge/chữ lẫn lộn trong cùng một cột (vd. Recent batches): một cột chỉ một kiểu hiển thị.
 - Dòng phụ quá dài bị cắt, cột tên bị bóp khi thêm cột: chụp lại và đo trước khi báo xong.
 - Hiển thị giờ theo UTC; dữ liệu mẫu không đủ để hiện trạng thái cần duyệt (cho dữ liệu giả đủ để "show UI").

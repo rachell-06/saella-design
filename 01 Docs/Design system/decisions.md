@@ -12,14 +12,20 @@ Chỉ ghi **thay đổi lớn so với app hiện tại** (Repo: Next 14 + antd 
 - **Overview: chọn option 4** (canvas, page Overview, 2026-11-05): một trang, bỏ 3 tab Campaign / Template / Sender của app hiện tại; KPI tính trên toàn workspace (tổng, không lấy trung bình tỉ lệ từng dòng); chia nhỏ theo Campaign / Template / Sender nằm trong một khối Breakdown; sender lỗi hiện thành việc trong Needs you.
 - **Credits** (canvas, 2026-11-05): bỏ khỏi header, đặt ở cuối sidebar: "820 left · Starter plan · +600 on Nov 12", không thanh (credits = gói + gói mua thêm, không có mức trần). Theo PRD billing, tự gửi email miễn phí; agent tốn 1/yêu cầu và 1/batch nó gửi; mở khoá liên hệ 1; tính phí đang tắt. Chưa chốt: có cảnh báo sắp hết credits không, ngưỡng bao nhiêu.
 - **Ngưỡng Bounce lệch 5% / 7%:** số Bounce tô cảnh báo từ 5% (`RATE_BANDS`), nhưng nhãn "Near limit" ở Sending health bật từ 70% ngưỡng tự dừng = 7%. Chọn một mức cho cả hai.
+- **PRODUCT.md: mục 4–5 cần product owner duyệt** (2026-11-09): ba từ tính cách "tidy, trustworthy, hardworking", bối cảnh dùng và danh sách "không được giống" là suy từ PRD và brand LP, PRD không ghi.
 - **Nhân vật chibi ở dark mode:** nét đổi thành màu chữ, thân màu nền (nét ink gốc biến mất trên nền tối).
+- **Geist và dấu tiếng Việt** (2026-11-10): giao diện có tiếng Việt (PRD Language), nhưng `layout.tsx` chỉ nạp bộ chữ `latin` của Geist. Cần dựng thử một màn tiếng Việt: dấu hiện đúng bằng Geist thì giữ; lỗi hoặc lệch font thì nạp thêm bộ chữ hoặc đổi sang Inter (đổi font là đổi brand, cần chốt).
+- **DESIGN.md 9.9–9.14: các dòng đánh dấu ĐX** (2026-11-10): không mở dialog chồng dialog; bấm lưu khi còn lỗi thì focus về trường lỗi đầu tiên; URL dài cắt ở giữa. PRD và app thật không nói.
+- **PRD chưa định, cần team trả lời** (2026-11-10): giao diện khi hết credit (API trả 402, chưa có màn); có đánh dấu `*` cho trường bắt buộc không; có thông báo khi import / export xong không.
+- **PRD tự mâu thuẫn, cần team chốt** (2026-11-10): số người nhận tối đa mỗi batch (Master 2,000; Email Campaigns 5,000; agent 500); file import quá 1,000 dòng bị từ chối (AC-CON-I-03) hay cắt lấy 1,000 dòng đầu (CON-SEQ-004); báo cáo trống hiện "0" kèm giải thích (EC-EC-31) hay "–" (Master v1.6.8, đang theo cách này).
 
 ## Thay đổi lớn so với app hiện tại
 
 ### Nền tảng
 - antd 5 → **shadcn/ui + Tailwind 4**, giá trị chỉ lấy từ token Saella (`code/src/styles/tokens.css`), style kế thừa LP saella.ai (ink, một họ cam, Geist, hairline thay bóng). (2026-10-26)
 - **Dark mode** đủ cặp token, đạt AA; mặc định sáng, đổi Light / Dark / System ở menu tài khoản. (2026-10-27, 10-28)
-- **Mọi giờ hiện theo GMT+7** (`src/lib/time.ts`), không theo UTC hay máy người xem. (2026-10-28)
+- **Mọi giờ hiện theo múi giờ workspace**, mặc định GMT+7 (`src/lib/time.ts`), không theo UTC hay máy người xem. (2026-10-28; đổi từ "luôn GMT+7" 2026-11-10 vì SG, MY, BN, PH là GMT+8)
+- **Lên lịch gửi cho chọn múi giờ**, mặc định theo nước đích của campaign (app thật chỉ hiện tên múi giờ, không cho đổi); giờ gắn với hành động luôn ghi kèm múi giờ. Không làm gửi theo giờ từng người nhận. (2026-11-10)
 - Chọn ngày/giờ bằng `DatePicker`, `DateRangePicker`, `TimePicker`; không còn ô native của trình duyệt. (2026-10-28)
 
 ### Khung app
