@@ -49,6 +49,7 @@ import {
   initialMembers,
 } from "../../_components/data";
 import { SectionHeader } from "../../_components/section-header";
+import { Item } from "@/components/ui/item";
 
 // Settings → Organization (PRD Organization & Roles, read 2026-10-28; live app components/email/UsersSection.tsx).
 // - One org per email domain; the first account to verify the domain becomes its admin (BR-ORG-01,
@@ -240,7 +241,7 @@ export function OrganizationScreen() {
           </AlertAction>
         </Alert>
       ) : (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-card border px-4 py-3">
+        <Item variant="outline" className="gap-x-3 gap-y-1 rounded-card px-4 py-3 text-[length:inherit]">
           <ShieldIcon className="size-4 text-muted-foreground" aria-hidden />
           <span className="font-medium">{ORG.domain}</span>
           <Badge variant="success">
@@ -250,7 +251,7 @@ export function OrganizationScreen() {
           <span className="text-sm text-muted-foreground">
             by {ORG.name} since {formatDay(ORG.claimedOn, true)} · Admin: {admin?.name ?? "none"}
           </span>
-        </div>
+        </Item>
       )}
     </section>
   );
@@ -494,7 +495,7 @@ export function OrganizationScreen() {
 
       <section className="flex flex-col gap-4" aria-labelledby="danger-title">
         <SectionHeader id="danger-title" title="Transfer the admin role" />
-        <div className="flex flex-col gap-3 rounded-card border px-4 py-4">
+        <Item variant="outline" className="flex-col items-stretch gap-3 rounded-card px-4 py-4 text-[length:inherit]">
           <p className="text-muted-foreground">
             Only an Active member of this workspace can receive it. After the transfer you become a regular member and
             can&apos;t undo it yourself.
@@ -518,7 +519,7 @@ export function OrganizationScreen() {
               Transfer admin
             </Button>
           </div>
-        </div>
+        </Item>
       </section>
 
       <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />

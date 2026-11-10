@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDay } from "../../_components/data";
 import { SectionHeader } from "../../_components/section-header";
+import { Item } from "@/components/ui/item";
 
 // Settings → Billing (PRD-05 Billing & Credits, read 2026-10-28; live app app/dashboard/billing/BillingClient.tsx,
 // lib/credits/pricing.ts). The module is IN PLANNING: pricing isn't final, credit charging is built but off
@@ -261,9 +262,9 @@ export function BillingScreen() {
       <section className="flex flex-col gap-4" aria-labelledby="ledger-title">
         <SectionHeader id="ledger-title" title="Recent activity" />
         {ledger.length === 0 ? (
-          <p className="rounded-card border px-4 py-3 text-muted-foreground">
+          <Item variant="outline" className="block rounded-card px-4 py-3 text-muted-foreground text-[length:inherit]" asChild><p>
             No transactions yet. Grants, purchases and charges show here.
-          </p>
+          </p></Item>
         ) : (
           <div className="rounded-card border">
             <Table>

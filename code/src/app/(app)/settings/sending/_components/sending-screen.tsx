@@ -53,6 +53,7 @@ import { SectionHeader } from "../../_components/section-header";
 import { DomainCard } from "./domain-card";
 import { type HealthTotals, PREVIEW_HEALTH, SendingHealth, last7Days } from "./sending-health";
 import { AddDomainDialog, AddSenderDialog, type NewSender, SharedSenderDialog } from "./sending-dialogs";
+import { Item } from "@/components/ui/item";
 
 // Settings → Sending: domains and senders (PRD-02 US-EC-D, US-EC-DV, US-EC-S, US-EC-I; live app
 // EmailDomainsManager.tsx + EmailSendersSection.tsx).
@@ -419,9 +420,9 @@ export function SendingScreen() {
           }
         />
         {verifiedDomains.length === 0 ? (
-          <p className="rounded-card border px-4 py-3 text-muted-foreground">
+          <Item variant="outline" className="block rounded-card px-4 py-3 text-muted-foreground text-[length:inherit]" asChild><p>
             Verify a domain above first. Then you can add the addresses you send from.
-          </p>
+          </p></Item>
         ) : ownSenders.length === 0 ? (
           <Empty className="border">
             <EmptyHeader>
@@ -527,7 +528,7 @@ export function SendingScreen() {
           info={`Its reputation is shared with other workspaces and capped at ${SHARED_MONTHLY_CAP.toLocaleString("en-US")} sends a calendar month. Your own domain isn't affected by the cap.`}
         />
         {shared ? (
-          <div className="flex flex-col gap-3 rounded-card border px-4 py-3">
+          <Item variant="outline" className="flex-col items-stretch gap-3 rounded-card px-4 py-3 text-[length:inherit]">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <ZapIcon className="size-4 text-muted-foreground" aria-hidden />
               <span className="font-medium">{shared.email}</span>
@@ -563,9 +564,9 @@ export function SendingScreen() {
                 className="*:data-[slot=progress-indicator]:bg-muted-foreground"
               />
             </div>
-          </div>
+          </Item>
         ) : (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border px-4 py-3">
+          <Item variant="outline" className="justify-between gap-3 rounded-card px-4 py-3 text-[length:inherit]">
             <p className="text-muted-foreground">
               Send immediately from Saella&apos;s shared domain. Switch to your own domain any time.
             </p>
@@ -575,7 +576,7 @@ export function SendingScreen() {
                 Start sending now
               </Button>
             )}
-          </div>
+          </Item>
         )}
       </section>
 

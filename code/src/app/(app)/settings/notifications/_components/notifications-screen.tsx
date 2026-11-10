@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SectionHeader } from "../../_components/section-header";
+import { Item } from "@/components/ui/item";
 
 // Settings → Notifications (PRD Notification, read 2026-10-28).
 // - The only preference that exists is marketing opt-out: it silences tips and offers only; transactional,
@@ -108,7 +109,7 @@ export function NotificationsScreen() {
     <>
       <section className="flex flex-col gap-4" aria-labelledby="pref-title">
         <SectionHeader id="pref-title" title="Email from Saella" />
-        <div className="rounded-card border px-4 py-3">
+        <Item variant="outline" className="block rounded-card px-4 py-3 text-[length:inherit]">
           <Field orientation="horizontal">
             <FieldContent>
               <FieldLabel htmlFor="ntf-tips">Tips and offers</FieldLabel>
@@ -118,7 +119,7 @@ export function NotificationsScreen() {
             </FieldContent>
             <Switch id="ntf-tips" checked={tips} onCheckedChange={changeTips} disabled={saving} aria-busy={saving || undefined} />
           </Field>
-        </div>
+        </Item>
       </section>
 
       <section className="flex flex-col gap-4" aria-labelledby="what-title">

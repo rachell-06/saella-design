@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { type RateBand, bandHint, rateBand } from "@/components/saella/rate-meter";
 import { cn } from "@/lib/utils";
 import { InfoTip, SectionHeader } from "../../_components/section-header";
+import { Item } from "@/components/ui/item";
 
 // Sending health (R16, learned from Apollo A8 Deliverability suite): the last 7 days across every sender, read
 // against the workspace auto-pause limits, with one short line on what to do. Numbers come from the same
@@ -86,7 +87,7 @@ export function SendingHealth({
     return (
       <section className="flex flex-col gap-4" aria-labelledby="health-title">
         {header()}
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border px-4 py-3">
+        <Item variant="outline" className="justify-between gap-3 rounded-card px-4 py-3 text-[length:inherit]">
           <p className="text-muted-foreground">
             Nothing sent in the last 7 days. Delivery, bounce and complaint rates show up here after your next batch.
           </p>
@@ -96,7 +97,7 @@ export function SendingHealth({
               New batch
             </Link>
           </Button>
-        </div>
+        </Item>
       </section>
     );
   }
