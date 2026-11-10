@@ -13,6 +13,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { type Thread, timeAgo } from "./data";
+import { ListRow } from "@/components/saella/list-row";
 
 // History sidebar of the full agent page (PRD-03 AC-AG-C-05, live app components/agent/HistorySidebar.tsx):
 // up to 50 threads, newest first, no paging (AC-AG-T-01); each shows title, visibility and time since last
@@ -64,22 +65,12 @@ export function ThreadList({
               const selected = t.id === selectedId;
               return (
                 <li key={t.id} className="group/thread relative">
-                  <button
-                    type="button"
-                    aria-current={selected ? "true" : undefined}
-                    onClick={() => onSelect(t.id)}
-                    className={cn(
-                      "relative flex w-full flex-col gap-0.5 py-2.5 pr-10 pl-3 text-left transition-colors hover:bg-muted/60",
-                      "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
-                      "before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-brand before:opacity-0",
-                      "aria-[current=true]:bg-primary-subtle aria-[current=true]:before:opacity-100"
-                    )}
-                  >
+                  <ListRow selected={selected} onSelect={() => onSelect(t.id)} className="flex-col items-stretch gap-0.5 py-2.5 pr-10 pl-3">
                     <span className="truncate text-sm font-medium">{t.title || "Untitled"}</span>
                     <span className="text-xs text-muted-foreground">
                       {t.visibility === "private" ? "Private" : "Company"} · {timeAgo(t.updatedAt)}
                     </span>
-                  </button>
+                  </ListRow>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button

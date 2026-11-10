@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDownIcon, SearchIcon, XIcon } from "lucide-react";
+import { ChevronDownIcon, SearchIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { ChipRemove } from "@/components/saella/chip-remove";
 
 // Search + facet filters + active-value chips for list screens (Companies, Contacts, Campaigns).
 // Controlled: the screen owns the state, so filters can come from the URL or from the agent.
@@ -107,14 +108,11 @@ export function FilterBar({
             >
               <span className="text-muted-foreground">{facet.label}:</span>
               {option}
-              <button
-                type="button"
-                aria-label={`Remove ${facet.label} ${option}`}
+              <ChipRemove
+                label={`Remove ${facet.label} ${option}`}
                 onClick={() => toggle(facet.key, option, false)}
-                className="flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary-soft hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-              >
-                <XIcon className="size-3" />
-              </button>
+                className="hover:bg-primary-soft"
+              />
             </Badge>
           ))}
           <Button variant="link" size="sm" onClick={() => onChange({})}>

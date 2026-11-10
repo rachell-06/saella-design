@@ -34,6 +34,7 @@ import {
   noteOf,
 } from "./data";
 import { SendSplitChoice, TestSendView, approveLabel } from "./send-split";
+import { ListRow } from "@/components/saella/list-row";
 
 // Approval queue of the full agent page (R17, learnt from Unify's enrollment queue, Competitor.md U-P1/U-P2):
 // everything the agent is waiting on, across conversations, on the left; exactly what will be saved or sent on
@@ -231,17 +232,7 @@ function QueueGroup({
           const Icon = KIND[a.step].icon;
           return (
             <li key={a.id}>
-              <button
-                type="button"
-                aria-current={a.id === selectedId ? "true" : undefined}
-                onClick={() => onSelect(a.id)}
-                className={cn(
-                  "relative flex w-full items-start gap-3 py-2.5 pr-3 pl-4 text-left transition-colors hover:bg-muted/60",
-                  "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
-                  "before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-brand before:opacity-0",
-                  "aria-[current=true]:bg-primary-subtle aria-[current=true]:before:opacity-100"
-                )}
-              >
+              <ListRow selected={a.id === selectedId} onSelect={() => onSelect(a.id)} className="items-start gap-3 py-2.5 pr-3 pl-4">
                 <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="text-xs text-muted-foreground">{KIND[a.step].label}</span>
@@ -249,7 +240,7 @@ function QueueGroup({
                   <span className="truncate text-xs text-subtle-foreground">{threadTitle}</span>
                 </span>
                 <QueueStatusBadge status={status} />
-              </button>
+              </ListRow>
             </li>
           );
         })}
@@ -302,13 +293,9 @@ function QueueDetail({
           <h3 className="font-heading text-lg font-medium tracking-title">{a.action}</h3>
           <p className="text-sm text-muted-foreground">
             From “{threadTitle}” ·{" "}
-            <button
-              type="button"
-              onClick={() => handlers.onOpenThread(threadId)}
-              className="font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
+            <Button variant="link" className="h-auto border-0 p-0 align-baseline" onClick={() => handlers.onOpenThread(threadId)}>
               Open conversation
-            </button>
+            </Button>
           </p>
         </div>
 

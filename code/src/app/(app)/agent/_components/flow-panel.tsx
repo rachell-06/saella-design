@@ -66,13 +66,9 @@ export function FlowPanel({
                           {onReview && (
                             <>
                               {" · "}
-                              <button
-                                type="button"
-                                onClick={() => onReview(step)}
-                                className="font-medium text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                              >
+                              <Button variant="link" className="h-auto border-0 p-0 align-baseline" onClick={() => onReview(step)}>
                                 Review
-                              </button>
+                              </Button>
                             </>
                           )}
                         </>

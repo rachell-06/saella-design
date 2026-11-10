@@ -143,11 +143,12 @@ export function DataTable<TData extends RowData>({
                       aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
                     >
                       {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                        <button
-                          type="button"
+                        <Button
+                          variant="ghost"
+                          size="xs"
                           onClick={header.column.getToggleSortingHandler()}
                           className={cn(
-                            "group/sort -mx-1 inline-flex items-center gap-1 rounded-sm px-1 transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring",
+                            "group/sort -mx-1 h-auto gap-1 rounded-sm border-0 px-1 py-0 text-[length:inherit] font-[inherit] text-[color:inherit] hover:bg-transparent hover:text-foreground",
                             alignEnd && "flex-row-reverse",
                             sorted && "text-foreground"
                           )}
@@ -160,7 +161,7 @@ export function DataTable<TData extends RowData>({
                           ) : (
                             <ArrowUpDownIcon aria-hidden className="size-3.5 opacity-0 transition-opacity group-hover/sort:opacity-50 group-focus-visible/sort:opacity-50" />
                           )}
-                        </button>
+                        </Button>
                       ) : (
                         <table.FlexRender header={header} />
                       )}

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { ChipRemove } from "@/components/saella/chip-remove";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // Free-text tags typed by the user (Contacts: "Trade show Q3", "Partners – Jakarta"), 2026-10-28.
 // Enter or comma adds a tag, Backspace on an empty input removes the last one. Suggestions are existing
@@ -51,18 +53,10 @@ export function TagInput({
         {value.map((tag) => (
           <Badge key={tag} variant="secondary" className="h-6 gap-1 pr-0.5 text-foreground">
             {tag}
-            <button
-              type="button"
-              aria-label={`Remove tag ${tag}`}
-              disabled={disabled}
-              onClick={() => onChange(value.filter((v) => v !== tag))}
-              className="flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <XIcon className="size-3" />
-            </button>
+            <ChipRemove label={`Remove tag ${tag}`} disabled={disabled} onClick={() => onChange(value.filter((v) => v !== tag))} />
           </Badge>
         ))}
-        <input
+        <Input
           id={id}
           value={draft}
           disabled={disabled}
@@ -79,21 +73,16 @@ export function TagInput({
           }}
           onBlur={() => draft && add(draft)}
           placeholder={value.length ? "" : placeholder}
-          className="h-6 min-w-24 flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-subtle-foreground disabled:cursor-not-allowed"
+          className="h-6 min-w-24 flex-1 rounded-none border-0 bg-transparent px-1 text-sm shadow-none placeholder:text-subtle-foreground focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
         />
       </div>
       {remaining.length > 0 && !disabled && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm text-muted-foreground">Existing:</span>
           {remaining.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => add(s)}
-              className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:border-input hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
+            <Button key={s} variant="outline" size="xs" className="rounded-full font-normal text-muted-foreground" onClick={() => add(s)}>
               + {s}
-            </button>
+            </Button>
           ))}
         </div>
       )}

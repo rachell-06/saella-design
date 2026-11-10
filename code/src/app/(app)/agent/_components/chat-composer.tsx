@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowUpIcon, PaperclipIcon, SquareIcon, XIcon } from "lucide-react";
+import { ArrowUpIcon, PaperclipIcon, SquareIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,6 +11,7 @@ import {
   InputGroupText,
   InputGroupTextarea,
 } from "@/components/ui/input-group";
+import { ChipRemove } from "@/components/saella/chip-remove";
 
 // Working composer for the full agent page. Same look as AgentComposer in layout/agent-panel.tsx (which is a
 // static shell), plus sending, Stop and attachments. Images, PDF, Word and Excel up to 5 MB, for this turn only
@@ -66,14 +67,7 @@ export function ChatComposer({
           <Badge variant="secondary" className="h-6 gap-1 pr-0.5 text-foreground">
             <PaperclipIcon />
             <span className="max-w-60 truncate">{file.name}</span>
-            <button
-              type="button"
-              aria-label={`Remove ${file.name}`}
-              onClick={() => setFile(undefined)}
-              className="flex size-5 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <XIcon className="size-3" />
-            </button>
+            <ChipRemove label={`Remove ${file.name}`} onClick={() => setFile(undefined)} />
           </Badge>
         </InputGroupAddon>
       )}

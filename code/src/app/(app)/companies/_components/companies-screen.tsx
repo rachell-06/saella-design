@@ -14,7 +14,6 @@ import {
   SearchIcon,
   Trash2Icon,
   UploadIcon,
-  XIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createList, upsertContacts, useContactsStore } from "@/lib/mock/contacts";
@@ -76,6 +75,7 @@ import {
 } from "./searches";
 import { StartPanel } from "./start-panel";
 import { Hint } from "@/components/saella/hint";
+import { ChipRemove } from "@/components/saella/chip-remove";
 
 // Companies (PRD-04 Company Data Hub + live app /dashboard/companies, 2026-10-28): search the SEA registry,
 // filter by country, ISIC industry (country-independent, section → class), status bucket, founded and data
@@ -208,13 +208,9 @@ export function CompaniesScreen() {
       accessorFn: (c) => c.name,
       cell: ({ row: { original: c } }) => (
         <div className="flex min-w-0 flex-col gap-0.5">
-          <button
-            type="button"
-            onClick={() => setOpen(c)}
-            className="truncate text-left font-medium hover:underline focus-visible:underline focus-visible:outline-none"
-          >
-            {c.name}
-          </button>
+          <Button variant="link" className="h-auto max-w-full justify-start border-0 p-0 text-foreground" onClick={() => setOpen(c)}>
+            <span className="truncate">{c.name}</span>
+          </Button>
           <span className="truncate text-sm text-muted-foreground">{c.city}</span>
         </div>
       ),
@@ -400,14 +396,11 @@ export function CompaniesScreen() {
               >
                 <span className="text-muted-foreground">{a.label}:</span>
                 {a.value}
-                <button
-                  type="button"
-                  aria-label={`Remove ${a.label.toLowerCase()} ${a.value}`}
+                <ChipRemove
+                  label={`Remove ${a.label.toLowerCase()} ${a.value}`}
                   onClick={() => applySearch(withoutFilter(search, a.key))}
-                  className="flex size-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-primary-soft hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  <XIcon className="size-3" />
-                </button>
+                  className="hover:bg-primary-soft"
+                />
               </Badge>
             ))}
             <Button variant="ghost" size="sm" onClick={clearAll}>

@@ -194,13 +194,9 @@ export function ContactListScreen({ listId }: { listId: string }) {
       cell: ({ row: { original: c } }) => (
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setViewingId(c.id)}
-              className="truncate text-left font-medium hover:underline focus-visible:underline focus-visible:outline-none"
-            >
-              {`${c.firstName} ${c.lastName}`.trim() || (c.masked ? c.company : c.email)}
-            </button>
+            <Button variant="link" className="h-auto max-w-full justify-start border-0 p-0 text-foreground" onClick={() => setViewingId(c.id)}>
+              <span className="truncate">{`${c.firstName} ${c.lastName}`.trim() || (c.masked ? c.company : c.email)}</span>
+            </Button>
           </span>
           <Hint label={c.masked ? "Hidden until unlocked. Sending to it still works." : undefined}>
             <span tabIndex={0}

@@ -1,5 +1,6 @@
 import { CheckIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 // Horizontal stepper for multi-step forms (PATTERNS.md §9.2, 2026-10-28): number → tick (success) when done, the
 // current step in brand. Finished steps are buttons so people can go back; later steps are not clickable until
@@ -49,13 +50,13 @@ export function Stepper({
         return (
           <li key={step.id} className="flex min-w-0 flex-1 items-start gap-2" aria-current={active ? "step" : undefined}>
             {reachable && onStepClick ? (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 onClick={() => onStepClick(i)}
-                className="-m-1 flex min-w-0 items-start gap-2 rounded-md p-1 outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                className="-m-1 h-auto min-w-0 shrink items-start justify-start gap-2 rounded-md p-1 font-normal whitespace-normal hover:bg-transparent hover:text-foreground"
               >
                 {content}
-              </button>
+              </Button>
             ) : (
               <div className="flex min-w-0 items-start gap-2">{content}</div>
             )}

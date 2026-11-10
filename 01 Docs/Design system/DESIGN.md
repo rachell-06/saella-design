@@ -76,6 +76,7 @@ Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại 
 **Control**
 - Component lấy từ `components/ui/` hoặc `components/saella/`; thiếu thì `npx shadcn@latest add`, không tự vẽ.
 - Không control native: không `<input type="date|time">` (dùng `DatePicker`, `DateRangePicker`, `TimePicker`), không `<select>` thô.
+- Không `<button>`, `<input>` thô ngoài `components/ui/`: nút dùng `Button` (chữ bấm được trong câu hoặc trong bảng: `variant="link"` + `h-auto border-0 p-0`), dòng bấm được dùng `Item` hoặc `ListRow`. Bọc thẻ thô bằng component shadcn qua `asChild` thì được. Hai ngoại lệ: `<input type="file">` ẩn, mở bằng một `Button`; khối nội dung chọn được trong trình soạn email (`email-body.tsx`).
 
 **Không nên**
 
@@ -305,6 +306,8 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 | `SaellaMini` | Gương mặt agent: nền tròn `primary-soft`, 20–96px, `state` idle / thinking |
 | `CopyButton`, `LanguagePicker` | Copy giá trị (DNS record…), chọn ngôn ngữ |
 | `Hint` | Tooltip ngắn cho mọi phần tử, thay `title=` native (`PATTERNS.md` 9.13) |
+| `ListRow` | Một dòng chọn được trong danh sách bên trái của master–detail (campaign, thread agent, hàng chờ duyệt), dựng trên `Item` (`PATTERNS.md` 9.6) |
+| `ChipRemove` | Nút × trong chip hoặc `Badge` để gỡ nó (giá trị lọc, tag, file đính kèm) |
 
 **Đang bỏ (không dùng cho màn mới)**
 
