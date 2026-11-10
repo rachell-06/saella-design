@@ -20,6 +20,7 @@ Số mục trong file này được code và docs trích dẫn (`DESIGN.md §2`,
 | Màn trống | PATTERNS 9.5 |
 | Viết chữ trên màn: tiêu đề, mô tả, nhãn, nội dung ô | PATTERNS 9.15 |
 | Agent | PATTERNS 9.4 |
+| Mật độ, đầu trang, phân trang, form, biểu đồ: chi tiết chưa ghi ở đâu khác | PATTERNS 9.16 (theo Studio Admin) |
 
 ## 1. Tinh thần
 
@@ -47,7 +48,7 @@ Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại 
 
 **Bảng**
 - Tối đa 2 tầng chữ mỗi dòng. Một cột một kiểu hiển thị: không lẫn badge với chữ.
-- Không đổi nền khi rê chuột lên dòng (`TableRow` gốc đã bỏ hover). Thao tác dòng và checkbox hiện khi rê chuột hoặc Tab tới; bảng gọn có thể cho thao tác nổi đè lên cột cuối.
+- Rê chuột lên dòng: nền `muted/50` như Studio Admin (đổi 2026-11-10, trước đây không đổi nền). Thao tác dòng và checkbox hiện khi rê chuột hoặc Tab tới; bảng gọn có thể cho thao tác nổi đè lên cột cuối.
 - Một trang chỉ một hàng tab gạch chân. Bộ lọc phụ có đếm bên dưới (vd. Total / New / Already saved ở Find companies) dùng chip `ToggleGroup`.
 - Chỉ hiện nhãn trạng thái khi khác trạng thái bình thường; ngoại lệ: bảng template luôn có cột Status.
 - Ô bảng không có số thì để trống (không "0%", không "–"). Ô KPI chưa có số thì hiện "–". Cả hai không bao giờ hiện "0" thay cho "chưa biết" (PRD Master v1.6.8). Chỉ phân trang khi dài hơn một trang.
@@ -189,7 +190,8 @@ Font **Geist** (`next/font`). Giao diện có ba ngôn ngữ: **English, Tiếng
 | `text-sm` | 14 / 20 | 400; nút, nhãn 500 | **Body mặc định**, ô nhập, nút, menu |
 | `text-base` | 16 / 24 | 400 | Đoạn đọc dài (chat agent, mô tả) |
 | `text-lg`, `text-xl` | 18, 20 | 600, `tracking-title` | Tiêu đề khối, dialog, card lớn |
-| `text-2xl` | 24 / 32 | 500, `tracking-title` | Tiêu đề trang |
+| `text-2xl` | 24 / 32 | 500, `tracking-title` | Tiêu đề khối lớn |
+| `text-3xl` | 30 / 36 | 400, `tracking-tight` | **Tiêu đề trang** (`PageHeader`, theo Studio Admin) |
 | `text-3xl`+ | ≥ 30 | 400, `tracking-display` | Số KPI, onboarding |
 
 - Phân cấp bằng cỡ và màu trước, weight sau; hạn chế 700.
@@ -203,15 +205,15 @@ Font **Geist** (`next/font`). Giao diện có ba ngôn ngữ: **English, Tiếng
 |---|---|
 | Trong control | 8 / 12px |
 | Giữa các trường form | 16px |
-| Giữa các khối | 24 / 32px |
-| Lề nội dung | 24px |
+| Giữa các khối trên trang | 16px; từ `md` 24px (`gap-4 md:gap-6`, theo Studio Admin) |
+| Lề nội dung | 16px; từ `md` 24px (`p-4 md:p-6`) |
 
 **Kích thước.**
 
 | Phần tử | Cao |
 |---|---|
 | Nút, ô nhập (mặc định `h-8`) | 32px; nhỏ 28px; lớn 36px |
-| Hàng bảng | 40px; dày 36px |
+| Hàng bảng | ~48px (ô `px-4 py-3.5`); hàng tên cột 40px. Theo Studio Admin |
 | Vùng bấm tối thiểu | 24×24px |
 
 Nút `sm` / `xs` có chữ < 14px: chỉ dùng cho nút icon hoặc trong bảng.
@@ -284,7 +286,7 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 | Select | Popover `shadow-card`; mục đang chọn có dấu check |
 | Checkbox, Radio, Switch | Bật = `primary`, tắt viền `input`. Checkbox có trạng thái "chọn một phần" |
 | Badge | Pill 12px, weight 600. Tông: trung tính, `brand`, `success`, `warning`, `info`, `destructive` (họ `-soft`) |
-| Table | Header nền `muted`, chữ 14px (cỡ chung của bảng) 600 `muted-foreground`; dòng chọn `primary-subtle`; không đổi nền khi rê chuột |
+| Table | Theo Studio Admin: hàng tên cột không nền, chữ 14px 500 màu chữ chính; ô lề 16px; rê chuột nền `muted/50`; dòng chọn `primary-subtle`. Tiêu đề dính khi cuộn thì thêm nền `background` |
 | Tabs | Mặc định gạch dưới màu `brand`, tab chưa chọn `muted-foreground`. Chuyển chế độ xem (Rates / Counts) dùng `TabsList variant="default"` |
 | Toggle, ToggleGroup | Mục đang chọn nền `primary-soft`. Chip chọn nhiều (series biểu đồ, lọc sự kiện) |
 | Dialog, AlertDialog | Bo 12px, `shadow-float`, overlay `deep` 40%. `DialogContent` có `grid-cols-[minmax(0,1fr)]` để nội dung rộng cuộn bên trong |
@@ -327,7 +329,7 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 |---|---|
 | `AppShell` | Sidebar + header + panel agent kéo 320–900px |
 | `AppSidebar` | Thu gọn thành icon, nhóm có nhãn, menu tài khoản có Light / Dark / System |
-| `PageHeader` | Breadcrumb (tuỳ chọn), tiêu đề, một dòng ngữ cảnh, thao tác chính bên phải |
+| `PageHeader` | Breadcrumb (tuỳ chọn), tiêu đề 30px, một dòng ngữ cảnh `text-sm`, thao tác bên phải: nút `size="sm"`, nút phụ (outline) trước, nút cam chính cuối, menu ⋯ (nếu có) sau cùng |
 | `SearchCommand` | Command palette (Ctrl/⌘K) |
 | `NotificationsMenu` | Thông báo |
 | `AgentPanel` + nút nổi "Ask the agent" | Lối vào agent (`PATTERNS.md` 9.4) |

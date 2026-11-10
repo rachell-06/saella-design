@@ -36,6 +36,7 @@ Những chỗ bản mới **cố ý khác** app thật (Repo). Đọc Repo gặp
 - Nhiều kiểu hiện giờ → mọi giờ theo múi giờ workspace, mặc định GMT+7, một bộ format chung (PATTERNS 9.8, 9.13).
 - Lên lịch chỉ hiện tên múi giờ → cho chọn múi giờ, mặc định theo nước đích của campaign; không gửi theo giờ từng người nhận (PATTERNS 9.8).
 - Ô chọn ngày giờ → `DatePicker`, `DateRangePicker`, `TimePicker` (DESIGN.md mục 2 "Control").
+- Mật độ và cỡ chữ theo Studio Admin: tiêu đề trang 30px, nút đầu trang 28px, bảng thoáng (hàng ~48px, tên cột không nền, rê chuột có nền) (PATTERNS 9.16).
 
 ### Khung app
 - Sidebar thu gọn thành dải icon, nhóm có nhãn: Overview · Outreach (Campaign, Template) · Audience (Leads) · Workspace (Settings).

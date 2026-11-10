@@ -157,7 +157,7 @@ export function TemplatesScreen() {
   }
 
   const newButton = (
-    <Button onClick={() => setCreating(true)} disabled={campaigns.length === 0}>
+    <Button size="sm" onClick={() => setCreating(true)} disabled={campaigns.length === 0}>
       <PlusIcon data-icon="inline-start" />
       New template
     </Button>
@@ -284,7 +284,7 @@ export function TemplatesScreen() {
                   <col className="w-20" />
                   <col className="w-32" />
                 </colgroup>
-                <TableHeader className="sticky top-0 z-10 shadow-[inset_0_-1px_0_var(--border)]">
+                <TableHeader className="sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_var(--border)]">
                   <TableRow>
                     <TableHead className="pl-4">
                       <span className="sr-only">Kind</span>

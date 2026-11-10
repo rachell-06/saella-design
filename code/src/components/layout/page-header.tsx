@@ -55,8 +55,8 @@ export function PageHeader({
       )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="font-heading text-2xl font-medium tracking-title">{title}</h1>
-          {description && <p className="text-muted-foreground">{description}</p>}
+          <h1 className="font-heading text-3xl font-normal tracking-tight">{title}</h1>
+          {description && <p className="text-sm text-muted-foreground">{description}</p>}
           {children}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}

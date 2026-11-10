@@ -325,17 +325,17 @@ export function ContactListScreen({ listId }: { listId: string }) {
         description={`${SOURCE_LABEL[list.source]} · created by ${ownerName(list.ownerId)} on ${formatDate(list.createdOn)}`}
         actions={
           <>
-            <Button variant="outline" onClick={() => setEditing("new")}>
+            <Button size="sm" variant="outline" onClick={() => setEditing("new")}>
               <PlusIcon data-icon="inline-start" />
               Add contact
             </Button>
-            <Button variant="outline" onClick={() => setImporting(true)}>
+            <Button size="sm" variant="outline" onClick={() => setImporting(true)}>
               <UploadIcon data-icon="inline-start" />
               Upload
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" aria-label="More list actions">
+                <Button variant="outline" size="icon-sm" aria-label="More list actions">
                   <MoreHorizontalIcon />
                 </Button>
               </DropdownMenuTrigger>

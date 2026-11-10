@@ -75,7 +75,7 @@ export function AppShell({
             <div className="min-h-0 flex-1 overflow-y-auto">
               {/* Full width up to 1536px (DESIGN.md). pb-24 keeps the floating "Ask the agent"
                   button from covering the last row or button on the page. */}
-              <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-6 p-6 pb-24">
+              <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-4 p-4 pb-24 md:gap-6 md:p-6 md:pb-24">
                 {children}
               </div>
             </div>

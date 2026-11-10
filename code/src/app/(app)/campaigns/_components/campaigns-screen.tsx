@@ -128,7 +128,7 @@ export function CampaignsScreen() {
   }
 
   const newCampaignButton = (
-    <Button onClick={() => setCreating(true)}>
+    <Button size="sm" onClick={() => setCreating(true)}>
       <PlusIcon data-icon="inline-start" />
       New campaign
     </Button>

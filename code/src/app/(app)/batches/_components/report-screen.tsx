@@ -194,7 +194,7 @@ export function ReportScreen({ id }: { id: string }) {
         // "Export to Excel" on Clicks and Recipients, with no hint which data each one exported.
         actions={
           hasResults && (
-            <Button variant="outline" onClick={() => exportToast("this report", fileBase)}>
+            <Button size="sm" variant="outline" onClick={() => exportToast("this report", fileBase)}>
               <FileSpreadsheetIcon data-icon="inline-start" />
               Export report
             </Button>

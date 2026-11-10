@@ -281,18 +281,18 @@ export function TemplateEditor({ id }: { id: string }) {
       {/* Write with AI lives only in the right panel's tab (one entry point, 2026-11-05). */}
       {status === "inactive" ? (
         <>
-          <Button variant="outline" onClick={() => save(false)} disabled={!dirty && !isDraft}>
+          <Button size="sm" variant="outline" onClick={() => save(false)} disabled={!dirty && !isDraft}>
             Save draft
           </Button>
           <LockedTip reason={markReason}>
-            <Button onClick={() => save(true)} disabled={Boolean(markReason)}>
+            <Button size="sm" onClick={() => save(true)} disabled={Boolean(markReason)}>
               Save and mark active
             </Button>
           </LockedTip>
         </>
       ) : (
         <LockedTip reason={markReason && "An active template can be sent. " + markReason}>
-          <Button onClick={() => save(false)} disabled={!dirty || Boolean(markReason)}>
+          <Button size="sm" onClick={() => save(false)} disabled={!dirty || Boolean(markReason)}>
             Save changes
           </Button>
         </LockedTip>

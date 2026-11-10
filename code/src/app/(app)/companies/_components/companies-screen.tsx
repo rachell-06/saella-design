@@ -284,12 +284,12 @@ export function CompaniesScreen() {
         description={LEADS_DESCRIPTION}
         actions={
           <>
-            <Button variant="outline" onClick={() => exportRows(rows)} disabled={rows.length === 0}>
+            <Button size="sm" variant="outline" onClick={() => exportRows(rows)} disabled={rows.length === 0}>
               <DownloadIcon data-icon="inline-start" />
               Export
             </Button>
             {/* Outline while the start panel shows: its "Build search" is then the page's one solid button. */}
-            <Button variant={starting ? "outline" : "default"} onClick={() => setSaving(rows)} disabled={withEmail === 0}>
+            <Button size="sm" variant={starting ? "outline" : "default"} onClick={() => setSaving(rows)} disabled={withEmail === 0}>
               <ListPlusIcon data-icon="inline-start" />
               Save as contact list
             </Button>

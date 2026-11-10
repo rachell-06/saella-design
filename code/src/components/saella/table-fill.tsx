@@ -17,7 +17,7 @@ export function TableFill({ className, children }: { className?: string; childre
         "[&_div:has(>[data-slot=table-container])]:min-h-0 [&_div:has(>[data-slot=table-container])]:flex-1 [&_div:has(>[data-slot=table-container])]:overflow-auto",
         // The table's own x-scroller would trap the sticky header; let the box scroll both ways instead.
         "[&_[data-slot=table-container]]:overflow-visible",
-        "[&_[data-slot=table-header]]:sticky [&_[data-slot=table-header]]:top-0 [&_[data-slot=table-header]]:z-10",
+        "[&_[data-slot=table-header]]:sticky [&_[data-slot=table-header]]:top-0 [&_[data-slot=table-header]]:z-10 [&_[data-slot=table-header]]:bg-background",
         className
       )}
     >

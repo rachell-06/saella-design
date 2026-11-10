@@ -193,7 +193,7 @@ export function ContactsScreen() {
   ];
 
   const uploadButton = (
-    <Button onClick={() => setImporting(true)}>
+    <Button size="sm" onClick={() => setImporting(true)}>
       <UploadIcon data-icon="inline-start" />
       Upload contacts
     </Button>
@@ -324,7 +324,7 @@ export function SendButton({ list, variant = "outline" }: { list: Row; variant?:
         <TooltipTrigger asChild>
           {/* span keeps the tooltip working on a disabled button */}
           <span tabIndex={0}>
-            <Button variant={variant} size={variant === "default" ? "default" : "sm"} disabled>
+            <Button variant={variant} size="sm" disabled>
               <SendIcon data-icon="inline-start" />
               {variant === "default" ? "Send to this list" : "Send"}
             </Button>
@@ -335,7 +335,7 @@ export function SendButton({ list, variant = "outline" }: { list: Row; variant?:
     );
   }
   return (
-    <Button variant={variant} size={variant === "default" ? "default" : "sm"} asChild>
+    <Button variant={variant} size="sm" asChild>
       <Link href={`/batches/new?list=${list.id}`}>
         <SendIcon data-icon="inline-start" />
         {variant === "default" ? "Send to this list" : "Send"}

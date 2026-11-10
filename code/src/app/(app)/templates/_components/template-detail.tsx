@@ -105,20 +105,20 @@ export function TemplateDetailScreen({ id }: { id: string }) {
         breadcrumbs={[{ label: "Templates", href: "/templates" }]}
         actions={
           <>
-            <SendButton template={template} viewer={viewer} sendingBlocked={sendingBlocked} size="default" />
-            <Button variant="outline" onClick={() => setAutomating(true)}>
+            <SendButton template={template} viewer={viewer} sendingBlocked={sendingBlocked} size="sm" />
+            <Button size="sm" variant="outline" onClick={() => setAutomating(true)}>
               <ZapIcon data-icon="inline-start" />
               Automate
             </Button>
             {mayEdit ? (
-              <Button asChild>
+              <Button size="sm" asChild>
                 <Link href={`/templates/${id}/edit`}>
                   <PencilIcon data-icon="inline-start" />
                   Edit template
                 </Link>
               </Button>
             ) : (
-              <Button variant="outline" asChild>
+              <Button size="sm" variant="outline" asChild>
                 <Link href={`/templates/${id}/edit`}>
                   <EyeIcon data-icon="inline-start" />
                   View content

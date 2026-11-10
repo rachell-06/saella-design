@@ -6,7 +6,7 @@ Các mục giữ số 9.x (trước là mục 9 của `DESIGN.md`); code và doc
 
 ## 9.1 Bảng dữ liệu + bộ lọc
 **Dùng cho** Leads, Templates, Recipients, Settings. Quy tắc trình bày bảng: DESIGN.md mục 2 "Bảng".
-- **Cấu trúc.** `PageHeader` (tiêu đề `text-2xl`, nút chính bên phải) → `FilterBar` (ô tìm, menu lọc, chip giá trị như "Country: Vietnam" nền `primary-subtle` có ×; "Clear filters" chỉ hiện khi đang lọc; số kết quả cập nhật ngay) → bảng.
+- **Cấu trúc.** `PageHeader` (tiêu đề `text-3xl`, nút nhỏ bên phải) → `FilterBar` (ô tìm, menu lọc, chip giá trị như "Country: Vietnam" nền `primary-subtle` có ×; "Clear filters" chỉ hiện khi đang lọc; số kết quả cập nhật ngay) → bảng.
 - **Luồng dữ liệu.** Lọc **trước** khi đưa vào bảng; bộ lọc nằm trên URL để agent và thông báo dẫn link được. Bảng chỉ sắp xếp, chọn, phân trang.
 - **Chọn nhiều.** Thanh thao tác hàng loạt hiện **phía trên** bảng (nền `primary-subtle`); thanh lọc vẫn giữ.
 - **Hình thức.** Bảng cao hết trang, tiêu đề dính khi cuộn. Cột số căn phải, `tabular-nums`. Icon sắp xếp chỉ ở cột đang sắp xếp.
@@ -229,3 +229,22 @@ Lỗi hay gặp: agent đọc PRD và code rồi đưa hết lên màn, làm mà
 - Màn trống: tiêu đề một dòng + một câu (mục 9.5).
 
 **Ưu tiên trên một màn:** một câu hỏi chính của người dùng, tối đa ba thông tin chính trả lời câu hỏi đó ở phần trên màn; mọi thứ khác lùi xuống dưới hoặc vào chi tiết.
+
+## 9.16 Quy ước lấy từ Studio Admin (chốt 2026-11-10)
+
+Người dùng chốt lấy Studio Admin (`D:\Workspace\Saella\Studio Admin`, trang `src/app/(main)/dashboard/`) làm chuẩn cho mật độ, cỡ chữ và các chi tiết Saella chưa quy định. Màu, font, bo góc và các quyết định Saella đã chốt (một nút cam, `KpiStrip`, `FilterBar` dạng chip, `StatusBadge`) vẫn giữ.
+
+| Chủ đề | Quy ước |
+|---|---|
+| Đầu trang | Tiêu đề 30px chữ thường; mô tả `text-sm` `muted-foreground` ngay dưới. Nút `size="sm"` (28px) bên phải: outline trước, nút cam cuối |
+| Nhịp khoảng cách | Khối trên trang cách 16px, từ `md` 24px. Trong card và toolbar: 8–12px |
+| Bảng | Ô lề 16px, hàng ~48px, tên cột 500 màu chữ chính không nền, rê chuột `muted/50`. Dòng hai tầng: tên `font-medium`, dòng phụ `text-sm muted-foreground` |
+| Thao tác dòng | Nút icon ghost "⋯" ở cột cuối, menu `align="end"`; cột thao tác căn phải |
+| Phân trang | "Rows per page" (10 / 20 / 50) + "Page X of Y" + nút trang dạng icon; chỉ hiện khi dài hơn một trang (`DataTable`) |
+| Bảng trống | Một dòng "No results." căn giữa khi lọc không ra; chưa có dữ liệu thì theo mục 9.5 |
+| Ô tìm | `InputGroup` có icon kính lúp, rộng ~256px |
+| Form | Nhãn nằm trên trường; trường rộng hết khung, khung form tối đa ~512px (`max-w-lg`); hai trường ngắn đứng cạnh nhau `grid sm:grid-cols-2 gap-4` |
+| Chân dialog, sheet | Nút căn phải: Cancel (outline) trước, nút chính sau |
+| Biểu đồ | Luôn nằm trong Card có tiêu đề, điều khiển (chọn kỳ…) ở `CardAction`. Không vạch dọc, không vạch chia trục; chữ trục `text-xs` `muted-foreground`; tooltip dạng `indicator="line"` |
+| Chọn kỳ | Một `Select size="sm"` các kỳ có sẵn ở góc phải; chọn "Custom" mới mở `DateRangePicker` |
+| Dropdown | `align="end"`, rộng 160–192px (`w-40`, `w-48`) |

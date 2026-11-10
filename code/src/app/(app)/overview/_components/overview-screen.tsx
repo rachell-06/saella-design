@@ -157,7 +157,7 @@ export function OverviewScreen() {
     : null;
 
   const newBatch = (
-    <Button asChild>
+    <Button size="sm" asChild>
       <Link href="/batches/new">
         <PlusIcon data-icon="inline-start" />
         New batch
