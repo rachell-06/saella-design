@@ -8,6 +8,7 @@ import { BellIcon, Building2Icon, GlobeIcon, MailIcon, Share2Icon, UserPlusIcon 
 import { type AppNotification, notifications as seed } from "@/lib/mock/workspace";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Item } from "@/components/ui/item";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
@@ -102,26 +103,27 @@ export function NotificationsMenu({ items: initial = seed }: { items?: AppNotifi
                     {!n.read && <span className="sr-only">Unread</span>}
                   </>
                 );
-                const cls =
-                  "flex w-full gap-3 border-b px-4 py-3 text-left outline-none last:border-b-0 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
+                // Item (shadcn) keeps the row's focus ring; same flat look as before: no rounding, no hover fill.
+                const cls = "flex-nowrap items-start gap-3 rounded-none border-0 px-4 py-3 text-left focus-visible:ring-inset [a]:hover:bg-transparent";
                 return (
                   <li key={n.id}>
-                    {n.href ? (
-                      <Link
-                        href={n.href}
-                        className={cls}
-                        onClick={() => {
-                          markRead(n.id);
-                          setOpen(false);
-                        }}
-                      >
-                        {body}
-                      </Link>
-                    ) : (
-                      <button type="button" className={cls} onClick={() => markRead(n.id)}>
-                        {body}
-                      </button>
-                    )}
+                    <Item asChild className={cls}>
+                      {n.href ? (
+                        <Link
+                          href={n.href}
+                          onClick={() => {
+                            markRead(n.id);
+                            setOpen(false);
+                          }}
+                        >
+                          {body}
+                        </Link>
+                      ) : (
+                        <button type="button" onClick={() => markRead(n.id)}>
+                          {body}
+                        </button>
+                      )}
+                    </Item>
                   </li>
                 );
               })}
