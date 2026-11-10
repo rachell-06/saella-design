@@ -284,7 +284,7 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 | Select | Popover `shadow-card`; mục đang chọn có dấu check |
 | Checkbox, Radio, Switch | Bật = `primary`, tắt viền `input`. Checkbox có trạng thái "chọn một phần" |
 | Badge | Pill 12px, weight 600. Tông: trung tính, `brand`, `success`, `warning`, `info`, `destructive` (họ `-soft`) |
-| Table | Header nền `muted`, chữ 13px 600 `muted-foreground`; dòng chọn `primary-subtle`; không đổi nền khi rê chuột |
+| Table | Header nền `muted`, chữ 14px (cỡ chung của bảng) 600 `muted-foreground`; dòng chọn `primary-subtle`; không đổi nền khi rê chuột |
 | Tabs | Mặc định gạch dưới màu `brand`, tab chưa chọn `muted-foreground`. Chuyển chế độ xem (Rates / Counts) dùng `TabsList variant="default"` |
 | Toggle, ToggleGroup | Mục đang chọn nền `primary-soft`. Chip chọn nhiều (series biểu đồ, lọc sự kiện) |
 | Dialog, AlertDialog | Bo 12px, `shadow-float`, overlay `deep` 40%. `DialogContent` có `grid-cols-[minmax(0,1fr)]` để nội dung rộng cuộn bên trong |
