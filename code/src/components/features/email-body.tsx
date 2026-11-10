@@ -41,6 +41,7 @@ export function EmailBody({
         if (mode === "preview" || !onSelect) return <div key={b.id}>{content}</div>;
         const selected = selectedId === b.id;
         return (
+          // eslint-disable-next-line saella/no-raw-control -- a selectable block of email content, not a control (DESIGN.md mục 2)
           <button
             key={b.id}
             type="button"
