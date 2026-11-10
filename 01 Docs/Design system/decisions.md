@@ -4,20 +4,27 @@ Chỉ ghi **thay đổi lớn so với app hiện tại** (Repo: Next 14 + antd 
 
 ## Chưa chốt
 
+Chưa có hiệu lực: agent không áp các việc dưới đây như quy tắc. Chốt xong thì chuyển quy tắc sang `DESIGN.md` và xoá dòng ở đây.
+
+### Bạn quyết (thiết kế)
 - **Campaigns: phương án 1 hay 2.** 1 = danh sách trái, chi tiết phải (`/campaigns`). 2 = mỗi campaign một thẻ thu gọn được (`/campaigns-2`, thêm `?state=many` để xem 60 campaign). Chọn xong xoá phương án còn lại và mục "Campaign 2" trên sidebar.
-- **Agent chặn chờ duyệt 2 hay 5 bước.** Repo chặn 2 (activate template, gửi thật), PRD-03 chặn 5. Đang theo repo; xem kiểu PRD bằng `/agent?gates=all`.
 - **Saella mini: chọn 1 trong 6 kiểu** (Visor, Hood, Helmet, Orb, Blob, Classic; so ở `03 Brand/saella-mini-*.png`, app đang dùng Visor). Dùng làm avatar agent là đổi quy tắc cũ của LP ("không làm avatar AI"), cần báo người giữ brand LP.
-- **Ngưỡng cần team xác nhận:** Open, Click, Reply, Unsub chưa có ngưỡng ở app thật lẫn PRD nên đang không tô màu; nếu muốn đánh dấu thì team cần đặt ngưỡng. Spam tự dừng 0,3%; gửi thử khi từ 100 người nhận (gửi trước 20).
 - **Sidebar & lối vào agent** (canvas Design, page Sidebar, 2026-11-04): giữ kiểu nhóm hiện tại, không hiện số đếm trên mục nav. Chưa chốt: chuyển "Ask the agent" vào cuối sidebar thay nút nổi (đổi quyết định cũ), và có cần ô đổi workspace không (tra PRD).
 - **Overview: chọn option 4** (canvas, page Overview, 2026-11-05): một trang, bỏ 3 tab Campaign / Template / Sender của app hiện tại; KPI tính trên toàn workspace (tổng, không lấy trung bình tỉ lệ từng dòng); chia nhỏ theo Campaign / Template / Sender nằm trong một khối Breakdown; sender lỗi hiện thành việc trong Needs you.
 - **Credits** (canvas, 2026-11-05): bỏ khỏi header, đặt ở cuối sidebar: "820 left · Starter plan · +600 on Nov 12", không thanh (credits = gói + gói mua thêm, không có mức trần). Theo PRD billing, tự gửi email miễn phí; agent tốn 1/yêu cầu và 1/batch nó gửi; mở khoá liên hệ 1; tính phí đang tắt. Chưa chốt: có cảnh báo sắp hết credits không, ngưỡng bao nhiêu.
 - **Ngưỡng Bounce lệch 5% / 7%:** số Bounce tô cảnh báo từ 5% (`RATE_BANDS`), nhưng nhãn "Near limit" ở Sending health bật từ 70% ngưỡng tự dừng = 7%. Chọn một mức cho cả hai.
-- **PRODUCT.md: mục 4–5 cần product owner duyệt** (2026-11-09): ba từ tính cách "tidy, trustworthy, hardworking", bối cảnh dùng và danh sách "không được giống" là suy từ PRD và brand LP, PRD không ghi.
 - **Nhân vật chibi ở dark mode:** nét đổi thành màu chữ, thân màu nền (nét ink gốc biến mất trên nền tối).
-- **Geist và dấu tiếng Việt** (2026-11-10): giao diện có tiếng Việt (PRD Language), nhưng `layout.tsx` chỉ nạp bộ chữ `latin` của Geist. Cần dựng thử một màn tiếng Việt: dấu hiện đúng bằng Geist thì giữ; lỗi hoặc lệch font thì nạp thêm bộ chữ hoặc đổi sang Inter (đổi font là đổi brand, cần chốt).
 - **DESIGN.md 9.9–9.14: các dòng đánh dấu ĐX** (2026-11-10): không mở dialog chồng dialog; bấm lưu khi còn lỗi thì focus về trường lỗi đầu tiên; URL dài cắt ở giữa. PRD và app thật không nói.
+
+### Hỏi team dev / product owner
+- **Agent chặn chờ duyệt 2 hay 5 bước.** Repo chặn 2 (activate template, gửi thật), PRD-03 chặn 5. Đang theo repo; xem kiểu PRD bằng `/agent?gates=all`.
+- **Ngưỡng cần team xác nhận:** Open, Click, Reply, Unsub chưa có ngưỡng ở app thật lẫn PRD nên đang không tô màu; nếu muốn đánh dấu thì team cần đặt ngưỡng. Spam tự dừng 0,3%; gửi thử khi từ 100 người nhận (gửi trước 20).
+- **PRODUCT.md: mục 4–5 cần product owner duyệt** (2026-11-09): ba từ tính cách "tidy, trustworthy, hardworking", bối cảnh dùng và danh sách "không được giống" là suy từ PRD và brand LP, PRD không ghi.
 - **PRD chưa định, cần team trả lời** (2026-11-10): giao diện khi hết credit (API trả 402, chưa có màn); có đánh dấu `*` cho trường bắt buộc không; có thông báo khi import / export xong không.
 - **PRD tự mâu thuẫn, cần team chốt** (2026-11-10): số người nhận tối đa mỗi batch (Master 2,000; Email Campaigns 5,000; agent 500); file import quá 1,000 dòng bị từ chối (AC-CON-I-03) hay cắt lấy 1,000 dòng đầu (CON-SEQ-004); báo cáo trống hiện "0" kèm giải thích (EC-EC-31) hay "–" (Master v1.6.8, đang theo cách này).
+
+### Cần kiểm
+- **Geist và dấu tiếng Việt** (2026-11-10): giao diện có tiếng Việt (PRD Language), nhưng `layout.tsx` chỉ nạp bộ chữ `latin` của Geist. Cần dựng thử một màn tiếng Việt: dấu hiện đúng bằng Geist thì giữ; lỗi hoặc lệch font thì nạp thêm bộ chữ hoặc đổi sang Inter (đổi font là đổi brand, cần chốt).
 
 ## Thay đổi lớn so với app hiện tại
 

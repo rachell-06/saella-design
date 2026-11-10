@@ -1,14 +1,6 @@
 # DESIGN.md: Saella Platform
 
-Đặc tả design system của app Saella: nguyên tắc, nền tảng thị giác, component và pattern. Đọc trước khi dựng hoặc sửa bất kỳ màn nào.
-
-| Câu hỏi | Nguồn duy nhất |
-|---|---|
-| Giá trị màu, cỡ, bóng, thời lượng | `code/src/styles/tokens.css` (mỗi token ghi nguồn và contrast). File này chỉ ghi **vai trò** và **lý do**, không chép giá trị |
-| Ai dùng, để làm gì, giọng chữ | `01 Docs/PRODUCT.md` |
-| Chức năng, nghiệp vụ, chi tiết màn | PRD Master https://pgg-prd-lib.vercel.app/docs/saella-prd-master và PRD từng module. Không đoán |
-| Khác app hiện tại, việc chờ duyệt | `decisions.md` (mục "Chưa chốt" chưa có hiệu lực) |
-| Cách dùng một component | File `<tên>.meta.ts` cạnh component |
+Quy tắc và pattern giao diện của app Saella: **làm thế nào**. Vì sao làm vậy và cho ai: `PRODUCT.md`. Giá trị màu, cỡ, bóng: `tokens.css` (file này chỉ ghi vai trò, không chép giá trị). Bản đồ đầy đủ các tài liệu: `CLAUDE.md`.
 
 Số mục trong file này được code và docs trích dẫn (`DESIGN.md §9.7`…): **thêm mục mới thì đánh số tiếp, không đánh số lại**.
 
@@ -31,15 +23,12 @@ Số mục trong file này được code và docs trích dẫn (`DESIGN.md §9.7
 
 ## 1. Tinh thần
 
-Saella Platform là bản "công cụ" của saella.ai: **sáng, sạch, có hệ thống, thân thiện mà không phô trương**. Người dùng là team nhỏ, vào app xen giữa việc khác; giao diện phải cho họ nắm tình hình trong vài giây và hành động mà không sợ sai.
+Saella Platform là bản "công cụ" của saella.ai: **sáng, sạch, có hệ thống, thân thiện mà không phô trương**. Nguyên tắc sản phẩm (duyệt trước rồi mới chạy, số liệu trung thực, giấu kỹ thuật nhưng không giấu sự thật, mỗi màn một việc chính, dày mà dễ quét) ở `PRODUCT.md` mục 6. Mục này chỉ thêm hai nguyên tắc thị giác:
 
 | Nguyên tắc | Nghĩa là | Vì sao |
 |---|---|---|
-| **Agent làm, người dùng duyệt** | Việc nặng do agent và mặc định tốt gánh; mọi việc rủi ro có bước xem trước | Sai hàng loạt (gửi nhầm) không rút lại được |
 | **Một điểm nhấn** | Một họ màu cam, một nút cam đặc mỗi trang | Mắt biết ngay việc chính; màu cam còn giá trị khi hiếm |
 | **Phân lớp bằng đường, không bằng bóng** | Hairline tách vùng; bóng chỉ cho thứ nổi trên trang | Màn dày dữ liệu cần yên tĩnh; bóng dành để báo "lớp tạm" |
-| **Số liệu trung thực** | Hiện con số thật; chỉ tô màu khi có ngưỡng thật; ít dữ liệu thì nói là ít | Tô màu theo cảm tính làm người dùng hoảng hoặc yên tâm sai |
-| **Thông tin phụ lùi lại** | Giải thích vào ⓘ, chi tiết vào sheet hoặc master–detail | Mỗi màn một việc chính |
 
 Kế thừa từ LP: chữ ink xanh mực (không đen tuyền), một họ cam, Geist, bo góc vừa, hairline thay bóng, focus ring cam. Khác LP: chữ nhỏ và dày hơn, ít chuyển động, không trang trí marketing.
 
@@ -82,7 +71,7 @@ Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại 
 - Thông tin phụ vào ⓘ hoặc tooltip, tối đa 1–2 câu. Không đặt đoạn chú thích phương pháp cuối trang.
 - Gọi là **agent**, không bao giờ "assistant". Giọng chữ: `PRODUCT.md` mục 4.
 - Nhân vật chibi toàn thân **chỉ** ở onboarding. Agent dùng Saella mini. Màn trống dùng icon.
-- Tên người, công ty trong mock là hư cấu; không dùng khách thật (FTK, Vinex, VMA, Exquee, Aegis). Dữ liệu mẫu phải đủ để hiện mọi trạng thái cần duyệt.
+- Dữ liệu mẫu: tên người, công ty hư cấu, không dùng khách thật (FTK, Vinex, VMA, Exquee, Aegis); số liệu chỉ minh hoạ, không phải claim marketing; đủ để hiện mọi trạng thái cần duyệt.
 
 **Control**
 - Component lấy từ `components/ui/` hoặc `components/saella/`; thiếu thì `npx shadcn@latest add`, không tự vẽ.
@@ -270,7 +259,9 @@ Chỉ ghi phần Saella **khác** shadcn/ui; phần còn lại theo docs shadcn.
 | `src/components/saella/` | Component DS riêng Saella | Ghép từ `ui/`, chỉ dùng token |
 | `src/components/layout/` | Khung app | |
 | `src/components/features/` | Component tính năng dùng từ hai màn trở lên (dialog, bảng con…) | |
-| `src/app/(app)/<màn>/_components/` | Component chỉ một màn dùng | Không import `_components/` của màn khác |
+| `src/app/(app)/<màn>/` | Màn sản phẩm: `page.tsx` + `_components/` chỉ màn đó dùng | Dùng chung `AppShell`, đầu trang `PageHeader`. Không import `_components/` của màn khác: dùng từ hai màn trở lên thì đưa lên `features/` hoặc `saella/` |
+| `src/lib/mock/` | Dữ liệu giả và kiểu dữ liệu dùng chung | Giá trị chung (TODAY, NOW, user hiện tại, quốc gia) chỉ khai báo ở `constants.ts` |
+| `src/lib/format.ts`, `src/lib/time.ts` | Hàm định dạng, giờ theo múi giờ workspace | Không tự viết lại trong màn |
 
 Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trước khi dùng, vì nó ghi biến thể nào dùng khi nào và tổ hợp bị cấm. Component mới hoặc hay bị dùng sai thì viết thêm meta.
 
@@ -600,7 +591,7 @@ Nguồn ngoài để học hỏi (chốt 2026-11-10). Không ghi đè quy tắc 
 | Khi nào | Nguồn | Học gì |
 |---|---|---|
 | Hay dùng, khi dựng màn | **Studio Admin** (bản clone chỉ đọc `D:\Workspace\Saella\Studio Admin`, demo https://studio-admin.arhamkhnz.com) | Bố cục, spacing, cấu trúc trang. Dựng lại bằng component + token Saella; không chép CSS, màu, `components/ui/` |
-| Hay dùng, khi dựng màn | **Đối thủ** (Mailchimp, Apollo, HubSpot, Clay, Unify, Hunter, Buffer, qua Mobbin) | Luồng nghiệp vụ; ghi ở `01 Docs/Competitor.md` |
+| Hay dùng, khi dựng màn | **Đối thủ** (Mailchimp, Apollo, HubSpot, Clay, Unify, Hunter, Buffer, qua Mobbin) | Luồng nghiệp vụ; ghi ở `01 Docs/Research/Competitor.md` |
 | Chỉ khi cần | **saella.ai** (source `D:\Workspace\Saella\Saella LP`) | Thêm token mới cho hợp brand, tài sản brand (logo, chibi, Saella mini), giọng văn |
 | Chỉ khi cần | Shopify Polaris | Empty state, UI copy |
 | Chỉ khi cần | IBM Carbon | Bảng dày, nhãn nội dung AI |

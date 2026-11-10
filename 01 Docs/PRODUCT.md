@@ -34,7 +34,7 @@ Context of use *(inferred from the PRD pain points)*:
 - Multi-language, multi-country; company names, addresses and industry codes differ by country.
 - Two main time zones: GMT+7 (Vietnam, Thailand, western Indonesia) and GMT+8 (Singapore, Malaysia, Brunei, Philippines, central Indonesia); eastern Indonesia is GMT+9. Users and their recipients are often an hour apart, so a time without its zone is ambiguous. The gap is small enough that sending in each recipient's local time is not worth the complexity.
 
-Roles (PRD Organization & Roles): admin by company domain, member approval, admin transfer. Templates: owner and admin can do everything, shared members can edit, schedule, send and copy, everyone else can view and copy.
+Roles and what each may do: `Design system/DESIGN.md` section 9.12.
 
 ## 3. Jobs to be done
 
@@ -56,7 +56,7 @@ Feelings to create:
 - **Unburdened**: the agent and good defaults do the heavy lifting; the user mostly approves.
 - **In control**: real numbers, stated plainly, nothing dressed up.
 
-UI copy: plain English, specific verbs ("Send to 1,240 contacts", not "Proceed"), outcome first, no technical terms when a plain phrase exists (explain DKIM in an ⓘ, don't put it in a label). Call it **agent**, never "assistant". No praise, no hype, no emoji in product UI.
+UI copy: plain English, specific verbs ("Send to 1,240 contacts", not "Proceed"), outcome first, no technical terms when a plain phrase exists (explain DKIM in an ⓘ, don't put it in a label). Call it **agent**, never "assistant". No praise, no hype, no emoji in product UI. What text belongs on a screen at all: `Design system/DESIGN.md` section 9.15.
 
 ## 5. Must not look like
 
@@ -66,11 +66,11 @@ UI copy: plain English, specific verbs ("Send to 1,240 contacts", not "Proceed")
 - **A landing page inside the app**: heroes, large illustrations, the full-body character outside onboarding.
 - **An agent that takes over**: the agent sending or making risky changes without the user seeing it first.
 
-References worth learning from (details in `Competitor.md`): Apollo.io (lead search + filters), Mailchimp (editor, campaign reports), Clay/Unify (agent proposals, draft approval), Buffer (multi-network posting).
+References worth learning from (details in `Research/Competitor.md`): Apollo.io (lead search + filters), Mailchimp (editor, campaign reports), Clay/Unify (agent proposals, draft approval), Buffer (multi-network posting).
 
 ## 6. Design principles
 
-The why behind the rules. The rules themselves live in `Design system/DESIGN.md` section 2; when this file and DESIGN.md differ, DESIGN.md wins.
+The single list of product principles: the why behind the rules. The rules themselves live in `Design system/DESIGN.md` (section 2, plus two visual principles in section 1); when this file and DESIGN.md differ, DESIGN.md wins.
 
 1. **Approve first, run second.** Before anything that can't be undone (a bulk send, an agent action the user gated), the user sees who, what and how many. Irreversible actions say so.
 2. **Real numbers, said plainly.** Show the number, don't prettify it or color it without a real threshold. When there's too little data, say so instead of inferring.

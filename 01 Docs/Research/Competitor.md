@@ -1,11 +1,11 @@
 # Competitor
 
+> Tài liệu nghiên cứu, không phải quy tắc. Quy tắc đã chốt nằm ở `01 Docs/Design system/DESIGN.md`; đề xuất R1–R18 dưới đây phần lớn đã làm, phần chưa chốt nằm ở `01 Docs/Design system/decisions.md`. File lớn: agent chỉ đọc mục được trỏ tới.
+
 Mục đích: hiểu đối thủ, học design pattern và chức năng của họ để áp dụng vào Saella. Mỗi đối thủ một mục. Ghi rõ cái gì **nên học**, cái gì **không hợp** với Saella.
 
 Cách đọc mỗi mục: Flow (luồng nhiều bước) → Màn hình lẻ → Danh mục pattern → Áp dụng cho Saella.
 
-| Đối thủ | Nền tảng | Ngày phân tích | Nguồn |
-|---|---|---|---|
 | Mục | Đối thủ | Ngày phân tích | Nguồn (Mobbin, bản web) |
 |---|---|---|---|
 | 1 | Mailchimp | 2026-10-28 | Ảnh chụp 7/2024 |

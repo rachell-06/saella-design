@@ -2,7 +2,7 @@
 
 - **Link:** https://www.youtube.com/watch?v=B7xXKTfBxhE
 - **Nguồn tóm tắt:** phụ đề tự động tiếng Anh của YouTube (~3.300 từ), Claude đọc và tóm tắt ngày 2026-11-06.
-- **Lưu ý:** đây là ghi chú tham khảo, **không phải quy tắc của Saella**. Quy tắc Saella nằm ở `Design system/DESIGN.md`.
+- **Lưu ý:** đây là ghi chú tham khảo, **không phải quy tắc của Saella**. Quy tắc Saella nằm ở `01 Docs/Design system/DESIGN.md`.
 
 ## 1. Vấn đề video đặt ra
 
