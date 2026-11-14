@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const demoBuild = process.env.VERCEL === "1" || process.env.SAELLA_DEMO_BUILD === "1";
+
 const nextConfig: NextConfig = {
   // Design-system server (`npm run dev:ds`) builds into its own folder so both servers can run at once.
   distDir: process.env.APP_SURFACE === "ds" ? ".next-ds" : ".next",
@@ -9,10 +11,11 @@ const nextConfig: NextConfig = {
   // The floating "N" dev-tools button sat on top of the account avatar in the sidebar (2026-10-29). Build and
   // runtime errors still open the overlay.
   devIndicators: false,
-  // The shared demo build (Vercel, SAELLA_DEMO_BUILD=1) turns these off: most screens read the URL outside
-  // <Suspense>, which cacheComponents refuses to prerender. Local dev keeps them on.
-  cacheComponents: process.env.SAELLA_DEMO_BUILD !== "1",
-  partialPrefetching: process.env.SAELLA_DEMO_BUILD !== "1",
+  // The shared demo build turns these off: most screens read the URL outside <Suspense>, which cacheComponents
+  // refuses to prerender. Vercel sets VERCEL=1 on its builds by itself (no project setting needed);
+  // SAELLA_DEMO_BUILD=1 does the same for a local `next build`. Local dev keeps them on.
+  cacheComponents: !demoBuild,
+  partialPrefetching: !demoBuild,
   turbopack: {
     rules: {
       "*.css": {
