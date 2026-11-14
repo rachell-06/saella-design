@@ -1,5 +1,6 @@
 import { type Block, KNOWN_TAGS, SAMPLE_VALUES, type TemplateKind, resolveTags, splitTags } from "@/lib/mock/templates";
 import { senderById } from "@/lib/mock/templates";
+import { badLinks } from "@/lib/mock/templates-html";
 
 // Content check before a template goes active. PRD-02 doesn't specify one and the live app has no editor check
 // (its pre-send check is about recipient lists, PreflightPanel); rules below are a proposal (ĐX 2026-10-28):
@@ -53,7 +54,7 @@ export function checkSubject(subject: string, preheader: string): SubjectCheck[]
   const shown = resolveTags(subject, SAMPLE_VALUES);
   const words = shown.trim().split(/\s+/).filter(Boolean).length;
   const emoji = subject.match(/\p{Extended_Pictographic}/gu)?.length ?? 0;
-  const caps = subject.match(/[A-Z]{4,}/g);
+  const caps = subject.match(/\b[A-Z]{4,}\b/g);
   const bangs = /!{2,}/.test(subject);
   const spam = spamWordsIn(subject);
   const tags = splitTags(`${subject} ${preheader}`).filter((p) => p.tag).length;
@@ -156,6 +157,8 @@ export function checkContent(input: {
   preheader: string;
   senderId?: string;
   blocks: Block[];
+  /** A Letter's HTML (its blocks are read from it): every link in the text is checked, not only button-like ones. */
+  html?: string;
 }): { issues: Issue[]; passed: string[] } {
   const issues: Issue[] = [];
   const passed: string[] = [];
@@ -201,6 +204,11 @@ export function checkContent(input: {
     });
   else passed.push("No spam-like wording");
 
+  // Starter text left in ("[Replace this paragraph…]", live app's default letter): it would send as typed.
+  const placeholder = blocks.find((b) => /\[[^\]]{3,}\]/.test(textOf(b)));
+  if (placeholder)
+    issues.push({ id: "placeholder", severity: "error", title: "Replace the text in [brackets]", blockId: placeholder.id });
+
   blocks.forEach((b, i) => {
     if (b.type === "image") {
       if (!b.file) issues.push({ id: `img-file-${b.id}`, severity: "error", title: `Image ${i + 1} has no file`, blockId: b.id });
@@ -215,10 +223,15 @@ export function checkContent(input: {
     }
     if (b.type === "button") {
       if (!b.label.trim()) issues.push({ id: `btn-label-${b.id}`, severity: "error", title: "A button has no label", blockId: b.id });
-      if (!/^https?:\/\/[^\s/]+\.[^\s]+$/.test(b.url))
+      if (!input.html && !/^https?:\/\/[^\s/]+\.[^\s]+$/.test(b.url))
         issues.push({ id: `btn-url-${b.id}`, severity: "error", title: `“${b.label || "Button"}” has no valid link`, blockId: b.id });
     }
   });
+
+  if (input.html)
+    badLinks(input.html).forEach((label, i) =>
+      issues.push({ id: `link-${i}`, severity: "error", title: `“${label}” has no valid link`, detail: "Select the text and set its link address." })
+    );
 
   // A poster that is all pictures lands in spam folders and says nothing when images are blocked.
   const words = blocks.filter((b) => b.type !== "image").map(textOf).join(" ").trim().split(/\s+/).filter(Boolean).length;

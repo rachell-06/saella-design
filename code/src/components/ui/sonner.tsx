@@ -39,6 +39,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast: "cn-toast shadow-card",
+          // Action button as a Saella outline sm Button (Sonner's default is a dark solid pill).
+          actionButton:
+            "!h-7 !rounded-md !border !border-input !bg-background !px-2.5 !text-sm !font-medium !text-foreground hover:!bg-accent",
         },
       }}
       {...props}

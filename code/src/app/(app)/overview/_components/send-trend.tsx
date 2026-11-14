@@ -1,20 +1,13 @@
 "use client";
 
-// Trend chart (user request 2026-10-29): every email rate over time, not only delivered/opened/clicked counts.
-// Learned from the live app's Send volume (line chart + series picker, default Opened · Clicked · Replied) and
-// Studio Admin's chart cards (switch in the card header, shadcn Tabs). Two views:
-// - Rates (default): lines on a % axis, one point per day that sent; days with no sends are skipped, not drawn as
-//   0, so the line no longer zigzags to the floor between batches as in the live app.
-// - Counts: grouped bars, since sends happen in batches on separate days.
-// Chips pick the series; each metric keeps one color in both views. The axis rescales to what is picked, so
-// unticking Open rate zooms in on the small rates.
-// Line style from Studio Admin analytics "Traffic Quality" (user request 2026-10-29): no dots, linear lines. Its
-// dashed previous-period line was tried and removed the same day (user request).
+// Send volume (live app EmailMetricsDashboard "Send volume — {window}"): counts per bucket as lines, with a series
+// picker in the card header. Five series in past tense (Sent, Delivered, Opened, Clicked, Replied); Opened ·
+// Clicked · Replied on load, Sent and Delivered one click away. Buckets come from metrics.trend (live app sizes).
+// A bucket with no sends plots 0, so the lines stay continuous (PATTERNS 9.7, user decision 2026-11-12).
+// Series picker: a legend of checkboxes, each filled in its series colour (user feedback 2026-11-12).
 
-import { useState } from "react";
+import type { CSSProperties } from "react";
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Line,
   LineChart,
@@ -27,207 +20,100 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import type { trend } from "./metrics";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Hint } from "@/components/saella/hint";
+import type { TrendPoint } from "./metrics";
 
-type Point = ReturnType<typeof trend>["points"][number];
-type View = "rates" | "counts";
-
-const RATES = {
-  openRate: { label: "Open rate", color: "var(--chart-2)" },
-  clickRate: { label: "Click rate", color: "var(--chart-3)" },
-  replyRate: { label: "Reply rate", color: "var(--chart-4)" },
-  unsubRate: { label: "Unsubscribe rate", color: "var(--chart-5)" },
-  bounceRate: { label: "Bounce rate", color: "var(--chart-6)" },
+// Five distinct hues. Delivered (blue) also draws dashed: it runs almost on top of Sent, so Sent shows through.
+// Teal and blue are the closest pair; the dash keeps them apart. Gold (2.16:1 on white) only with the legend.
+export const SERIES = {
+  sends: { label: "Sent", color: "var(--chart-1)" },
+  delivered: { label: "Delivered", color: "var(--chart-3)" },
+  opens: { label: "Opened", color: "var(--chart-2)" },
+  clicks: { label: "Clicked", color: "var(--chart-5)" },
+  replies: { label: "Replied", color: "var(--chart-4)" },
 } satisfies ChartConfig;
+const DASHED: SeriesKey[] = ["delivered"];
 
-const COUNTS = {
-  delivered: { label: "Delivered", color: "var(--chart-1)" },
-  opened: { label: "Opened", color: "var(--chart-2)" },
-  clicked: { label: "Clicked", color: "var(--chart-3)" },
-  replied: { label: "Replied", color: "var(--chart-4)" },
-  unsubscribed: { label: "Unsubscribed", color: "var(--chart-5)" },
-  bounced: { label: "Bounced", color: "var(--chart-6)" },
-} satisfies ChartConfig;
+export type SeriesKey = keyof typeof SERIES;
+export const DEFAULT_SERIES: SeriesKey[] = ["opens", "clicks", "replies"];
 
-type RateKey = keyof typeof RATES;
-type CountKey = keyof typeof COUNTS;
-
-export const TREND_VIEWS: { value: View; label: string }[] = [
-  { value: "rates", label: "Rates" },
-  { value: "counts", label: "Counts" },
-];
-
-export function TrendViewSwitch({
-  view,
+/** Series legend for the card header: one checkbox per series, at least one stays on. */
+export function SeriesPicker({
+  value,
   onChange,
 }: {
-  view: View;
-  onChange: (v: View) => void;
+  value: SeriesKey[];
+  onChange: (v: SeriesKey[]) => void;
 }) {
-  // shadcn segmented Tabs (user request 2026-10-30), replacing an outline ToggleGroup. Only the list is used:
-  // the chart below is the panel.
   return (
-    <Tabs value={view} onValueChange={(v) => onChange(v as View)}>
-      <TabsList variant="default" aria-label="Show rates or counts">
-        {TREND_VIEWS.map((v) => (
-          <TabsTrigger key={v.value} value={v.value} className="px-3">
-            {v.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-    </Tabs>
-  );
-}
-
-export function SendTrend({ points, view }: { points: Point[]; view: View }) {
-  const [rateKeys, setRateKeys] = useState<RateKey[]>([
-    "openRate",
-    "clickRate",
-    "replyRate",
-  ]);
-  const [countKeys, setCountKeys] = useState<CountKey[]>([
-    "opened",
-    "clicked",
-    "replied",
-  ]);
-  const config = view === "rates" ? RATES : COUNTS;
-  const picked: string[] = view === "rates" ? rateKeys : countKeys;
-  // Keep at least one series: an empty chart reads as "no data".
-  const pick = (v: string[]) => {
-    if (v.length === 0) return;
-    if (view === "rates") setRateKeys(v as RateKey[]);
-    else setCountKeys(v as CountKey[]);
-  };
-
-  return (
-    <div className="flex flex-col gap-4">
-      <ToggleGroup
-        type="multiple"
-        variant="outline"
-        size="sm"
-        aria-label="Series to show"
-        value={picked}
-        onValueChange={pick}
-        className="flex-wrap"
-      >
-        {Object.entries(config).map(([key, c]) => (
-          <ToggleGroupItem key={key} value={key} aria-label={c.label}>
-            <span
-              aria-hidden
-              className="size-2 shrink-0 rounded-full in-data-[state=off]:opacity-30"
-              style={{ backgroundColor: c.color }}
-            />
-            {c.label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-
-      <ChartContainer config={config} className="aspect-auto h-72 w-full">
-        {view === "rates" ? (
-          <LineChart data={points} margin={{ left: 0, right: 8, top: 8 }}>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="label"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={14}
-              minTickGap={32}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              tickMargin={10}
-              width={40}
-              tickFormatter={(v: number) => `${v}%`}
-            />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  formatter={(value, name) => (
-                    <TooltipRow
-                      color={RATES[name as RateKey]?.color}
-                      label={RATES[name as RateKey]?.label ?? String(name)}
-                      value={`${Number(value).toFixed(1)}%`}
-                    />
-                  )}
-                />
-              }
-            />
-            {rateKeys.map((k) => (
-              <Line
-                key={k}
-                dataKey={k}
-                type="linear"
-                stroke={`var(--color-${k})`}
-                strokeWidth={2.5}
-                dot={false}
-                activeDot={{ r: 4 }}
-                connectNulls
-                isAnimationActive={false}
+    <div role="group" aria-label="Series to show" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      {(Object.keys(SERIES) as SeriesKey[]).map((key) => {
+        const on = value.includes(key);
+        const last = on && value.length === 1;
+        const id = `series-${key}`;
+        return (
+          <Hint key={key} label={last ? "Keep at least one series on" : undefined}>
+            <div className="flex items-center gap-2" tabIndex={last ? 0 : undefined}>
+              <Checkbox
+                id={id}
+                checked={on}
+                disabled={last}
+                onCheckedChange={(c) => onChange(c ? [...value, key] : value.filter((k) => k !== key))}
+                style={{ "--series": SERIES[key].color } as CSSProperties}
+                className="border-(--series) data-checked:border-(--series) data-checked:bg-(--series) data-checked:text-background disabled:opacity-100"
               />
-            ))}
-          </LineChart>
-        ) : (
-          <BarChart
-            data={points}
-            margin={{ left: 0, right: 8, top: 8 }}
-            barGap={1}
-          >
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="label"
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              minTickGap={24}
-            />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              width={44}
-              allowDecimals={false}
-            />
-            <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-            {countKeys.map((k) => (
-              <Bar
-                key={k}
-                dataKey={k}
-                fill={`var(--color-${k})`}
-                radius={[3, 3, 0, 0]}
-                maxBarSize={14}
-                isAnimationActive={false}
-              />
-            ))}
-          </BarChart>
-        )}
-      </ChartContainer>
+              <Label htmlFor={id} className="font-normal">
+                {SERIES[key].label}
+              </Label>
+            </div>
+          </Hint>
+        );
+      })}
     </div>
   );
 }
 
-function TooltipRow({
-  color,
-  label,
-  value,
+export function SendTrend({
+  points,
+  series,
 }: {
-  color?: string;
-  label: string;
-  value: string;
+  points: TrendPoint[];
+  series: SeriesKey[];
 }) {
   return (
-    <>
-      <div
-        className="size-2.5 shrink-0 rounded-[2px]"
-        style={{ backgroundColor: color }}
-      />
-      <div className="flex flex-1 items-center justify-between gap-4 leading-none">
-        <span className="text-muted-foreground">{label}</span>
-        <span className="font-mono font-medium text-foreground tabular-nums">
-          {value}
-        </span>
-      </div>
-    </>
+    <ChartContainer config={SERIES} className="aspect-auto h-72 w-full">
+      <LineChart data={points} margin={{ left: 0, right: 8, top: 8 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis
+          dataKey="label"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={10}
+          minTickGap={24}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          width={44}
+          allowDecimals={false}
+        />
+        <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
+        {series.map((k) => (
+          <Line
+            key={k}
+            dataKey={k}
+            type="monotone"
+            stroke={`var(--color-${k})`}
+            strokeWidth={2}
+            strokeDasharray={DASHED.includes(k) ? "5 4" : undefined}
+            dot={{ r: 3 }}
+            activeDot={{ r: 4 }}
+            isAnimationActive={false}
+          />
+        ))}
+      </LineChart>
+    </ChartContainer>
   );
 }

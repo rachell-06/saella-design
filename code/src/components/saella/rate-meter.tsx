@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils";
 // Email rates (DESIGN.md §2 "Số liệu", PATTERNS.md §9.7; 2026-11-03/05): a plain number, the count behind it grey in brackets
 // ("38.3% (467)"), the denominator in a tooltip. Only Bounce and Delivery are ever coloured, from RATE_BANDS below,
 // always with an icon and the threshold in the tooltip. Under 20 sends the number is grey: too few to judge.
-// Use RateCell in tables (one right-aligned column per rate), RateValue inline, rateKpi for a KpiStripItem.
+// Use RateCell in tables (one left-aligned column per rate), RateValue inline, rateKpi for a KpiStripItem.
 
 /** Workspace auto-pause level (PRD-02: 10% bounces over 7 days). */
 export const BOUNCE_ALERT = 0.1;
 
-const LOW_SAMPLE = "Fewer than 20 sends: too few to judge";
+const LOW_SAMPLE = "too few to judge";
 
 export type RateKind = "delivery" | "open" | "click" | "reply" | "unsub" | "bounce";
 /** good · fair = warning · poor = danger. */
@@ -86,28 +86,29 @@ export type RateInfo = {
   low: boolean;
   /** Only Bounce and Delivery past their threshold. */
   flag?: RateFlag;
-  /** KPI note: "2,349 of 5,968 delivered", bounce and delivery "of N sent". */
+  /** KPI note: "2,349/5,968 delivered"; bounce and delivery "/N sent". */
   note: string;
   /** Tooltip: counts, denominator and, when flagged, the threshold. */
   detail: string;
 };
 
 export function rateInfo(kind: RateKind, part: number, whole: number): RateInfo {
-  const note = `${num(part)} of ${num(whole)} ${DENOMINATOR[kind]}`;
+  // X/Y under a rate (user request 2026-11-12): shorter than "X of Y"; the unit word stays so the base is clear.
+  const note = `${num(part)}/${num(whole)} ${DENOMINATOR[kind]}`;
   if (!whole) return { low: true, note, detail: "Nothing sent yet" };
   const r = part / whole;
   const low = whole < 20;
   const band = low ? undefined : rateBand(kind, r);
   const flag: RateFlag | undefined = band === "poor" ? "danger" : band === "fair" ? "warning" : undefined;
   const counts = `${num(part)} ${PAST[kind]} of ${num(whole)} ${DENOMINATOR[kind]}`;
-  // The workspace auto-pause is worth knowing before it happens (PRD-02 BR-RULE-EC-19).
-  const pause = kind === "bounce" ? ". Sending pauses at 10% over 7 days" : "";
+  // One short line (PATTERNS 9.13): counts, then the band only when flagged. The 10% bounce auto-pause is stated
+  // where it acts (Settings › Sending health, the paused alert), not on every cell.
   return {
     text: pctText(r),
     low,
     flag,
     note,
-    detail: low ? `${counts}. ${LOW_SAMPLE}` : flag ? `${counts}. ${bandHint(kind, band)}${pause}` : `${counts}${pause}`,
+    detail: low ? `${counts} · ${LOW_SAMPLE}` : flag ? `${counts} · ${bandHint(kind, band)}` : counts,
   };
 }
 
@@ -123,7 +124,7 @@ export function rateKpi(kind: RateKind, part: number, whole: number) {
   return { value: i.text, note: whole ? i.note : undefined, muted: i.low, tone: i.flag, detail: i.detail };
 }
 
-/** "38.3% (467)" with the denominator in a tooltip. Renders nothing when nothing was sent (empty cell, §2). */
+/** "38.3% (467)"; a tooltip only when flagged or too few sends. Renders nothing when nothing was sent (empty cell, §2). */
 export function RateValue({
   kind,
   part,
@@ -141,9 +142,7 @@ export function RateValue({
   if (!whole) return null;
   const i = rateInfo(kind, part, whole);
   const Icon = i.flag ? FlagIcon[i.flag] : null;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+  const value = (
         <span
           // Flagged values take focus so the threshold is reachable from the keyboard.
           tabIndex={i.flag ? 0 : undefined}
@@ -158,16 +157,23 @@ export function RateValue({
           <span className={i.low ? "text-subtle-foreground" : "text-muted-foreground"}>({num(part)})</span>
           {i.flag && <span className="sr-only">{i.flag === "danger" ? ", danger" : ", warning"}</span>}
         </span>
-      </TooltipTrigger>
+  );
+  // A tooltip only where it says something the cell can't (user request 2026-11-12: too many hovers on numbers):
+  // a flagged rate (the threshold) or too few sends. Plain cells explain themselves; the denominator lives in
+  // the column header or KPI caption.
+  if (!i.flag && !i.low) return value;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{value}</TooltipTrigger>
       <TooltipContent className="max-w-64">{i.detail}</TooltipContent>
     </Tooltip>
   );
 }
 
-/** One rate as a right-aligned table cell (one column per rate, PATTERNS.md §9.7). */
+/** One rate as a left-aligned table cell (one column per rate, PATTERNS.md §9.7). */
 export function RateCell({ className, ...props }: React.ComponentProps<typeof RateValue>) {
   return (
-    <TableCell className={cn("text-right", className)}>
+    <TableCell className={className}>
       <RateValue {...props} />
     </TableCell>
   );

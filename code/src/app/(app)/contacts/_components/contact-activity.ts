@@ -1,11 +1,11 @@
 import { WORKSPACE_TZ } from "@/lib/time";
 import { type ReportBatch, allBatches, batchTitle, findTemplate } from "@/lib/mock/batches";
-import { type Contact } from "@/lib/mock/contacts";
+import { type Contact, withAnyTag } from "@/lib/mock/contacts";
 import { NOW as MOCK_NOW } from "@/lib/mock/constants";
 
 // Email activity of one contact (R8, 2026-10-29; HubSpot contact Activities tab, Apollo A2 engagement). The live
 // app keeps per-recipient events for each batch (report Recipients tab) but has no per-contact view or API yet;
-// this mock derives one from the batches sent to the contact's list, deterministically, so screenshots are stable:
+// this mock derives one from the batches sent to the contact's tags, deterministically, so screenshots are stable:
 // - a contact with no "Last sent" never received anything (empty state); nothing after that date is shown;
 // - inclusion and engagement follow each batch's own rates (bounces, opens, clicks, unsubscribes);
 // - an unsubscribe ends the history; an unreachable contact's newest batch bounced (or was marked as spam);
@@ -48,17 +48,23 @@ function sentAtMs(b: ReportBatch) {
   return new Date(b.sentAt ?? `${b.createdOn}T02:00:00Z`).getTime();
 }
 
-/** Newest first. `listSize` scales how likely the contact was in each batch (recipients ÷ list size). */
-export function contactActivity(contact: Contact, listId: string, listSize: number): ActivityEvent[] {
+/** Newest first. How likely the contact was in each batch follows its recipients ÷ the people with its tags. */
+export function contactActivity(contact: Contact, book: Contact[]): ActivityEvent[] {
   if (!contact.lastSent || contact.unreachable === "bad_format") return [];
   const until = new Date(`${contact.lastSent.on}T23:59:59Z`).getTime();
   const candidates = allBatches()
-    .filter((b) => (b.status === "sent" || b.status === "sending") && b.listIds.includes(listId) && sentAtMs(b) <= until)
+    .filter((b) => (b.status === "sent" || b.status === "sending") && withAnyTag([contact], b.tags).length > 0 && sentAtMs(b) <= until)
     .sort((a, b) => sentAtMs(a) - sentAtMs(b));
   if (candidates.length === 0) return [];
 
   const r = rng(hash(contact.id));
-  let received = candidates.filter((b) => r() < Math.min(0.95, Math.max(0.25, b.recipients / Math.max(1, listSize))));
+  const sizes = new Map<string, number>();
+  const sizeOf = (tags: string[]) => {
+    const k = tags.join("|");
+    if (!sizes.has(k)) sizes.set(k, withAnyTag(book, tags).length);
+    return sizes.get(k) ?? 1;
+  };
+  let received = candidates.filter((b) => r() < Math.min(0.95, Math.max(0.25, b.recipients / Math.max(1, sizeOf(b.tags)))));
   // "Last sent" says they got at least one email: keep the newest batch in.
   const newest = candidates[candidates.length - 1];
   if (!received.includes(newest)) received = [...received, newest];

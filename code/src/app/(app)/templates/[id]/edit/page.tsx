@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { allTemplates, findTemplate } from "@/lib/mock/templates";
+import { allTemplates, findTemplate, isSessionTemplateId } from "@/lib/mock/templates";
 import { TemplateEditor } from "../../_components/editor/template-editor";
 
 // Known ids are prerendered, so the shared sidebar's usePathname() has a value at build time (cacheComponents).
@@ -27,6 +27,6 @@ export default function TemplateEditPage({ params }: { params: Promise<{ id: str
 
 async function Screen({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (id !== "draft" && !findTemplate(id)) notFound();
+  if (id !== "draft" && !findTemplate(id) && !isSessionTemplateId(id)) notFound();
   return <TemplateEditor id={id} />;
 }

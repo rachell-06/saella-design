@@ -4,14 +4,51 @@ import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type Block, KNOWN_TAGS, type TemplateKind, splitTags } from "@/lib/mock/templates";
 import { Hint } from "@/components/saella/hint";
+import { blocksToHtml, placeholderImages, renderTags, sanitizeHtml } from "@/lib/mock/templates-html";
 
 // Renders a template body as the recipient sees it (preview) or as editable blocks (edit). Wrap it in
 // `.email-canvas` (tokens.css) so it keeps the light email palette in dark mode; not Saella brand colours, except the button (PATTERNS.md §9.3: template colours are separate
 // from UI colours; a first build has no per-template palette yet, so buttons use `primary`).
 // Images are placeholders (no upload storage in the mock).
+// A Letter is rich-text HTML (TipTap, designer 2026-11-14): pass `html`; without it the letter's blocks are turned
+// into HTML. A Design renders its blocks.
+
+/** Typography for a Letter's HTML, shared by the TipTap editor and every read-only view, so they look the same. */
+export const EMAIL_PROSE = cn(
+  "text-sm leading-relaxed",
+  "[&_h1]:pt-2 [&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:tracking-display",
+  "[&_h2]:pt-2 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:tracking-title",
+  "[&_h3]:pt-1 [&_h3]:text-base [&_h3]:font-semibold",
+  "[&_p]:my-1.5 [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-0.5 [&_li_p]:my-0",
+  "[&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2",
+  "[&_hr]:my-3 [&_hr]:border-border [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded-md",
+  "[&_blockquote]:border-l-2 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground"
+);
+
+/** Merge-tag chip, as TagText draws it (known tags tinted, unknown ones outlined red). */
+export const tagChipClass = (known: boolean) =>
+  cn(
+    "mx-0.5 inline-flex items-center rounded-sm px-1 align-baseline font-mono text-xs leading-5",
+    known ? "bg-primary-subtle text-foreground" : "border border-destructive bg-destructive-soft text-destructive-soft-foreground"
+  );
+
+const IMAGE_BOX =
+  "my-2 flex h-40 w-full items-center justify-center rounded-md border border-dashed border-input bg-muted text-xs text-muted-foreground";
+
+/** A Letter's HTML, read-only: sanitised (AC-EC-T-05), merge tags filled (preview) or shown as chips (edit). */
+export function LetterHtml({ html, mode, values }: { html: string; mode: "edit" | "preview"; values?: Record<string, string> }) {
+  const known = values ? Object.fromEntries(Object.entries(values).filter(([k]) => KNOWN_TAGS.has(k))) : undefined;
+  const out = placeholderImages(
+    renderTags(sanitizeHtml(html), mode === "preview" ? known : undefined, (tag) => tagChipClass(KNOWN_TAGS.has(tag))),
+    IMAGE_BOX
+  );
+  // Sanitised above, and the mock's HTML only comes from this app (TipTap, seeds, Saella's drafts).
+  return <div className={EMAIL_PROSE} dangerouslySetInnerHTML={{ __html: out }} />;
+}
 
 export function EmailBody({
   blocks,
+  html,
   kind,
   mode,
   values,
@@ -21,6 +58,8 @@ export function EmailBody({
   footer = true,
 }: {
   blocks: Block[];
+  /** A Letter's rich-text body; when missing, a letter's blocks are turned into HTML. */
+  html?: string;
   kind: TemplateKind;
   mode: "edit" | "preview";
   /** Sample recipient values; preview replaces merge tags with them. */
@@ -33,6 +72,19 @@ export function EmailBody({
   footer?: boolean;
 }) {
   const poster = kind === "design";
+  if (!poster) {
+    const body = html ?? blocksToHtml(blocks);
+    return (
+      <div className="flex flex-col gap-1">
+        {body.replace(/<[^>]+>/g, "").trim() || /<img\b/i.test(body) ? (
+          <LetterHtml html={body} mode={mode} values={values} />
+        ) : (
+          <p className="py-10 text-center text-sm text-muted-foreground">The email is empty.</p>
+        )}
+        {footer && !body.includes("{{unsubscribe_url}}") && <UnsubFooter mode={mode} />}
+      </div>
+    );
+  }
   const hasUnsub = blocks.some((b) => JSON.stringify(b).includes("{{unsubscribe_url}}"));
   return (
     <div className={cn("flex flex-col gap-1 text-sm leading-relaxed", poster && "text-center")}>
@@ -56,27 +108,32 @@ export function EmailBody({
             )}
           >
             {issueIds?.has(b.id) && (
-              <Hint label="See Check"><span aria-hidden className="absolute top-1 right-1 size-2 rounded-full bg-warning" /></Hint>
+              <Hint label="See the content check"><span aria-hidden className="absolute top-1 right-1 size-2 rounded-full bg-warning" /></Hint>
             )}
             {content}
           </button>
         );
       })}
       {blocks.length === 0 && (
-        <p className="py-10 text-center text-muted-foreground">Add a block with the buttons below, or ask Write with AI for a first draft.</p>
+        <p className="py-10 text-center text-muted-foreground">Add a block with the buttons below, or ask Write with Saella for a first draft.</p>
       )}
-      {footer && !hasUnsub && (
-        <p className="mt-4 border-t pt-3 text-center text-xs text-subtle-foreground">
-          You received this email from Northwind Ceramics.{" "}
-          <span className="underline">Unsubscribe</span>
-          {mode === "edit" && " · added automatically"}
-        </p>
-      )}
+      {footer && !hasUnsub && <UnsubFooter mode={mode} />}
     </div>
   );
 }
 
-function BlockView({
+/** The unsubscribe footer Saella appends when the body has none (Repo src/lib/email/render.ts:153). */
+function UnsubFooter({ mode }: { mode: "edit" | "preview" }) {
+  return (
+    <p className="mt-4 border-t pt-3 text-center text-xs text-subtle-foreground">
+      You received this email from Northwind Ceramics. <span className="underline">Unsubscribe</span>
+      {mode === "edit" && " · added automatically"}
+    </p>
+  );
+}
+
+/** One block as the recipient sees it (preview) or with merge-tag chips (edit). */
+export function BlockView({
   block: b,
   poster,
   mode,

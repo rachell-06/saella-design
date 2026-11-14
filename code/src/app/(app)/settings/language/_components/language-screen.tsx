@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { LOCALES, type Locale, localeLabel } from "@/components/saella/language-picker";
-import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "@/components/ui/field";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SectionHeader } from "../../_components/section-header";
 
 // Settings → Language (PRD-07 Language, read 2026-10-28; live app components/layout/LanguageSwitcher.tsx).
@@ -24,6 +24,7 @@ const BROWSER_LOCALE: Locale = "en"; // what this browser reports, for the previ
 export function LanguageScreen() {
   const preview = useSearchParams().get("state") ?? "";
   const [choice, setChoice] = useState<Choice>("browser");
+  const browserLabel = `Follow my browser (${localeLabel(BROWSER_LOCALE)})`;
 
   function change(v: string) {
     const next = v as Choice;
@@ -43,34 +44,30 @@ export function LanguageScreen() {
       <SectionHeader
         id="lang-title"
         title="Language"
-        description="The language of menus, messages and emails Saella sends you. Saved to your account."
-        info="Your templates, campaigns and contact data are never translated. The agent answers in the language you write to it in."
+        description="For menus, messages and the emails Saella sends you."
+        info="Your content is never translated. The agent replies in your language."
       />
-      <RadioGroup value={choice} onValueChange={change} className="grid gap-3 sm:grid-cols-2">
-        <LangOption
-          value="browser"
-          title="Follow my browser"
-          description={`Right now: ${localeLabel(BROWSER_LOCALE)}. Anything other than Vietnamese or Chinese shows English.`}
-        />
-        {LOCALES.map((l) => (
-          // No subtitle when the native name is already the English one ("English / English").
-          <LangOption key={l.code} value={l.code} title={l.label} description={l.english === l.label ? undefined : l.english} lang={l.code} />
-        ))}
-      </RadioGroup>
-    </section>
-  );
-}
-
-function LangOption({ value, title, description, lang }: { value: Choice; title: string; description?: string; lang?: string }) {
-  return (
-    <FieldLabel htmlFor={`lang-${value}`}>
-      <Field orientation="horizontal">
-        <FieldContent>
-          <FieldTitle lang={lang}>{title}</FieldTitle>
-          {description && <FieldDescription>{description}</FieldDescription>}
-        </FieldContent>
-        <RadioGroupItem value={value} id={`lang-${value}`} />
+      <Field className="w-72">
+        <FieldLabel htmlFor="lang-select">Display language</FieldLabel>
+        <Select value={choice} onValueChange={change}>
+          <SelectTrigger id="lang-select" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value="browser">{browserLabel}</SelectItem>
+              {LOCALES.map((l) => (
+                <SelectItem key={l.code} value={l.code}>
+                  <span lang={l.code}>{l.label}</span>
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        {choice === "browser" && (
+          <FieldDescription>Other languages show as English.</FieldDescription>
+        )}
       </Field>
-    </FieldLabel>
+    </section>
   );
 }

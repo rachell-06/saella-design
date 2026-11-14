@@ -91,6 +91,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Build output of the DS surface (next.config.ts distDir).
+    ".next-ds/**",
   ]),
 ]);
 

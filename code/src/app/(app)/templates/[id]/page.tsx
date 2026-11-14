@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { allTemplates, findTemplate } from "@/lib/mock/templates";
+import { allTemplates, findTemplate, isSessionTemplateId } from "@/lib/mock/templates";
 import { TemplateDetailScreen } from "../_components/template-detail";
 
 // Known ids are prerendered, so the shared sidebar's usePathname() has a value at build time (cacheComponents).
@@ -26,6 +26,6 @@ export default function TemplatePage({ params }: { params: Promise<{ id: string 
 
 async function Screen({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!findTemplate(id)) notFound();
+  if (!findTemplate(id) && !isSessionTemplateId(id)) notFound();
   return <TemplateDetailScreen id={id} />;
 }

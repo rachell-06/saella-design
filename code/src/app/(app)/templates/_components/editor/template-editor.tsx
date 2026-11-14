@@ -1,29 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronRightIcon,
+  BracesIcon,
+  SaveIcon,
   CircleAlertIcon,
-  CircleCheckIcon,
   CopyIcon,
-  FileTextIcon,
-  HeadingIcon,
-  ImageIcon,
-  LayoutTemplateIcon,
+  PenLineIcon,
+  CalendarClockIcon,
+  SendIcon,
+  PaletteIcon,
   LightbulbIcon,
   LockIcon,
-  MinusIcon,
-  PilcrowIcon,
-  RectangleHorizontalIcon,
-  RotateCwIcon,
+  PaperclipIcon,
   SparklesIcon,
+  PlusIcon,
+  RotateCwIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { CURRENT_USER, type Template } from "@/lib/mock/campaigns";
+import { CURRENT_USER, type Template, campaignStatus, sampleCampaigns } from "@/lib/mock/campaigns";
+import { useCreatedCampaigns } from "@/lib/mock/created-campaigns";
 import { PageHeader } from "@/components/layout/page-header";
+import { ChipRemove } from "@/components/saella/chip-remove";
+import { Hint } from "@/components/saella/hint";
 import { StatusBadge } from "@/components/saella/status-badge";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -38,18 +41,36 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { Editor as TipTapEditor } from "@tiptap/react";
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { LockedTip } from "@/components/features/automate-dialog";
+import { LockedTip, ScheduleDialog } from "@/components/features/automate-dialog";
 import {
-  BLOCKS_FOR,
-  BLOCK_LABEL,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useCopyTemplate } from "@/components/features/template-menu";
+import { UnsavedDialog } from "@/components/saella/unsaved-dialog";
+import { MERGE_TAG_MENU_CLASS, MergeTagItems } from "@/components/features/merge-tag-items";
+import { type LeaveTarget, useLeaveGuard } from "@/lib/leave-guard";
+import { templateActions } from "@/lib/mock/template-store";
+import {
   type Block,
   type BlockType,
   DEFAULT_SENDER_ID,
@@ -61,32 +82,43 @@ import {
   detailsFor,
   emptyBlock,
   findTemplate,
+  isDesignStart,
   lockReason,
   newBlockId,
   resolveTags,
   senderById,
   senderOptions,
   starterBlocks,
+  untitledName,
   viewerFor,
 } from "@/lib/mock/templates";
-import { BlockInspector, TagField } from "./block-inspector";
+import { AddBlockItems, type BlockRequest, DesignCanvas } from "./design-canvas";
+import { EnvelopeRow, EnvelopeTagRow, FLAT_CONTROL } from "./envelope";
+import { LetterEditor } from "./letter-editor";
+import { blocksToHtml, htmlToBlocks } from "@/lib/mock/templates-html";
 import { type Issue, checkContent, checkSubject } from "./content-check";
 import { EmailBody } from "@/components/features/email-body";
 import { SubjectChecklist } from "./subject-checklist";
-import { WriteWithAi } from "./write-with-ai";
+import { AiMark, type Draft, WriteWithSaellaDialog } from "./write-with-ai";
 
 // The email editor (live app EmailTemplateEditor; PATTERNS.md §9.3), first build 2026-10-28.
-// Layout: envelope (name, sender, subject, preheader, kind) + the email on a canvas in the middle; on the right
-// a panel with Block (properties of the clicked block), Check (content check) and Write with AI.
+// Layout as the live editor (2026-11-14): two panes side by side.
+// Left: the editor card: kind in its top-right corner, envelope as compact rows (name, subject, preheader, campaign,
+// from), the content check as an alert (live app lint alert), a sticky toolbar (add blocks, attach, and Write with
+// Saella, which opens its dialog) with the selected block's properties, the editable email. Right: the live preview (name, subject, preheader, then the email with sample
+// merge values), always visible. Header: Save draft + Mark active; once active, Save changes + Send batch.
 // Simplified on purpose, to be decided with the user:
 //  - blocks instead of free rich text: no inline bold/links/fonts, no drag and drop (move up/down instead),
-//    no HTML code view, no A/B versions, no attachments (AC-EC-T-04) and no per-template colours yet;
+//    no HTML code view, no A/B versions (hidden behind a flag in the live app) and no per-template colours yet;
+//  - envelope as the live editor: name, campaign (movable, TPL-UPDATE-001), sender, subject, preheader and
+//    attachments (AC-EC-T-04, 10 MB each; mock keeps only the file name and size);
 //  - images are placeholders (no storage); the preview follows the app theme instead of a fixed white email;
 //  - the unsaved guard covers in-app links and closing the tab, not the browser Back button.
 // Permissions (Repo template-permissions.ts): editing needs canEdit; others open it read-only with Make a copy
 // (AC-EC-TO-03). A save after access is revoked is rejected and the editor drops to read-only (AC-EC-TO-05).
-// Preview states: ?state=loading | error | member | revoked (save fails) | ai-error. `draft` = new template.
-// ?ai=subject | subject-writing opens Write with AI on the Subject tab (write-with-ai.tsx).
+// Preview states: ?state=loading | error | member | revoked (save fails) | ai-error. `draft` = new template
+// (?campaign, ?kind, ?start = how a Design starts, ?name optional, ?return = page to go back to after the first save).
+// ?ai=subject | subject-writing opens the subject suggestions beside the Subject field (write-with-ai.tsx).
 // ?subject=…&preheader=… start the template with that text, to show the live subject checklist (R5).
 
 type Snapshot = {
@@ -95,29 +127,61 @@ type Snapshot = {
   subject: string;
   preheader: string;
   senderId: string;
+  /** Live app editor: the template's campaign can be changed here (PRD TPL-UPDATE-001). */
+  campaignId: string;
+  /** Files sent with the email, up to 10 MB each (AC-EC-T-04). */
+  attachments: { name: string; size: number }[];
+  /** Design body. */
   blocks: Block[];
+  /** Letter body: rich-text HTML (TipTap, designer 2026-11-14). */
+  html: string;
 };
 
-const BLOCK_ICON: Record<BlockType, React.ElementType> = {
-  heading: HeadingIcon,
-  paragraph: PilcrowIcon,
-  image: ImageIcon,
-  button: RectangleHorizontalIcon,
-  divider: MinusIcon,
-  hero: LayoutTemplateIcon,
-};
+const ATTACH_MAX = 10 * 1024 * 1024;
+const fileSize = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
+
+// A copy made from the ⋯ menu lives only in this session (lib/mock/template-store.ts): after a reload it is gone.
 export function TemplateEditor({ id }: { id: string }) {
+  if (id !== "draft" && !findTemplate(id))
+    return (
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyTitle>This template isn&apos;t here any more</EmptyTitle>
+          <EmptyDescription>It was deleted, or it was a copy that wasn&apos;t saved.</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/templates">Back to Templates</Link>
+          </Button>
+        </EmptyContent>
+      </Empty>
+    );
+  // Keyed: after a new template's first save the URL moves from /draft to its id, and the editor must start over
+  // as that template (not keep the draft's state).
+  return <Editor key={id} id={id} />;
+}
+
+function Editor({ id }: { id: string }) {
   const params = useSearchParams();
+  // Campaigns made this session (newest first) + the seed list, so a just-created campaign can be picked.
+  const created = useCreatedCampaigns();
+  const allCampaigns = useMemo(() => [...created, ...sampleCampaigns], [created]);
   const router = useRouter();
   const previewState = params.get("state");
   const viewer = viewerFor(previewState);
   const isDraft = id === "draft";
   const found = isDraft ? null : findTemplate(id);
+  const copyTo = useCopyTemplate(viewer);
 
+  const draftKind: TemplateKind = params.get("kind") === "design" ? "design" : "letter";
+  const startParam = params.get("start");
+  const draftStart = isDesignStart(startParam) ? startParam : undefined;
+  // A new template the user didn't name: "Untitled …" (live app), and Write with Saella may name it.
+  const draftUntitled = isDraft && !params.get("name")?.trim();
   const template: Template = found?.template ?? {
     id: "draft",
-    name: params.get("name") ?? "Untitled template",
+    name: params.get("name")?.trim() || untitledName(draftKind, draftStart),
     owner: CURRENT_USER,
     status: "inactive",
     recipients: 0,
@@ -127,7 +191,6 @@ export function TemplateEditor({ id }: { id: string }) {
     bounces: 0,
     unsubs: 0,
   };
-  const draftKind: TemplateKind = params.get("kind") === "design" ? "design" : "letter";
 
   const initial = useMemo<Snapshot>(() => {
     const envelope = { subject: params.get("subject"), preheader: params.get("preheader") };
@@ -138,7 +201,10 @@ export function TemplateEditor({ id }: { id: string }) {
         subject: envelope.subject ?? "",
         preheader: envelope.preheader ?? "",
         senderId: DEFAULT_SENDER_ID,
-        blocks: starterBlocks(draftKind),
+        campaignId: params.get("campaign") ?? allCampaigns[0]?.id ?? "",
+        attachments: [],
+        blocks: draftKind === "design" ? starterBlocks("design", draftStart) : [],
+        html: draftKind === "letter" ? blocksToHtml(starterBlocks("letter")) : "",
       };
     const d = detailsFor(id);
     return {
@@ -147,7 +213,10 @@ export function TemplateEditor({ id }: { id: string }) {
       subject: envelope.subject ?? d.subject,
       preheader: envelope.preheader ?? d.preheader,
       senderId: d.senderId ?? DEFAULT_SENDER_ID,
-      blocks: d.blocks,
+      campaignId: found?.campaign.id ?? "",
+      attachments: [],
+      blocks: d.kind === "design" ? d.blocks : [],
+      html: d.kind === "letter" ? (d.html ?? blocksToHtml(d.blocks)) : "",
     };
     // Loaded once per template.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,63 +226,85 @@ export function TemplateEditor({ id }: { id: string }) {
   const [doc, setDoc] = useState<Snapshot>(initial);
   const [status, setStatus] = useState(template.status);
   const [revoked, setRevoked] = useState(false);
+  // A first save was refused for a missing subject: show the field as invalid even before any edit.
+  const [subjectNeeded, setSubjectNeeded] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(initial.blocks[0]?.id ?? null);
-  const [view, setView] = useState<"edit" | "preview">("edit");
-  const [panel, setPanel] = useState(params.get("ai") ? "ai" : "block");
+  // Write with Saella is a dialog opened from the editor toolbar (designer 2026-11-14; live app "Agent" modal). Like the
+  // live app it opens by itself only for a blank Design (nothing to look at yet); a Letter starter or a preset doesn't.
+  const [aiOpen, setAiOpen] = useState(isDraft && draftKind === "design" && (!draftStart || draftStart === "blank"));
+  // After "Save and mark active": ask what's next instead of stopping here (designer 2026-11-13).
+  const [ready, setReady] = useState(params.get("ready") === "1");
+  const [scheduling, setScheduling] = useState(false);
+  // Fields Saella filled, marked ✨ until the user edits them (designer 2026-11-13).
+  const [aiFilled, setAiFilled] = useState<ReadonlySet<string>>(new Set());
+  const unmark = (field: string) =>
+    setAiFilled((s) => {
+      if (!s.has(field)) return s;
+      const next = new Set(s);
+      next.delete(field);
+      return next;
+    });
+  const [letterEpoch, setLetterEpoch] = useState(0);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [checkOpen, setCheckOpen] = useState(false);
+  const [blockRequest, setBlockRequest] = useState<BlockRequest | null>(null);
+  // The Design text field being edited in place: the toolbar's Tags menu inserts at its caret.
+  const [activeField, setActiveField] = useState<TipTapEditor | null>(null);
   const [pendingKind, setPendingKind] = useState<TemplateKind | null>(null);
-  const [leaveTo, setLeaveTo] = useState<string | null>(null);
+  const [leaveTo, setLeaveTo] = useState<LeaveTarget | null>(null);
 
   const access = accessFor(template, viewer);
   const readOnly = !canEdit(access) || revoked;
   const dirty = JSON.stringify(doc) !== JSON.stringify(saved);
-  const { issues, passed } = useMemo(() => checkContent(doc), [doc]);
+  const letter = doc.kind === "letter";
+  /** The body as blocks: a Design's own, a Letter's read from its HTML (for the check and Write with Saella). */
+  const bodyBlocks = useMemo(() => (letter ? htmlToBlocks(doc.html) : doc.blocks), [letter, doc.html, doc.blocks]);
+  const { issues } = useMemo(() => {
+    const r = checkContent({ ...doc, blocks: bodyBlocks, html: letter ? doc.html : undefined });
+    // A Letter has no blocks to jump to: its problems point at nothing on the page.
+    return letter ? { ...r, issues: r.issues.map((i) => ({ ...i, blockId: undefined })) } : r;
+  }, [doc, bodyBlocks, letter]);
   const subjectChecks = useMemo(() => checkSubject(doc.subject, doc.preheader), [doc.subject, doc.preheader]);
   const errors = issues.filter((i) => i.severity === "error");
   const warnings = issues.filter((i) => i.severity === "warning");
   const issueIds = new Set(issues.filter((i) => i.blockId && i.severity !== "tip").map((i) => i.blockId!));
   const subjectRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  // Unsaved guard: closing the tab asks the browser; in-app links ask us (capture phase, before Next's Link).
-  const dirtyRef = useRef(dirty);
-  useEffect(() => {
-    dirtyRef.current = dirty;
-  }, [dirty]);
-  useEffect(() => {
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (dirtyRef.current) e.preventDefault();
-    };
-    const onClick = (e: MouseEvent) => {
-      if (!dirtyRef.current || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
-      const a = (e.target as HTMLElement).closest("a[href]") as HTMLAnchorElement | null;
-      if (!a || a.target === "_blank" || a.origin !== window.location.origin || a.pathname === window.location.pathname) return;
-      e.preventDefault();
-      e.stopPropagation();
-      setLeaveTo(a.pathname + a.search);
-    };
-    window.addEventListener("beforeunload", onBeforeUnload);
-    document.addEventListener("click", onClick, true);
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      document.removeEventListener("click", onClick, true);
-    };
-  }, []);
+  // Ask before leaving with unsaved work, on every way out (designer 2026-11-14; lib/leave-guard.ts: tab close, in-app
+  // links, the top bar's Back, the browser's Back). A new template counts as unsaved until its first save: its
+  // campaign and kind are already picked, so leaving loses them.
+  const leave = useLeaveGuard(!readOnly && (dirty || isDraft), setLeaveTo);
 
   const patch = (p: Partial<Snapshot>) => setDoc((d) => ({ ...d, ...p }));
   const setBlocks = (fn: (b: Block[]) => Block[]) => setDoc((d) => ({ ...d, blocks: fn(d.blocks) }));
   const selectedIndex = doc.blocks.findIndex((b) => b.id === selectedId);
   const selected = selectedIndex >= 0 ? doc.blocks[selectedIndex] : null;
 
-  function addBlock(type: BlockType) {
+  /** A new block at `at` (default: after the selected block, or at the end), selected; a text block gets the caret. */
+  function addBlock(type: BlockType, at?: number) {
     const b = emptyBlock(type);
     setBlocks((all) => {
-      const at = selectedIndex >= 0 ? selectedIndex + 1 : all.length;
-      return [...all.slice(0, at), b, ...all.slice(at)];
+      const i = at ?? (selectedIndex >= 0 ? selectedIndex + 1 : all.length);
+      return [...all.slice(0, i), b, ...all.slice(i)];
     });
     setSelectedId(b.id);
-    setPanel("block");
   }
 
-  function save(markActive: boolean): boolean {
+  /** Drag, Alt+↑/↓ or the bar's arrows. A drag can be undone from the toast. */
+  function reorder(from: number, to: number) {
+    const before = doc.blocks;
+    setBlocks((all) => {
+      const next = [...all];
+      const [b] = next.splice(from, 1);
+      next.splice(to, 0, b);
+      return next;
+    });
+    if (Math.abs(to - from) > 1)
+      toast("Moved", { action: { label: "Undo", onClick: () => setDoc((d) => ({ ...d, blocks: before })) } });
+  }
+
+  function save(markActive: boolean, opts?: { stay?: boolean }): boolean {
     if (previewState === "revoked") {
       setRevoked(true);
       toast.error("Not saved: your edit access was removed", {
@@ -225,23 +316,110 @@ export function TemplateEditor({ id }: { id: string }) {
       toast.error("Give the template a name first");
       return false;
     }
+    if (isDraft) {
+      // First save of a new template = the live app's create (POST /api/email/templates: "name and subject are
+      // required"). Later saves may leave the subject empty; Check then blocks Mark active.
+      if (!doc.subject.trim()) {
+        setSubjectNeeded(true);
+        toast.error("Add a subject first");
+        document.getElementById("ed-subject")?.focus();
+        return false;
+      }
+      // It now exists (same store as copies), so lists and New batch can pick it.
+      const campaign = allCampaigns.find((c) => c.id === doc.campaignId);
+      if (!campaign) {
+        toast.error("Pick a campaign first");
+        return false;
+      }
+      const newId = templateActions.create(
+        campaign,
+        { name: doc.name.trim(), status: markActive ? "active" : "inactive" },
+        {
+          kind: doc.kind,
+          subject: doc.subject,
+          preheader: doc.preheader,
+          senderId: doc.senderId,
+          blocks: bodyBlocks,
+          html: letter ? doc.html : undefined,
+        },
+        viewer.email
+      );
+      setSaved(doc);
+      const back = params.get("return");
+      // Only paths inside the app (no open redirect through ?return=).
+      const returning = back?.startsWith("/") && !back.startsWith("//");
+      toast.success(`Created “${doc.name.trim()}”`, {
+        description: returning
+          ? "Back to your batch with this template picked."
+          : markActive
+            ? "It can be sent now."
+            : "Still inactive: mark it active when it's ready to send.",
+      });
+      // Leaving through the dialog: it goes where the user was heading.
+      if (opts?.stay) return true;
+      // Active and not on its way back to a batch: the template page asks what's next (?ready=1).
+      leave({
+        kind: "href",
+        href: returning
+          ? `${back}${back!.includes("?") ? "&" : "?"}template=${encodeURIComponent(newId)}`
+          : `/templates/${newId}/edit${markActive ? "?ready=1" : ""}`,
+        // The draft URL would open a fresh empty draft on Back: the saved template takes its place in history.
+        replace: !returning,
+      });
+      return true;
+    }
     setSaved(doc);
+    if (markActive) setReady(true);
     if (markActive) setStatus("active");
-    toast.success(isDraft ? `Created “${doc.name}”` : markActive ? "Saved and marked active" : "Saved", {
+    // Same store as the ⋯ menu, so the list, the template page and Campaigns show the new status.
+    if (markActive) templateActions.setStatus(id, "active", viewer.email);
+    toast.success(markActive ? "Saved and marked active" : "Saved", {
       description: markActive ? "It can be sent now." : status === "inactive" ? "Still inactive: mark it active when it's ready to send." : undefined,
     });
     return true;
   }
 
+  function applyDraft(d: Draft) {
+    const before = doc;
+    // The name is the user's: Saella only names a new template still on its "Untitled …" name.
+    const untitled = !doc.name.trim() || (draftUntitled && doc.name === initial.name);
+    const name = untitled && d.name ? d.name : doc.name;
+    setDoc((x) => ({
+      ...x,
+      name,
+      subject: d.subject ?? x.subject,
+      preheader: d.preheader ?? x.preheader,
+      ...(x.kind === "letter" ? { html: blocksToHtml(d.blocks) } : { blocks: d.blocks }),
+    }));
+    setLetterEpoch((n) => n + 1);
+    setAiFilled(new Set([...(name !== doc.name ? ["name"] : []), ...(d.subject ? ["subject"] : []), ...(d.preheader ? ["preheader"] : [])]));
+    setSelectedId(d.blocks[0]?.id ?? null);
+    toast.success("Saella's draft is in", {
+      description: "Check it, change anything, then save.",
+      action: {
+        label: "Undo",
+        onClick: () => {
+          setDoc(before);
+          setAiFilled(new Set());
+          setLetterEpoch((n) => n + 1);
+        },
+      },
+    });
+  }
+
   function goToIssue(issue: Issue) {
+    setCheckOpen(false);
+    if (issue.field === "sender") setDetailsOpen(true);
     if (issue.blockId) {
       setSelectedId(issue.blockId);
-      setView("edit");
-      setPanel("block");
+      const action = issue.id.startsWith("img-file-") ? "file" : issue.id.startsWith("img-alt-") ? "alt" : issue.id.startsWith("btn-url-") ? "link" : null;
+      if (action) setBlockRequest({ id: issue.blockId, action, n: Date.now() });
     } else if (issue.field) {
-      const el = document.getElementById(issue.field === "sender" ? "ed-sender" : `ed-${issue.field}`);
-      el?.focus();
-      subjectRef.current?.scrollIntoView({ block: "nearest" });
+      // After the popover closes (and the details open), so focus lands on the field.
+      setTimeout(() => {
+        document.getElementById(issue.field === "sender" ? "ed-sender" : `ed-${issue.field}`)?.focus();
+        subjectRef.current?.scrollIntoView({ block: "nearest" });
+      }, 50);
     }
   }
 
@@ -249,7 +427,7 @@ export function TemplateEditor({ id }: { id: string }) {
   if (previewState === "error")
     return (
       <>
-        <PageHeader title="Edit template" breadcrumbs={[{ label: "Templates", href: "/templates" }]} />
+        <PageHeader title="Edit template" description="Write the email and send yourself a test before it goes out." breadcrumbs={[{ label: "Templates", href: "/templates" }]} />
         <Alert variant="destructive">
           <CircleAlertIcon />
           <AlertTitle>The template didn&apos;t load</AlertTitle>
@@ -268,54 +446,83 @@ export function TemplateEditor({ id }: { id: string }) {
 
   const senderList = senderOptions(viewer.email);
   const currentSender = senderById(doc.senderId);
-  const markReason = errors.length > 0 ? `Fix ${errors.length} ${errors.length === 1 ? "problem" : "problems"} in Check first` : undefined;
+  const markReason = errors.length > 0 ? `Fix ${errors.length} ${errors.length === 1 ? "problem" : "problems"} first` : undefined;
   const checkCount = errors.length + warnings.length;
 
+  // Left of the save buttons: the page's results (existing templates) and the content check, next to the action it
+  // blocks (designer 2026-11-14). The check disappears when there is nothing to fix.
+  const leading = (
+    <>
+      {found && (
+        <Button variant="ghost" size="sm" className="text-muted-foreground" asChild>
+          <Link href={`/templates/${id}`}>View results</Link>
+        </Button>
+      )}
+      {!readOnly && checkCount > 0 && <CheckPopover issues={issues} open={checkOpen} onOpenChange={setCheckOpen} onPick={goToIssue} />}
+    </>
+  );
   const actions = readOnly ? (
-    <Button variant="outline" onClick={() => toast.success("Copy created", { description: "It's inactive and yours to edit." })}>
+    <Button size="sm" variant="outline" onClick={() => found && copyTo(found.template, found.campaign)}>
       <CopyIcon data-icon="inline-start" />
       Make a copy
     </Button>
-  ) : (
+  ) : status === "inactive" ? (
+    // Live app header: Save draft + Mark active (which saves too).
     <>
-      {/* Write with AI lives only in the right panel's tab (one entry point, 2026-11-05). */}
-      {status === "inactive" ? (
-        <>
-          <Button size="sm" variant="outline" onClick={() => save(false)} disabled={!dirty && !isDraft}>
-            Save draft
-          </Button>
-          <LockedTip reason={markReason}>
-            <Button size="sm" onClick={() => save(true)} disabled={Boolean(markReason)}>
-              Save and mark active
-            </Button>
-          </LockedTip>
-        </>
-      ) : (
-        <LockedTip reason={markReason && "An active template can be sent. " + markReason}>
-          <Button size="sm" onClick={() => save(false)} disabled={!dirty || Boolean(markReason)}>
-            Save changes
-          </Button>
-        </LockedTip>
-      )}
+      {leading}
+      <Button size="sm" variant="outline" onClick={() => save(false)} disabled={!dirty && !isDraft}>
+        <SaveIcon data-icon="inline-start" />
+        Save draft
+      </Button>
+      <LockedTip reason={markReason}>
+        <Button size="sm" onClick={() => save(true)} disabled={Boolean(markReason)}>
+          Mark active
+        </Button>
+      </LockedTip>
+    </>
+  ) : (
+    // Active (live app): save, and Send batch as the main action. A Link, so the unsaved guard asks first.
+    <>
+      {leading}
+      <LockedTip reason={markReason && "An active template can be sent. " + markReason}>
+        <Button size="sm" variant="outline" onClick={() => save(false)} disabled={!dirty || Boolean(markReason)}>
+          <SaveIcon data-icon="inline-start" />
+          Save changes
+        </Button>
+      </LockedTip>
+      <Button size="sm" asChild>
+        <Link href={`/batches/new?template=${encodeURIComponent(id)}&step=1`}>
+          <SendIcon data-icon="inline-start" />
+          Send batch
+        </Link>
+      </Button>
     </>
   );
+  // Where the live app's orange "Agent" button sits. Solid orange (designer 2026-11-13).
+  const writeButton = (
+    <Button size="sm" className="shrink-0" onClick={() => setAiOpen(true)}>
+      <SparklesIcon data-icon="inline-start" />
+      Write with Saella
+    </Button>
+  );
+  const sampleName = `${SAMPLE_VALUES.recipient_name} at ${SAMPLE_VALUES.company_name}`;
 
   return (
     <>
       <PageHeader
         title={doc.name || "Untitled template"}
+        // No description (designer 2026-11-13): the status line under the title is enough.
         breadcrumbs={[{ label: "Templates", href: "/templates" }]}
         actions={actions}
+        centerActions
       >
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          {/* Only the template's state here (designer 2026-11-14); what acts on it sits with the actions. */}
           <StatusBadge status={status === "active" ? "template-active" : "template-inactive"} />
+          <span aria-hidden className="text-subtle-foreground">
+            ·
+          </span>
           <span aria-live="polite">{readOnly ? "View only" : isDraft && !dirty ? "Not saved yet" : dirty ? "Unsaved changes" : "All changes saved"}</span>
-          {found && <span>in {found.campaign.name}</span>}
-          {found && (
-            <Link href={`/templates/${id}`} className="underline-offset-4 hover:text-foreground hover:underline">
-              View results
-            </Link>
-          )}
         </div>
       </PageHeader>
 
@@ -331,170 +538,202 @@ export function TemplateEditor({ id }: { id: string }) {
         </Alert>
       )}
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex min-w-0 flex-col gap-4">
-          {/* Envelope */}
-          <div ref={subjectRef} className="grid gap-x-6 gap-y-4 rounded-card border p-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="ed-name">Template name</FieldLabel>
-              <Input id="ed-name" value={doc.name} onChange={(e) => patch({ name: e.target.value })} disabled={readOnly} />
-              <FieldDescription>Only your team sees it.</FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="ed-sender">From</FieldLabel>
-              <Select value={doc.senderId} onValueChange={(v) => patch({ senderId: v })} disabled={readOnly}>
-                <SelectTrigger id="ed-sender" className="w-full">
-                  <SelectValue>{currentSender ? `${currentSender.name} · ${currentSender.email}` : "Pick a sender"}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {senderList.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name} · {s.email}
-                      </SelectItem>
-                    ))}
-                    {currentSender && !senderList.includes(currentSender) && (
-                      <SelectItem value={currentSender.id} disabled>
-                        {currentSender.name} · {currentSender.email} (only its owner can pick it)
-                      </SelectItem>
-                    )}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <FieldDescription>New batches from this template start with this sender, for everyone.</FieldDescription>
-            </Field>
-            <TagField
+      {/* Live app layout: the editable email on the left, the live preview on the right, side by side. */}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <section aria-label="Editor" className="flex min-w-0 flex-col gap-3 rounded-card border p-4">
+          {/* Envelope: compact rows (live app "email-page-meta"); the kind sits in the card's top-right corner. */}
+          <div ref={subjectRef} className="flex flex-col">
+            {/* Details (name, campaign, sender) fold into one line so the email itself shows first (designer
+                2026-11-14); Subject and Preheader, edited most, stay as rows. The kind stays in the corner. */}
+            <Collapsible open={detailsOpen || !doc.name.trim()} onOpenChange={setDetailsOpen}>
+              <div className="flex items-center justify-between gap-3 pb-1">
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="group/details -ml-2 min-w-0 font-normal text-muted-foreground">
+                    <ChevronRightIcon data-icon="inline-start" className="transition-transform group-data-[state=open]/details:rotate-90" />
+                    <span className="truncate">
+                      {allCampaigns.find((c) => c.id === doc.campaignId)?.name ?? "No campaign"} · From {currentSender?.name ?? "no sender"}
+                    </span>
+                  </Button>
+                </CollapsibleTrigger>
+                  {/* A dropdown, not two buttons (designer 2026-11-13): the kind is set once, so it shouldn't pull the eye
+                      while writing. Switching still asks first (the AlertDialog below). */}
+                  <Select value={doc.kind} onValueChange={(v) => v !== doc.kind && setPendingKind(v as TemplateKind)} disabled={readOnly}>
+                    <SelectTrigger size="sm" aria-label="Template kind" className="min-w-28">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      <SelectGroup>
+                        {/* Not LayoutTemplate (the Templates nav icon, and the hero block's) nor a file (designer 2026-11-13). */}
+                        <SelectItem value="letter">
+                          <PenLineIcon className="text-muted-foreground" />
+                          Letter
+                        </SelectItem>
+                        <SelectItem value="design">
+                          <PaletteIcon className="text-muted-foreground" />
+                          Design
+                        </SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+              </div>
+              <CollapsibleContent>
+                    <EnvelopeRow label="Template name" htmlFor="ed-name" mark={aiFilled.has("name") && <AiMark />} invalid={!doc.name.trim()}>
+                      <Input
+                        id="ed-name"
+                        value={doc.name}
+                        onChange={(e) => {
+                          patch({ name: e.target.value });
+                          unmark("name");
+                        }}
+                        disabled={readOnly}
+                        placeholder="Only your team sees it"
+                        className={FLAT_CONTROL}
+                      />
+                    </EnvelopeRow>
+                    <EnvelopeRow label="Campaign" htmlFor="ed-campaign">
+                      <Select value={doc.campaignId} onValueChange={(v) => patch({ campaignId: v })} disabled={readOnly}>
+                        <SelectTrigger id="ed-campaign" className={cn(FLAT_CONTROL, "w-full")}>
+                          <SelectValue placeholder="Pick a campaign" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {/* Ended campaigns can't send, so they're only listed when the template is already in one. */}
+                            {allCampaigns
+                              .filter((c) => campaignStatus(c) !== "ended" || c.id === doc.campaignId)
+                              .map((c) => (
+                                <SelectItem key={c.id} value={c.id}>
+                                  {c.name}
+                                </SelectItem>
+                              ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </EnvelopeRow>
+                    <EnvelopeRow label="From" htmlFor="ed-sender" invalid={issues.some((i) => i.field === "sender")}>
+                      <Select value={doc.senderId} onValueChange={(v) => patch({ senderId: v })} disabled={readOnly}>
+                        <SelectTrigger id="ed-sender" className={cn(FLAT_CONTROL, "w-full")}>
+                          <SelectValue>{currentSender ? `${currentSender.name} · ${currentSender.email}` : "Pick a sender"}</SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {senderList.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.name} · {s.email}
+                              </SelectItem>
+                            ))}
+                            {currentSender && !senderList.includes(currentSender) && (
+                              <SelectItem value={currentSender.id} disabled>
+                                {currentSender.name} · {currentSender.email} (only its owner can pick it)
+                              </SelectItem>
+                            )}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </EnvelopeRow>
+              </CollapsibleContent>
+            </Collapsible>
+            <EnvelopeTagRow
               id="ed-subject"
               label="Subject"
               value={doc.subject}
-              onChange={(subject) => patch({ subject })}
+              onChange={(subject) => {
+                patch({ subject });
+                unmark("subject");
+              }}
+              mark={aiFilled.has("subject") && <AiMark />}
               disabled={readOnly}
               placeholder="What the recipient sees first"
-              invalid={(!isDraft || dirty) && issues.some((i) => i.field === "subject" && i.severity === "error")}
+              invalid={(!isDraft || dirty || subjectNeeded) && issues.some((i) => i.field === "subject" && i.severity === "error")}
             />
-            <TagField
+            <EnvelopeTagRow
               id="ed-preheader"
               label="Preheader"
               value={doc.preheader}
-              onChange={(preheader) => patch({ preheader })}
+              onChange={(preheader) => {
+                patch({ preheader });
+                unmark("preheader");
+              }}
+              mark={aiFilled.has("preheader") && <AiMark />}
               disabled={readOnly}
-              placeholder="The line shown after the subject in the inbox"
+              placeholder="Inbox preview line, optional"
             />
-            {doc.subject.trim() && <SubjectChecklist checks={subjectChecks} />}
-          </div>
-
-          {/* Canvas */}
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <ToggleGroup
-                type="single"
-                variant="outline"
-                spacing={0}
-                value={view}
-                onValueChange={(v) => v && setView(v as "edit" | "preview")}
-                aria-label="Canvas mode"
-              >
-                <ToggleGroupItem value="edit">Edit</ToggleGroupItem>
-                <ToggleGroupItem value="preview">Preview</ToggleGroupItem>
-              </ToggleGroup>
-              <ToggleGroup
-                type="single"
-                variant="outline"
-                spacing={0}
-                value={doc.kind}
-                onValueChange={(v) => v && v !== doc.kind && setPendingKind(v as TemplateKind)}
-                aria-label="Template kind"
-                disabled={readOnly}
-              >
-                <ToggleGroupItem value="letter">
-                  <FileTextIcon />
-                  Letter
-                </ToggleGroupItem>
-                <ToggleGroupItem value="design">
-                  <LayoutTemplateIcon />
-                  Design
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-
-            <div className="rounded-card bg-muted p-6">
-              {view === "preview" && (
-                <div className="email-canvas mx-auto mb-3 flex w-full max-w-150 flex-col gap-0.5 rounded-lg border px-4 py-3 text-sm">
-                  <span className="font-medium">{currentSender?.name ?? "Sender"}</span>
-                  <span className="truncate">
-                    <span className="font-medium">{resolveTags(doc.subject, SAMPLE_VALUES) || "No subject"}</span>
-                    {doc.preheader && <span className="text-muted-foreground"> · {resolveTags(doc.preheader, SAMPLE_VALUES)}</span>}
-                  </span>
-                </div>
-              )}
-              {/* email-canvas: always the light palette recipients see, whatever the app theme (tokens.css). */}
-              <div className="email-canvas mx-auto w-full max-w-150 rounded-lg border p-8">
-                <EmailBody
-                  blocks={doc.blocks}
-                  kind={doc.kind}
-                  mode={view}
-                  values={SAMPLE_VALUES}
-                  selectedId={readOnly ? null : selectedId}
-                  onSelect={readOnly ? undefined : (bid) => { setSelectedId(bid); setPanel("block"); }}
-                  issueIds={issueIds}
-                />
+            {doc.subject.trim() && (
+              <div className="pt-2">
+                <SubjectChecklist checks={subjectChecks} />
               </div>
-              {view === "edit" && !readOnly && (
-                <div className="mx-auto mt-3 flex w-full max-w-150 flex-wrap items-center gap-1">
-                  <span className="mr-1 text-sm text-muted-foreground">{selected ? "Add below selected:" : "Add:"}</span>
-                  {BLOCKS_FOR[doc.kind].map((type) => {
-                    const Icon = BLOCK_ICON[type];
-                    return (
-                      <Button key={type} variant="ghost" size="sm" onClick={() => addBlock(type)}>
-                        <Icon data-icon="inline-start" />
-                        {BLOCK_LABEL[type]}
-                      </Button>
-                    );
-                  })}
-                </div>
-              )}
-              {view === "preview" && (
-                <p className="mx-auto mt-3 w-full max-w-150 text-sm text-muted-foreground">
-                  Shown as {SAMPLE_VALUES.recipient_name} at {SAMPLE_VALUES.company_name} would see it, at desktop width.
-                </p>
-              )}
-            </div>
+            )}
           </div>
-        </div>
 
-        {/* Right panel */}
-        <aside className="sticky top-0 flex flex-col rounded-card border" aria-label="Editor panel">
-          <Tabs value={panel} onValueChange={setPanel} className="gap-0">
-            <TabsList className="w-full justify-start border-b px-2" aria-label="Editor panel">
-              <TabsTrigger value="block">Block</TabsTrigger>
-              <TabsTrigger value="check">
-                Check
-                {checkCount > 0 && (
-                  <Badge variant={errors.length ? "destructive" : "secondary"} className="h-5 min-w-5 px-1.5 tabular-nums">
-                    {checkCount}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="ai">
-                <SparklesIcon />
-                Write with AI
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="block" className="p-4">
-              <BlockInspector
-                block={readOnly ? null : selected}
-                index={selectedIndex}
-                count={doc.blocks.length}
-                disabled={readOnly}
-                onChange={(b) => setBlocks((all) => all.map((x) => (x.id === b.id ? b : x)))}
-                onMove={(dir) =>
-                  setBlocks((all) => {
-                    const next = [...all];
-                    const [b] = next.splice(selectedIndex, 1);
-                    next.splice(selectedIndex + dir, 0, b);
-                    return next;
-                  })
-                }
+
+          {letter ? (
+            // Letter: rich text like the live app's EmailEditor (TipTap); toolbar on top, Write with Saella at its right.
+            <LetterEditor
+              key={`letter-${letterEpoch}`}
+              value={doc.html}
+              onChange={(html) => patch({ html })}
+              disabled={readOnly}
+              onAttach={() => fileRef.current?.click()}
+              trailing={readOnly ? undefined : writeButton}
+            />
+          ) : (
+            <>
+          {/* Toolbar + the selected block's properties, kept in view while the email scrolls. */}
+          {!readOnly && (
+            <div className="sticky top-0 z-10 flex flex-col gap-3 bg-background">
+              <div className="flex items-start gap-2 rounded-lg border p-1.5">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5" role="toolbar" aria-label="Email toolbar">
+                {/* One menu (designer 2026-11-14): adds after the selected block, or at the end. The gaps between
+                    blocks and the block's bar add in place. */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <PlusIcon data-icon="inline-start" />
+                      Add block
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-44" onCloseAutoFocus={(e) => e.preventDefault()}>
+                    <AddBlockItems onPick={(t) => addBlock(t)} />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <Hint label={activeField ? "Insert a merge tag where you're typing" : "Click into a text to insert a merge tag"}>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" disabled={!activeField || activeField.isDestroyed} className="text-muted-foreground">
+                        <BracesIcon data-icon="inline-start" />
+                        Tags
+                      </Button>
+                    </DropdownMenuTrigger>
+                  </Hint>
+                  <DropdownMenuContent align="start" className={MERGE_TAG_MENU_CLASS}>
+                    <MergeTagItems onPick={(t) => activeField?.chain().focus().insertContent(`{{${t}}}`).run()} />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Hint label="Attach a file, up to 10 MB">
+                  <Button variant="ghost" size="icon-sm" aria-label="Attach a file" onClick={() => fileRef.current?.click()}>
+                    <PaperclipIcon />
+                  </Button>
+                </Hint>
+              </div>
+              {writeButton}
+              </div>
+            </div>
+          )}
+
+          {/* Editable email: text is edited in place (designer 2026-11-14); merge tags show as chips, the preview fills them.
+              email-canvas: always the light palette recipients see, whatever the app theme (tokens.css). */}
+          <div className="email-canvas w-full rounded-lg border p-6 pt-8">
+            {readOnly ? (
+              <EmailBody blocks={doc.blocks} kind={doc.kind} mode="edit" values={SAMPLE_VALUES} />
+            ) : (
+              <DesignCanvas
+                blocks={doc.blocks}
+                selectedId={selectedId}
+                issueIds={issueIds}
+                request={blockRequest}
+                onSelect={setSelectedId}
+                onPatch={(bid, p) => setBlocks((all) => all.map((x) => (x.id === bid ? ({ ...x, ...p } as Block) : x)))}
+                onReorder={reorder}
+                onInsert={(at, type) => addBlock(type, at)}
                 onDuplicate={() => {
                   if (!selected) return;
                   const copy = { ...selected, id: newBlockId() };
@@ -504,47 +743,132 @@ export function TemplateEditor({ id }: { id: string }) {
                 onDelete={() => {
                   setBlocks((all) => all.filter((x) => x.id !== selectedId));
                   setSelectedId(doc.blocks[selectedIndex + 1]?.id ?? doc.blocks[selectedIndex - 1]?.id ?? null);
+                  setActiveField(null);
                 }}
+                onActiveEditor={setActiveField}
               />
-            </TabsContent>
-            <TabsContent value="check" className="p-4">
-              <ContentCheck issues={issues} passed={passed} onPick={goToIssue} />
-            </TabsContent>
-            <TabsContent value="ai" className="p-4">
-              {readOnly ? (
-                <p className="text-sm text-muted-foreground">Write with AI needs edit access.</p>
-              ) : (
-                <WriteWithAi
-                  kind={doc.kind}
-                  blocks={doc.blocks}
-                  selectedId={selectedId}
-                  disabled={readOnly}
-                  failMidway={previewState === "ai-error"}
-                  preview={params.get("ai")}
-                  subject={doc.subject}
-                  onUseSubject={(subject) => {
-                    patch({ subject });
-                    toast.success("Subject updated", { description: "Review it, then save. Nothing is saved yet." });
-                  }}
-                  onUse={(mode, result) => {
-                    if (mode === "block") {
-                      setBlocks((all) => {
-                        const at = selectedIndex >= 0 ? selectedIndex + 1 : all.length;
-                        return [...all.slice(0, at), ...result, ...all.slice(at)];
-                      });
-                      setSelectedId(result[0]?.id ?? null);
-                    } else {
-                      setBlocks(() => result);
-                      setSelectedId(result[0]?.id ?? null);
-                    }
-                    toast.success("Draft added to the editor", { description: "Review it, then save. Nothing is saved yet." });
-                  }}
-                />
-              )}
-            </TabsContent>
-          </Tabs>
-        </aside>
+            )}
+          </div>
+
+            </>
+          )}
+
+          {/* Attachments (AC-EC-T-04): chips under the body, as in the live editor. */}
+          {doc.attachments.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5" aria-label="Attachments">
+              {doc.attachments.map((a) => (
+                <li key={a.name}>
+                  <Badge variant="secondary" className="gap-1 pr-1">
+                    <PaperclipIcon aria-hidden />
+                    <span className="max-w-48 truncate" title={a.name}>
+                      {a.name}
+                    </span>
+                    <span className="font-normal text-muted-foreground tabular-nums">{fileSize(a.size)}</span>
+                    {!readOnly && (
+                      <ChipRemove
+                        label={`Remove ${a.name}`}
+                        onClick={() => patch({ attachments: doc.attachments.filter((x) => x.name !== a.name) })}
+                      />
+                    )}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* Hidden file input opened by the toolbar's Attach (DESIGN.md §2 Control). Up to 10 MB each. */}
+          <input
+            ref={fileRef}
+            id="ed-attach"
+            type="file"
+            multiple
+            className="sr-only"
+            tabIndex={-1}
+            aria-label="Attach files, up to 10 MB each"
+            onChange={(e) => {
+              const files = [...(e.target.files ?? [])];
+              const tooBig = files.filter((f) => f.size > ATTACH_MAX);
+              const ok = files.filter((f) => f.size <= ATTACH_MAX && !doc.attachments.some((a) => a.name === f.name));
+              if (tooBig.length) toast.error(`${tooBig.map((f) => f.name).join(", ")} is over 10 MB`, { description: "Attach a smaller file or share a link to it instead." });
+              if (ok.length) patch({ attachments: [...doc.attachments, ...ok.map((f) => ({ name: f.name, size: f.size }))] });
+              e.target.value = "";
+            }}
+          />
+        </section>
+
+        {/* Live preview (live app "email-page-preview"): name, subject, preheader, then the email with sample values. */}
+        <div className="sticky top-0 flex min-w-0 flex-col gap-4">
+        <section aria-label="Preview" className="flex min-w-0 flex-col gap-4 rounded-card border p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-medium text-muted-foreground">Preview</h2>
+            <span className="truncate text-xs text-subtle-foreground">As {sampleName} sees it</span>
+          </div>
+          <div className="flex flex-col gap-1 border-b pb-3">
+            <p className="truncate font-heading text-lg font-medium tracking-title">{doc.name || "Untitled template"}</p>
+            <p className={cn("truncate text-sm", doc.subject ? "font-medium" : "text-subtle-foreground")}>
+              {resolveTags(doc.subject, SAMPLE_VALUES) || "Subject line"}
+            </p>
+            <p className="truncate text-sm text-subtle-foreground">
+              {doc.preheader ? <span className="text-muted-foreground">{resolveTags(doc.preheader, SAMPLE_VALUES)}</span> : "Preheader (inbox preview line), optional"}
+            </p>
+          </div>
+          <div className="email-canvas w-full rounded-lg border p-6">
+            <EmailBody blocks={doc.blocks} html={letter ? doc.html : undefined} kind={doc.kind} mode="preview" values={SAMPLE_VALUES} />
+          </div>
+        </section>
+        </div>
       </div>
+
+      {!readOnly && (
+        <WriteWithSaellaDialog
+          open={aiOpen}
+          onOpenChange={setAiOpen}
+          kind={doc.kind}
+          current={bodyBlocks}
+          fresh={isDraft && doc.blocks === initial.blocks && doc.html === initial.html}
+          failMidway={previewState === "ai-error"}
+          onUse={applyDraft}
+        />
+      )}
+
+      {/* What's next once the template can send: a batch now, or a schedule. "Not now" stays in the editor. */}
+      <Dialog
+        open={ready && !isDraft}
+        onOpenChange={(o) => {
+          if (o) return;
+          setReady(false);
+          if (params.get("ready")) router.replace(`/templates/${id}/edit`);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ready to send “{doc.name}”</DialogTitle>
+            <DialogDescription>It&apos;s saved and active. What would you like to do next?</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <Button className="justify-start" onClick={() => router.push(`/batches/new?template=${encodeURIComponent(id)}&step=1`)}>
+              <SendIcon data-icon="inline-start" />
+              Send a batch now
+            </Button>
+            <Button
+              variant="outline"
+              className="justify-start"
+              onClick={() => {
+                setReady(false);
+                setScheduling(true);
+              }}
+            >
+              <CalendarClockIcon data-icon="inline-start" />
+              Set a schedule
+            </Button>
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="ghost">Not now</Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {!isDraft && <ScheduleDialog templateId={id} open={scheduling} onOpenChange={setScheduling} viewer={viewer} />}
 
       <AlertDialog open={pendingKind !== null} onOpenChange={(o) => !o && setPendingKind(null)}>
         <AlertDialogContent>
@@ -560,7 +884,11 @@ export function TemplateEditor({ id }: { id: string }) {
             <AlertDialogCancel>Keep {doc.kind === "design" ? "Design" : "Letter"}</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (pendingKind) patch({ kind: pendingKind, blocks: convertBlocks(doc.blocks, pendingKind) });
+                if (pendingKind === "design") patch({ kind: "design", blocks: convertBlocks(htmlToBlocks(doc.html), "design"), html: "" });
+                if (pendingKind === "letter") {
+                  patch({ kind: "letter", html: blocksToHtml(convertBlocks(doc.blocks, "letter")), blocks: [] });
+                  setLetterEpoch((n) => n + 1);
+                }
                 setPendingKind(null);
               }}
             >
@@ -570,42 +898,25 @@ export function TemplateEditor({ id }: { id: string }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={leaveTo !== null} onOpenChange={(o) => !o && setLeaveTo(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
-            <AlertDialogDescription>Your changes to “{doc.name}” will be lost.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <Button
-              variant="outline"
-              onClick={() => {
-                const to = leaveTo;
-                dirtyRef.current = false;
-                setLeaveTo(null);
-                if (to) router.push(to);
-              }}
-            >
-              Discard changes
-            </Button>
-            {!readOnly && (
-              <AlertDialogAction
-                onClick={() => {
-                  const to = leaveTo;
-                  if (save(false)) {
-                    dirtyRef.current = false;
-                    if (to) router.push(to);
-                  }
-                  setLeaveTo(null);
-                }}
-              >
-                Save and leave
-              </AlertDialogAction>
-            )}
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Leaving with unsaved work (lib/leave-guard.ts; shared dialog, PATTERNS.md §9.10). */}
+      <UnsavedDialog
+        open={leaveTo !== null}
+        title="Save this template?"
+        description={isDraft ? `“${doc.name}” hasn't been saved yet. Leave now and it's gone.` : `Your changes to “${doc.name}” aren't saved yet.`}
+        saveLabel="Save draft"
+        onKeepEditing={() => setLeaveTo(null)}
+        onDiscard={() => {
+          const to = leaveTo;
+          setLeaveTo(null);
+          if (to) leave(to);
+        }}
+        onSave={() => {
+          const to = leaveTo;
+          setLeaveTo(null);
+          // A failed save (e.g. no subject yet) says why and keeps the user here.
+          if (to && save(false, { stay: true })) leave(to);
+        }}
+      />
     </>
   );
 }
@@ -616,32 +927,49 @@ const SEVERITY = {
   tip: { icon: LightbulbIcon, className: "text-muted-foreground", label: "Tips" },
 } as const;
 
-function ContentCheck({ issues, passed, onPick }: { issues: Issue[]; passed: string[]; onPick: (i: Issue) => void }) {
+// Content check (live app lint findings), as a button on the status line under the title: "3 to fix" opens the list.
+// Problems that block Mark active come first; picking one goes to the field or block.
+function CheckPopover({
+  issues,
+  open,
+  onOpenChange,
+  onPick,
+}: {
+  issues: Issue[];
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onPick: (i: Issue) => void;
+}) {
+  const errors = issues.filter((i) => i.severity === "error").length;
+  const warnings = issues.filter((i) => i.severity === "warning").length;
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">
-        {issues.some((i) => i.severity === "error")
-          ? "Fix the problems below before this template can be marked active."
-          : issues.length
-            ? "Nothing blocks sending. A few things could be better."
-            : "Looks good. Nothing to fix."}
-      </p>
-      {(["error", "warning", "tip"] as const).map((sev) => {
-        const list = issues.filter((i) => i.severity === sev);
-        if (list.length === 0) return null;
-        const S = SEVERITY[sev];
-        return (
-          <section key={sev} className="flex flex-col gap-1" aria-label={S.label}>
-            <h3 className="text-sm font-medium">
-              {S.label} <span className="font-normal text-muted-foreground tabular-nums">{list.length}</span>
-            </h3>
-            <ItemGroup>
-              {list.map((i) => {
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          variant={errors ? "outline" : "ghost"}
+          size="sm"
+          aria-label={errors ? `${errors} ${errors === 1 ? "problem" : "problems"} to fix before Mark active` : `${warnings} worth fixing`}
+          className={cn(
+            "text-warning-soft-foreground hover:text-warning-soft-foreground",
+            errors && "border-warning/40 bg-warning-soft hover:bg-warning-soft"
+          )}
+        >
+          {errors ? <CircleAlertIcon data-icon="inline-start" /> : <TriangleAlertIcon data-icon="inline-start" />}
+          {errors ? `${errors} to fix` : `${warnings} to check`}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-96 p-2">
+        <ItemGroup aria-label="Content check">
+          {(["error", "warning", "tip"] as const).flatMap((sev) =>
+            issues
+              .filter((i) => i.severity === sev)
+              .map((i) => {
+                const S = SEVERITY[sev];
                 const clickable = Boolean(i.blockId || i.field);
                 const body = (
                   <>
                     <ItemMedia>
-                      <S.icon aria-hidden className={cn("size-4", S.className)} />
+                      <S.icon aria-label={S.label} className={cn("size-4", S.className)} />
                     </ItemMedia>
                     <ItemContent>
                       <ItemTitle className="font-normal">{i.title}</ItemTitle>
@@ -651,35 +979,21 @@ function ContentCheck({ issues, passed, onPick }: { issues: Issue[]; passed: str
                   </>
                 );
                 return clickable ? (
-                  <Item key={i.id} size="sm" className="-mx-2 px-2" asChild>
+                  <Item key={i.id} size="sm" asChild>
                     <button type="button" onClick={() => onPick(i)} className="text-left">
                       {body}
                     </button>
                   </Item>
                 ) : (
-                  <Item key={i.id} size="sm" className="-mx-2 px-2">
+                  <Item key={i.id} size="sm">
                     {body}
                   </Item>
                 );
-              })}
-            </ItemGroup>
-          </section>
-        );
-      })}
-      {passed.length > 0 && (
-        <section className="flex flex-col gap-1.5" aria-label="Passed">
-          <h3 className="text-sm font-medium">Passed</h3>
-          <ul className="flex flex-col gap-1.5 text-sm text-muted-foreground">
-            {passed.map((p) => (
-              <li key={p} className="flex items-center gap-2">
-                <CircleCheckIcon aria-hidden className="size-4 text-success-soft-foreground" />
-                {p}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-    </div>
+              })
+          )}
+        </ItemGroup>
+      </PopoverContent>
+    </Popover>
   );
 }
 

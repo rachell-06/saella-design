@@ -1,24 +1,26 @@
 "use client";
 
-import { WORKSPACE_TZ, WORKSPACE_TZ_LABEL } from "@/lib/time";
-// New batch wizard: /batches/new?template=<id> (PRD-02 AC-EC-B-01..08, live app EmailBatchWizard +
-// POST /api/email/batches). Template → Recipients → Sender → Schedule → Review. Send is the agent's gated
-// "send" action, so the human path asks for the same confirmation tick before it unlocks (AC-AG-G-06).
+// New batch wizard: /batches/new?template=<id> (PRD-02 BAT-CREATE-001, AC-EC-B-01..08, live app EmailBatchWizard +
+// POST /api/email/batches). Template → Recipients → Sender → Review. A batch sends now: neither the PRD nor the live
+// app schedules a one-off batch; timed sends are Automate › Schedule (decisions.md "Gửi batch").
+// Recipients come from one source per batch (2026-11-12, AC-EC-B-02, live app "Send to: Companies | Self-upload"):
+// - Unlocked companies (default): companies the workspace unlocked, no filter at first (designer 2026-11-14), picked in a
+//   table (company-picker.tsx, company-audience.ts). Designer decision 2026-11-12: only unlocked companies can be
+//   sent to and credits are spent in Leads only (the live app unlocks on send, #116); sending is free (PRD-05).
+// - Self-upload: contacts by tag, with "Don't send to" (recipient-check.ts).
+// Review: one summary, the per-recipient merge-tag check, the email preview; Send is the confirmation.
 // Preview states (?state=):
-//   paused   workspace auto-paused (BR-RULE-EC-18/19): everything can be prepared, Send stays locked
-//   locked   no verified domain / confirmed sender (AC-EC-B-01): no sender to pick, link to Settings
-//   inactive opens on an inactive template (t3) to show the "mark active" block
-//   empty    no contact lists yet
-//   error    the send request fails (shows the error and Try again)
-//   loading  skeleton while lists and senders load
+//   paused       workspace auto-paused (BR-RULE-EC-18/19): everything can be prepared, Send stays locked
+//   locked       no verified domain / confirmed sender (AC-EC-B-01): no sender to pick, link to Settings
+//   inactive     opens on an inactive template (t3) to show the "mark active" block
+//   empty        no contacts yet (Self-upload)
+//   error        the send request fails (shows the error and Try again)
+//   loading      skeleton while contacts and senders load
 //   checking     Review: the per-recipient check is still running (Send waits)
 //   check-error  Review: the per-recipient check failed (Try again)
 //   badtag       Review: the subject uses {{first_name}}, a tag Saella doesn't know (blocks Send)
-// Also ?step=0..4 and ?lists=l1,l2 to open part-way (previews; the agent handing over a prepared batch), and
-// ?exclude=l3&excludeTags=vip for "Don't send to".
-// 2026-10-29 (Competitor.md R1–R3): Recipients has "Don't send to" and an estimate with the reasons people are
-// left out; Review checks every recipient against the merge tags the template uses and previews the email
-// with one recipient's data (recipient-check.ts).
+// Also ?step=0..3; ?source=contacts&tags=hotel,fair&excludeTags=vip (the agent handing over a prepared batch);
+// ?pick=all selects every unlocked company.
 
 import { type ReactNode, useMemo, useState } from "react";
 import Link from "next/link";
@@ -28,237 +30,216 @@ import {
   ArrowRightIcon,
   CalendarClockIcon,
   CircleAlertIcon,
-  ListChecksIcon,
   LockIcon,
+  PlusIcon,
   SendIcon,
   TriangleAlertIcon,
   UsersIcon,
+  SearchIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  CURRENT_USER,
-  formatDate,
-  sampleCampaigns,
-} from "@/lib/mock/campaigns";
-import { useContactsStore } from "@/lib/mock/contacts";
+import { CURRENT_USER, formatDate, industryLabels, sampleCampaigns } from "@/lib/mock/campaigns";
+import { companies as allCompanies } from "@/lib/mock/companies";
+import { type Contact, tagsOf, useContactsStore, withAnyTag } from "@/lib/mock/contacts";
 import { NOW } from "@/lib/mock/constants";
+import { useUnlocks } from "@/lib/mock/unlocks";
+import { useTemplateStore } from "@/lib/mock/use-template-store";
+import { NewTemplateDialog } from "@/components/features/new-template-dialog";
 import { PageHeader } from "@/components/layout/page-header";
-import { MultiSelect } from "@/components/saella/multi-select";
-import { StatusBadge } from "@/components/saella/status-badge";
-import { DatePicker, TimePicker } from "@/components/saella/date-picker";
+import { FilterChips, FilterMultiSelect, FilterPopover } from "@/components/saella/filter-popover";
 import { Stepper } from "@/components/saella/stepper";
-import {
-  Alert,
-  AlertAction,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import {
   Field,
-  FieldContent,
   FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
   FieldLegend,
   FieldSet,
-  FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Select,
   SelectContent,
   SelectGroup,
   SelectItem,
-  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { type ContactList, contactLists, senders } from "@/lib/mock/workspace";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { senders } from "@/lib/mock/workspace";
+import { cn } from "@/lib/utils";
 import {
   BATCH_CAP,
   CURRENT_USER_ID,
   DAILY_ALLOWANCE,
   SHARED_MONTHLY_CAP,
   SHARED_USED_THIS_MONTH,
-  SUBJECTS,
   addCreatedBatch,
   batchCode,
   defaultSenderFor,
   findTemplate,
   sendEstimate,
   senderAvailability,
-  summarizeAudience,
 } from "@/lib/mock/batches";
+import {
+  type AudienceFilters,
+  NO_AUDIENCE_FILTERS,
+  companyAudience,
+  companyRecipient,
+  matchCompanies,
+} from "./company-audience";
+import { CompanyPicker } from "./company-picker";
 import { LeftOutDialog } from "./left-out-dialog";
-import {
-  type RefinedAudience,
-  DEFAULT_FALLBACK,
-  applyExclusions,
-  checkRecipients,
-  subjectFor,
-  tagsIn,
-} from "./recipient-check";
-import {
-  type CheckStatus,
-  type Handling,
-  RecipientChecks,
-} from "./recipient-checks";
+import { type RefinedAudience, DEFAULT_FALLBACK, buildAudience, checkRecipients, subjectFor } from "./recipient-check";
+import { type CheckStatus, type Handling, RecipientChecks } from "./recipient-checks";
+import { RecipientListDialog } from "./recipient-list-dialog";
 import { RecipientPreview } from "./recipient-preview";
+import { BODY_CELL, HEAD_CELL, HEADER, TABLE, TableFrame, usePaging } from "./table-frame";
 import { SubjectText } from "./subject-text";
-import { Hint } from "@/components/saella/hint";
 
 const STEPS = [
   { id: "template", label: "Template" },
   { id: "recipients", label: "Recipients" },
   { id: "sender", label: "Sender" },
-  { id: "schedule", label: "Schedule" },
   { id: "review", label: "Review" },
 ];
+const REVIEW = STEPS.length - 1;
 
-const TZ_LABEL = `${WORKSPACE_TZ} (${WORKSPACE_TZ_LABEL})`;
+type Source = "companies" | "contacts";
 
-// The picked day and time are workspace time (GMT+7); scheduledIso is UTC, so show it back in workspace time
-// (keeps the year off, unlike formatDateTime).
-function atWorkspaceTime(iso: string) {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: WORKSPACE_TZ,
-  });
-}
 const n = (x: number) => x.toLocaleString("en-US");
 
 export function BatchWizard() {
+  // The wizard seeds its state from the URL once. Next keeps a visited page's state when you come back to it, so a new
+  // URL (e.g. back from making a template, now with ?template=) starts the wizard afresh.
+  return <Wizard key={useSearchParams().toString()} />;
+}
+
+function Wizard() {
   const params = useSearchParams();
   const router = useRouter();
   const state = params.get("state");
   const paused = state === "paused";
   const locked = state === "locked";
 
-  // ?step=<0-4>&lists=l1,l2 open the wizard part-way, for previews and for the agent handing over a draft.
-  const [step, setStep] = useState(() =>
-    Math.min(4, Math.max(0, Number(params.get("step")) || 0)),
-  );
+  // Sending starts from a template (?template=, 2026-11-14); the Leads › Unlocked hand-over (?companies=) is gone.
+  const [step, setStep] = useState(() => Math.min(REVIEW, Math.max(0, Number(params.get("step")) || 0)));
   const [templateId, setTemplateId] = useState<string | undefined>(
     () => (state === "inactive" ? "t3" : params.get("template")) ?? undefined,
   );
   // Templates marked active from this screen (the live app does it from the board; here so the block can clear).
   const [activated, setActivated] = useState<Set<string>>(() => new Set());
-  const [listIds, setListIds] = useState<string[]>(
-    () =>
-      (params.get("lists") ?? params.get("list"))?.split(",").filter(Boolean) ??
-      [],
+  const [source, setSource] = useState<Source>(() =>
+    (params.get("source") === "contacts" || params.get("tags") || params.get("tag") || state === "empty")
+      ? "contacts"
+      : "companies",
   );
+  // Self-upload is picked contact by contact now (designer 2026-11-13); ?tags= / ?excludeTags= (the agent's hand-over)
+  // only pre-select the contacts that carry those tags.
+  const seedTags = (params.get("tags") ?? params.get("tag"))?.split(",").filter(Boolean) ?? [];
+  const seedExclude = params.get("excludeTags")?.split(",").filter(Boolean) ?? [];
+  // Unlocked companies: no filter at first, the user adds them (designer 2026-11-14); search, sent switch, the picks.
+  const { unlocked } = useUnlocks();
+  const [companyFilters, setCompanyFilters] = useState<AudienceFilters>(() =>
+    NO_AUDIENCE_FILTERS,
+  );
+  const [companyQuery, setCompanyQuery] = useState("");
+  const [pickedIds, setPickedIds] = useState<Set<string>>(() =>
+    params.get("pick") === "all"
+      ? new Set(
+          matchCompanies(NO_AUDIENCE_FILTERS, "", unlocked)
+            .rows.slice(0, BATCH_CAP)
+            .map((c) => c.id),
+        )
+      : new Set(),
+  );
+
   const pool = useMemo(
-    () =>
-      locked
-        ? senders.map((s) => ({ ...s, status: "unconfirmed" as const }))
-        : senders,
+    () => (locked ? senders.map((s) => ({ ...s, status: "unconfirmed" as const })) : senders),
     [locked],
   );
-  const [senderId, setSenderId] = useState<string | undefined>(
-    () => defaultSenderFor(templateId, pool)?.id,
-  );
-  const [when, setWhen] = useState<"now" | "later">("now");
-  const [date, setDate] = useState("2026-10-28");
-  const [time, setTime] = useState("09:00");
+  const [senderId, setSenderId] = useState<string | undefined>(() => defaultSenderFor(templateId, pool)?.id);
   const [name, setName] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // People taken out one by one on Review (live app confirm step: "Remove" per recipient row).
+  const [removed, setRemoved] = useState<Set<string>>(() => new Set());
+  const [listing, setListing] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
-  // "Don't send to" (R1): lists and contact tags left out even when they are in a picked list.
-  const [excludeListIds, setExcludeListIds] = useState<string[]>(
-    () => params.get("exclude")?.split(",").filter(Boolean) ?? [],
-  );
-  const [excludeTags, setExcludeTags] = useState<string[]>(
-    () => params.get("excludeTags")?.split(",").filter(Boolean) ?? [],
-  );
   // Per-recipient check (R2): per merge tag, send with a fallback word or leave those people out.
   const [handling, setHandling] = useState<Record<string, Handling>>({});
-  const [fallbacks, setFallbacks] = useState<Record<string, string>>(
-    () => ({ ...DEFAULT_FALLBACK }),
-  );
+  const [fallbacks, setFallbacks] = useState<Record<string, string>>(() => ({ ...DEFAULT_FALLBACK }));
   const [checkStatus, setCheckStatus] = useState<CheckStatus>(() =>
-    state === "checking"
-      ? "checking"
-      : state === "check-error"
-        ? "error"
-        : "ready",
+    state === "checking" ? "checking" : state === "check-error" ? "error" : "ready",
   );
   // Whose email the preview shows (R3); unset = the first recipient.
   const [previewId, setPreviewId] = useState<string>();
   const { contacts } = useContactsStore();
 
-  const lists: ContactList[] = state === "empty" ? [] : contactLists;
+  const book = useMemo(() => (state === "empty" ? [] : contacts), [state, contacts]);
+  // Self-upload Tag filter (live app: tag picker over the contact list; AND like Leads › Self-upload, 2026-11-14),
+  // seeded from ?tags=. The agent hand-over also pre-selects the contacts it matches (minus ?excludeTags=).
+  const [tagFilter, setTagFilter] = useState<string[]>(seedTags);
+  const [contactIds, setContactIds] = useState<Set<string>>(() => {
+    if (!seedTags.length) return new Set();
+    const out = new Set(withAnyTag(book, seedExclude).map((c) => c.id));
+    return new Set(withAllTags(book, seedTags).filter((c) => !out.has(c.id)).map((c) => c.id));
+  });
   const picked = findTemplate(templateId);
-  const tplActive = picked
-    ? picked.template.status === "active" || activated.has(picked.template.id)
-    : false;
+  const tplActive = picked ? picked.template.status === "active" || activated.has(picked.template.id) : false;
   const canEdit = picked
     ? picked.template.owner === CURRENT_USER || picked.template.shared === true
     : false;
-  const audience = useMemo(
-    () =>
-      applyExclusions(summarizeAudience(listIds, templateId), contacts, {
-        listIds: excludeListIds,
-        tags: excludeTags,
-      }),
-    [listIds, templateId, contacts, excludeListIds, excludeTags],
+
+  // Self-upload audience.
+  const contactAudience = useMemo(
+    () => buildAudience(book, [], [], templateId, contactIds),
+    [book, templateId, contactIds],
   );
-  const subject =
-    state === "badtag"
-      ? "Quick question, {{first_name}}"
-      : subjectFor(templateId);
-  const check = useMemo(
-    () => checkRecipients(templateId, subject, audience.people),
-    [templateId, subject, audience.people],
+  // The batch's tags (report filters): the tags the picked contacts carry.
+  const tags = useMemo(() => tagsOf(book.filter((c) => contactIds.has(c.id))), [book, contactIds]);
+  // Saella companies: what matches the filters, and what is picked (in registry order).
+  const matched = useMemo(
+    () => matchCompanies(companyFilters, companyQuery, unlocked),
+    [companyFilters, companyQuery, unlocked],
   );
+  // Every picked company is sent to (no Not sent / Sent split, designer 2026-11-14).
+  const pickedCompanies = useMemo(() => allCompanies.filter((c) => pickedIds.has(c.id)), [pickedIds]);
+  const companyAud = useMemo(() => companyAudience(pickedCompanies), [pickedCompanies]);
+
+  const fromCompanies = source === "companies";
+  const people = useMemo(
+    () => (fromCompanies ? companyAud.companies.map(companyRecipient) : contactAudience.people),
+    [fromCompanies, companyAud, contactAudience.people],
+  );
+  const subject = state === "badtag" ? "Quick question, {{first_name}}" : subjectFor(templateId);
+  const check = useMemo(() => checkRecipients(templateId, subject, people), [templateId, subject, people]);
   // People the check leaves out, by the choice made per merge tag.
   const skipped = new Set(
-    check.issues.flatMap((i) =>
-      i.kind === "missing" && handling[i.tag] === "skip"
-        ? i.people.map((p) => p.id)
-        : [],
-    ),
+    check.issues.flatMap((i) => (i.kind === "missing" && handling[i.tag] === "skip" ? i.people.map((p) => p.id) : [])),
   );
   const unknownTag = check.issues.find((i) => i.kind === "unknown");
   const emptyFallback = check.issues.find(
-    (i) =>
-      i.kind === "missing" &&
-      handling[i.tag] !== "skip" &&
-      !fallbacks[i.tag]?.trim(),
+    (i) => i.kind === "missing" && handling[i.tag] !== "skip" && !fallbacks[i.tag]?.trim(),
   );
-  /** What the batch sends to: the audience minus anyone the Review check leaves out. */
-  const recipients = audience.recipients - skipped.size;
+  const removedHere = people.filter((p) => removed.has(p.id) && !skipped.has(p.id)).length;
+  /** What the batch sends to: the audience minus anyone the Review check leaves out or removed by hand. */
+  const recipients = people.length - skipped.size - removedHere;
+
   const sender = pool.find((s) => s.id === senderId);
   const sharedLeft = SHARED_MONTHLY_CAP - SHARED_USED_THIS_MONTH;
   const estimate = sendEstimate(recipients);
-
-  // Scheduled time as UTC ISO (inputs are GMT+7).
-  const scheduledIso =
-    when === "later" && date && time
-      ? new Date(`${date}T${time}:00+07:00`).toISOString()
-      : undefined;
-  const campaignEnd = picked?.campaign.endsOn;
 
   // Why each step can't continue yet; undefined = fine.
   const blockers: (string | undefined)[] = [
@@ -269,11 +250,17 @@ export function BatchWizard() {
         : !tplActive
           ? "Mark the template active to send it"
           : undefined,
-    listIds.length === 0
-      ? "Pick at least one contact list"
-      : audience.recipients === 0
-        ? "Nobody left to send to after exclusions"
-        : undefined,
+    fromCompanies
+      ? pickedIds.size === 0
+        ? "Select at least one company"
+        : companyAud.companies.length === 0
+          ? "None of these companies can receive email"
+          : undefined
+      : contactIds.size === 0
+        ? "Select at least one contact"
+        : contactAudience.recipients === 0
+          ? "None of these contacts can receive it"
+          : undefined,
     !sender
       ? "Pick a sender"
       : !senderAvailability(sender).ok
@@ -281,13 +268,6 @@ export function BatchWizard() {
         : sender.shared && recipients > sharedLeft
           ? `The shared sender has ${n(sharedLeft)} sends left this month`
           : undefined,
-    when === "later"
-      ? !scheduledIso || scheduledIso <= NOW
-        ? "Pick a time in the future"
-        : campaignEnd && scheduledIso.slice(0, 10) > campaignEnd
-          ? `The campaign ends ${formatDate(campaignEnd, true)}. Pick an earlier date.`
-          : undefined
-      : undefined,
     paused
       ? "Sending is paused for this workspace"
       : checkStatus === "checking"
@@ -300,29 +280,18 @@ export function BatchWizard() {
               ? "Type a fallback, or leave those recipients out"
               : recipients === 0
                 ? "Nobody left to send to"
-                : !confirmed
-        ? "Tick the confirmation to send"
-        : undefined,
+                : undefined,
   ];
   const firstBlocked = blockers.findIndex((b) => b !== undefined);
-  const maxReachable = firstBlocked === -1 ? STEPS.length - 1 : firstBlocked;
+  const maxReachable = firstBlocked === -1 ? REVIEW : firstBlocked;
 
-  const summaries = [
-    picked?.template.name,
-    listIds.length ? `${n(recipients)} recipients` : undefined,
-    sender ? sender.name : undefined,
-    when === "now"
-      ? "Send now"
-      : scheduledIso
-        ? atWorkspaceTime(scheduledIso)
-        : undefined,
-    undefined,
-  ];
 
   function chooseTemplate(id: string) {
     setTemplateId(id);
     setSenderId(defaultSenderFor(id, pool)?.id);
-    setConfirmed(false);
+    // A new template starts a fresh pick with no filter.
+    setCompanyFilters(NO_AUDIENCE_FILTERS);
+    setPickedIds(new Set());
   }
 
   // Stands in for re-running the server check (live app: the recipient rows for this batch).
@@ -344,43 +313,36 @@ export function BatchWizard() {
       }
       const id = `n${Date.now().toString(36)}`;
       const nowIso = new Date().toISOString();
-      const scheduled = when === "later";
       addCreatedBatch({
         id,
         templateId: picked.template.id,
         campaignId: picked.campaign.id,
         senderId: sender.id,
-        listIds,
-        status: scheduled ? "scheduled" : "sending",
+        tags: fromCompanies ? [] : tags,
+        status: "sending",
         recipients,
         sent: 0,
         createdOn: nowIso.slice(0, 10),
-        sentAt: scheduled ? undefined : nowIso,
-        scheduledFor: scheduledIso,
+        sentAt: nowIso,
         name: name.trim() || undefined,
         operatorId: CURRENT_USER_ID,
-        metrics: scheduled
-          ? undefined
-          : {
-              delivered: 0,
-              opens: 0,
-              clicks: 0,
-              bounces: 0,
-              unsubs: 0,
-              replies: 0,
-              complaints: 0,
-              botOpens: 0,
-              botClicks: 0,
-              totalOpens: 0,
-              totalClicks: 0,
-              forwarded: 0,
-            },
+        metrics: {
+          delivered: 0,
+          opens: 0,
+          clicks: 0,
+          bounces: 0,
+          unsubs: 0,
+          replies: 0,
+          complaints: 0,
+          botOpens: 0,
+          botClicks: 0,
+          totalOpens: 0,
+          totalClicks: 0,
+          forwarded: 0,
+        },
       });
-      toast.success(scheduled ? "Batch scheduled" : "Batch is sending", {
-        description: scheduled
-          ? `${n(recipients)} recipients on ${atWorkspaceTime(scheduledIso!)}.`
-          : `${n(recipients)} recipients. ${sender.shared ? "" : `${picked.template.name} will use ${sender.name} by default next time.`}`,
-      });
+      // Live app: "Batch queued with N recipients".
+      toast.success(`Batch queued for ${n(recipients)} ${fromCompanies ? "companies" : "recipients"}`);
       router.push(`/batches/${id}/report`);
     }, 900);
   }
@@ -388,41 +350,39 @@ export function BatchWizard() {
   if (state === "loading") {
     return (
       <>
-        <PageHeader
-          title="New batch"
-          breadcrumbs={[{ label: "Campaigns", href: "/campaigns" }]}
-        />
+        <PageHeader title="New batch" description="Pick who gets this template, then review and send." breadcrumbs={[{ label: "Campaigns", href: "/campaigns" }]} />
         <div className="flex flex-col gap-6" aria-busy>
           <Skeleton className="h-10 w-full" />
-          <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-            <Skeleton className="h-96" />
-            <Skeleton className="h-64" />
-          </div>
+          <Skeleton className="h-96" />
         </div>
       </>
     );
   }
 
-  const cols =
-    step === 4
-      ? "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_440px]"
-      : "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]";
+  const review = step === REVIEW;
+  // One source per batch (AC-EC-B-02).
+  const sourceTabs = (
+    <Tabs value={source} onValueChange={(v) => setSource(v as Source)}>
+      <TabsList aria-label="Send to">
+        <TabsTrigger value="companies">Unlocked companies</TabsTrigger>
+        <TabsTrigger value="contacts">Self-upload</TabsTrigger>
+      </TabsList>
+    </Tabs>
+  );
+  // Recipients fills the viewport like the Leads tables (designer 2026-11-14): only the rows scroll; the stepper, the
+  // toolbar, the pager and Back / Continue stay on screen (Leads: companies-screen.tsx; 2rem more for this page's padding).
+  const fill = step === 1;
   return (
-    <>
-      <PageHeader
-        title="New batch"
-        description="Send one template to your contact lists, now or at a set time."
-        breadcrumbs={[{ label: "Campaigns", href: "/campaigns" }]}
-      />
+    <div className={fill ? "flex h-[calc(100svh-10.5rem)] min-h-[560px] flex-col gap-4 md:gap-6" : "contents"}>
+      <PageHeader title="New batch" description="Pick who gets this template, then review and send." breadcrumbs={[{ label: "Campaigns", href: "/campaigns" }]} />
 
       {paused && (
         <Alert variant="destructive">
           <CircleAlertIcon />
           <AlertTitle>Sending is paused for this workspace</AlertTitle>
           <AlertDescription>
-            Bounces passed 10% over the last 7 days, so Saella paused every
-            send. You can prepare this batch, but it can&apos;t go out until an
-            admin resumes sending.
+            Bounces passed 10% over the last 7 days. You can prepare this batch; it sends once an admin resumes
+            sending.
           </AlertDescription>
         </Alert>
       )}
@@ -430,50 +390,43 @@ export function BatchWizard() {
         <Alert variant="warning">
           <TriangleAlertIcon />
           <AlertTitle>Sending is locked</AlertTitle>
-          <AlertDescription>
-            To send a batch, verify a sending domain and confirm a sender first.
-          </AlertDescription>
+          <AlertDescription>Verify a sending domain and confirm a sender first.</AlertDescription>
           <AlertAction>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/settings/sending">Go to Sending settings</Link>
+              <Link href="/settings/domain">Go to Domain settings</Link>
             </Button>
           </AlertAction>
         </Alert>
       )}
 
-      {/* The stepper sits in the same grid as the form, so its width matches the form column (2026-11-05). */}
-      <div className={cols}>
-        <Stepper
-          steps={STEPS.map((s, i) => ({
-            ...s,
-            summary: i < step ? summaries[i] : undefined,
-          }))}
-          current={step}
-          maxReachable={maxReachable}
-          onStepClick={setStep}
-          // The last step has no connector after it: keep it to its label so "Review" ends at the form's edge.
-          className="[&>li:last-child]:flex-none"
-        />
-      </div>
+      <Stepper
+        // Step names only, no summary line under done steps (designer 2026-11-13): the same look for every step.
+        steps={STEPS}
+        current={step}
+        maxReachable={maxReachable}
+        onStepClick={setStep}
+        // The last step has no connector after it: keep it to its label so "Review" ends at the form's edge.
+        className="[&>li:last-child]:flex-none"
+      />
 
-      <div className={cols}>
+      <div
+        className={
+          review
+            ? "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_440px]"
+            : cn("flex flex-col", fill && "min-h-0 flex-1")
+        }
+      >
         <section
           aria-labelledby="step-title"
-          className="flex flex-col gap-6 rounded-card border p-6"
+          className={cn("flex flex-col rounded-card border p-6", fill ? "min-h-0 flex-1 gap-4" : "gap-6")}
         >
+          {/* Recipients opens on its source tabs; the stepper already names the step, so its title is for screen
+              readers only (designer feedback 2026-11-12). */}
           <h2
             id="step-title"
-            className="font-heading text-lg font-medium tracking-title"
+            className={step === 1 ? "sr-only" : "font-heading text-lg font-medium tracking-title"}
           >
-            {
-              [
-                "Which template?",
-                "Who gets it?",
-                "Send as",
-                "When should it go out?",
-                "Review and send",
-              ][step]
-            }
+            {["Which template?", "Who gets it?", "Send as", "Review and send"][step]}
           </h2>
 
           {step === 0 && (
@@ -490,21 +443,32 @@ export function BatchWizard() {
             />
           )}
           {step === 1 && (
-            <RecipientsStep
-              lists={lists}
-              listIds={listIds}
-              onChange={(ids) => {
-                setListIds(ids);
-                setExcludeListIds((x) => x.filter((id) => !ids.includes(id)));
-              }}
-              audience={audience}
-              excludeListIds={excludeListIds}
-              onExcludeLists={setExcludeListIds}
-              excludeTags={excludeTags}
-              onExcludeTags={setExcludeTags}
-              tagOptions={tagsIn(contacts, listIds)}
-              templateId={templateId}
-            />
+            // Source tabs and the list's toolbar on one row (designer 2026-11-14): the tabs stay in this grid cell for
+            // both sources; each list joins the grid (`contents`) with its toolbar in column 2 and the rest below.
+            <div className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] items-center gap-x-4 gap-y-3">
+              <div className="col-start-1 row-start-1">{sourceTabs}</div>
+              {fromCompanies ? (
+                <CompanyPicker
+                  rows={matched.rows}
+                  query={companyQuery}
+                  onQuery={setCompanyQuery}
+                  filters={companyFilters}
+                  onFilters={setCompanyFilters}
+                  selected={pickedIds}
+                  onSelected={setPickedIds}
+                />
+              ) : (
+                <ContactsStep
+                  contacts={book}
+                  tagFilter={tagFilter}
+                  onTagFilter={setTagFilter}
+                  selected={contactIds}
+                  onSelected={setContactIds}
+                  audience={contactAudience}
+                  templateId={templateId}
+                />
+              )}
+            </div>
           )}
           {step === 2 && (
             <SenderStep
@@ -517,66 +481,59 @@ export function BatchWizard() {
               locked={locked}
             />
           )}
-          {step === 3 && (
-            <ScheduleStep
-              when={when}
-              onWhen={setWhen}
-              date={date}
-              time={time}
-              onDate={setDate}
-              onTime={setTime}
-              error={blockers[3]}
-              estimate={estimate}
-              campaignEnd={campaignEnd}
-            />
-          )}
-          {step === 4 && picked && sender && (
+          {review && picked && sender && (
             <ReviewStep
               rows={[
                 {
                   label: "Template",
                   value: picked.template.name,
-                  sub: subject ? <>Subject: <SubjectText subject={subject} /></> : "Subject: –",
-                  step: 0,
+                  sub: subject ? <SubjectText subject={subject} /> : undefined,
+                  action: { label: "Change", onClick: () => setStep(0) },
                 },
                 {
+                  // Final count plus what took people out (BAT-CREATE-001: matched, suppressed, dropped).
                   label: "Recipients",
-                  value: `${n(recipients)} people`,
-                  sub: [
-                    audience.lists.map((l) => l.name).join(", "),
-                    audience.excluded > 0 &&
-                      `${n(audience.excluded)} in Don't send to`,
-                    skipped.size > 0 &&
-                      `${n(skipped.size)} left out for missing data`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · "),
-                  step: 1,
+                  value: `${n(recipients)} ${fromCompanies ? "unlocked companies" : "people"}`,
+                  sub:
+                    [
+                      fromCompanies && companyAud.undeliverable > 0 && `${n(companyAud.undeliverable)} can't receive email`,
+                      fromCompanies && companyAud.truncated > 0 && `${n(companyAud.truncated)} over the ${n(BATCH_CAP)} limit`,
+                      !fromCompanies &&
+                        contactAudience.contacts > contactAudience.recipients &&
+                        `${n(contactAudience.contacts - contactAudience.recipients)} left out`,
+                      skipped.size > 0 && `${n(skipped.size)} missing data`,
+                      removedHere > 0 && `${n(removedHere)} removed`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || undefined,
+                  action: { label: "See who", onClick: () => setListing(true) },
                 },
                 {
                   label: "Sender",
                   value: sender.name,
                   sub: sender.email,
-                  step: 2,
+                  action: { label: "Change", onClick: () => setStep(2) },
                 },
                 {
-                  label: "When",
-                  value: when === "now" ? "Now" : atWorkspaceTime(scheduledIso!),
-                  sub: `${estimate.label} to send all${when === "later" ? ` · ${TZ_LABEL}` : ""}`,
-                  step: 3,
+                  // Schedules, follow-ups and hand-sent batches share one daily allowance (PRD Master v1.1.9).
+                  label: "Time to send",
+                  value: estimate.label,
+                  sub: estimate.overflow > 0 ? undefined : `${n(estimate.leftToday)} sends left today`,
+                },
+                {
+                  // Live app "Monthly quota remaining", here where the send is decided (2026-11-14). Sending from the
+                  // workspace's own domain is unlimited (live SENDING_UNLIMITED, PRD v1.0.9); the shared sender keeps
+                  // its monthly cap (EC-EC-34).
+                  label: "Monthly quota",
+                  value: sender.shared ? `${n(sharedLeft - recipients)} left after this batch` : "Unlimited",
+                  sub: sender.shared
+                    ? `${n(sharedLeft)} of ${n(SHARED_MONTHLY_CAP)} left this month on the shared sender`
+                    : undefined,
                 },
               ]}
-              onEdit={setStep}
               name={name}
               onName={setName}
-              placeholder={batchCode({
-                createdOn: NOW.slice(0, 10),
-                sentAt: scheduledIso ?? NOW,
-              })}
-              confirmed={confirmed}
-              onConfirm={setConfirmed}
-              recipients={recipients}
-              scheduled={when === "later"}
+              placeholder={batchCode({ createdOn: NOW.slice(0, 10), sentAt: NOW })}
               overDaily={estimate.overflow > 0 ? estimate : undefined}
               sendError={sendError}
               checks={
@@ -584,17 +541,12 @@ export function BatchWizard() {
                   check={check}
                   status={checkStatus}
                   onRetry={retryCheck}
-                  recipients={audience.recipients}
+                  recipients={people.length}
                   templateId={picked.template.id}
                   handling={handling}
-                  onHandling={(tag, h) => {
-                    setHandling((x) => ({ ...x, [tag]: h }));
-                    setConfirmed(false);
-                  }}
+                  onHandling={(tag, h) => setHandling((x) => ({ ...x, [tag]: h }))}
                   fallbacks={fallbacks}
-                  onFallback={(tag, v) =>
-                    setFallbacks((x) => ({ ...x, [tag]: v }))
-                  }
+                  onFallback={(tag, v) => setFallbacks((x) => ({ ...x, [tag]: v }))}
                   onPreview={setPreviewId}
                 />
               }
@@ -603,61 +555,39 @@ export function BatchWizard() {
 
           <Separator />
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Button
-              variant="outline"
-              disabled={step === 0 || submitting}
-              onClick={() => setStep(step - 1)}
-            >
+            <Button variant="outline" disabled={step === 0 || submitting} onClick={() => setStep(step - 1)}>
               <ArrowLeftIcon data-icon="inline-start" />
               Back
             </Button>
             <div className="flex items-center gap-3">
-              {blockers[step] && (
-                <p className="text-sm text-muted-foreground">
-                  {blockers[step]}
-                </p>
-              )}
-              {step < STEPS.length - 1 ? (
-                <Button
-                  disabled={!!blockers[step]}
-                  onClick={() => setStep(step + 1)}
-                >
+              {blockers[step] && <p className="text-sm text-muted-foreground">{blockers[step]}</p>}
+              {step < REVIEW ? (
+                <Button disabled={!!blockers[step]} onClick={() => setStep(step + 1)}>
                   Continue
                   <ArrowRightIcon data-icon="inline-end" />
                 </Button>
               ) : (
-                <Button
-                  disabled={!!blockers[step] || submitting}
-                  onClick={send}
-                >
+                <Button disabled={!!blockers[step] || submitting} onClick={send} className="tabular-nums">
                   {submitting ? (
                     <Spinner data-icon="inline-start" />
                   ) : paused ? (
                     <LockIcon data-icon="inline-start" />
-                  ) : when === "later" ? (
-                    <CalendarClockIcon data-icon="inline-start" />
                   ) : (
                     <SendIcon data-icon="inline-start" />
                   )}
-                  {submitting
-                    ? "Sending"
-                    : when === "later"
-                      ? `Schedule for ${n(recipients)} recipients`
-                      : `Send to ${n(recipients)} recipients`}
+                  {submitting ? "Sending" : `Send batch (${n(recipients)})`}
                 </Button>
               )}
             </div>
           </div>
         </section>
 
-        {/* On Review the summary gives way to the email preview (R3, 2026-10-29): the review list already shows
-            every line of the summary (2026-10-28). */}
-        {step === 4 && picked ? (
+        {review && picked && (
           <RecipientPreview
             templateId={picked.template.id}
             subject={subject}
             sender={sender}
-            people={audience.people}
+            people={people.filter((p) => !removed.has(p.id))}
             issues={check.issues}
             handling={handling}
             fallbacks={fallbacks}
@@ -666,35 +596,24 @@ export function BatchWizard() {
             status={checkStatus}
             onRetry={retryCheck}
           />
-        ) : step < 4 && (
-          <SummaryCard
-            template={picked?.template.name}
-            campaign={picked?.campaign.name}
-            recipients={listIds.length ? recipients : undefined}
-            sender={sender ? `${sender.name}` : undefined}
-            // Sending now: one row, "Now · about 2.5 hours to send", instead of "When: Now" next to a
-            // "Time to send: Not set" that read as a contradiction (2026-11-05).
-            when={
-              when === "now"
-                ? listIds.length
-                  ? `Now · ${estimate.label.toLowerCase()} to send`
-                  : "Now"
-                : scheduledIso
-                  ? atWorkspaceTime(scheduledIso)
-                  : undefined
-            }
-            estimate={
-              when === "later" && listIds.length ? estimate.label : undefined
-            }
-            showEstimate={when === "later"}
-          />
         )}
       </div>
-    </>
+
+      <RecipientListDialog
+        open={listing}
+        onOpenChange={setListing}
+        people={people}
+        leftOut={skipped}
+        removed={removed}
+        onRemoved={setRemoved}
+      />
+    </div>
   );
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+
+const NEW_TEMPLATE = "__new-template";
 
 function TemplateStep({
   templateId,
@@ -709,90 +628,139 @@ function TemplateStep({
   active: boolean;
   onActivate: () => void;
 }) {
+  const store = useTemplateStore();
+  const params = useSearchParams();
+  const [creating, setCreating] = useState(false);
   const picked = findTemplate(templateId);
+  // Seed campaigns with this session's templates (copies, made in the editor), then campaigns that only have those.
+  const gone = new Set(store.deleted);
+  const groups = [
+    ...sampleCampaigns.map((c) => ({
+      id: c.id,
+      name: c.name,
+      templates: [...c.templates, ...store.copies.filter((x) => x.campaign.id === c.id).map((x) => x.template)],
+    })),
+    ...Array.from(
+      new Map(
+        store.copies
+          .filter((x) => !sampleCampaigns.some((c) => c.id === x.campaign.id))
+          .map((x) => [x.campaign.id, x.campaign] as const)
+      ).values()
+    ).map((c) => ({ id: c.id, name: c.name, templates: store.copies.filter((x) => x.campaign.id === c.id).map((x) => x.template) })),
+  ]
+    .map((g) => ({ ...g, templates: g.templates.filter((t) => !gone.has(t.id)).map((t) => ({ ...t, ...store.patch[t.id] })) }))
+    .filter((g) => g.templates.length > 0);
+  // "+ New template" (designer 2026-11-13): make one (and its campaign if needed), write it, come back here with it
+  // picked.
+  const back = new URLSearchParams(params);
+  back.delete("template");
+  back.delete("step");
+  const returnTo = `/batches/new${back.size ? `?${back}` : ""}`;
+  // Campaign first, then only its templates (designer 2026-11-14: the full list of every campaign's templates was too
+  // much). Opened on a template, its campaign is picked already.
+  const [campaignId, setCampaignId] = useState<string | undefined>(() => picked?.campaign.id);
+  // Opened from a template (Send on its row, or back from making one): its campaign is fixed, shown as text; only
+  // the template is picked, among that campaign's (designer 2026-11-14).
+  const [campaignFixed] = useState(() => Boolean(params.get("template") && picked));
+  // Only active templates can be picked (designer 2026-11-14); the one already chosen stays listed so it can show.
+  const all = groups.find((g) => g.id === campaignId);
+  const group = all && {
+    ...all,
+    templates: all.templates.filter((t) => t.status === "active" || t.id === templateId),
+  };
+  const campaign = sampleCampaigns.find((c) => c.id === campaignId) ?? picked?.campaign;
+  // First industry + "+N", so the targeting stays one line (the full list is on the campaign).
+  const industries = industryLabels(campaign?.industries ?? []);
+  const targeting = campaign
+    ? [
+        campaign.countries.join(", ") || "All countries",
+        industries.length === 0 ? "Any industry" : industries.length > 1 ? `${industries[0]} +${industries.length - 1}` : industries[0],
+      ]
+    : [];
   return (
-    <FieldGroup>
+    <FieldGroup className="max-w-2xl">
+      {campaignFixed ? (
+        <Field>
+          <FieldLabel>Campaign</FieldLabel>
+          <p className="text-sm font-medium">{campaign?.name}</p>
+          <FieldDescription>{targeting.join(" · ")}</FieldDescription>
+        </Field>
+      ) : (
       <Field>
-        <FieldLabel htmlFor="bw-template">Template</FieldLabel>
-        <Select value={templateId} onValueChange={onChange}>
-          <SelectTrigger id="bw-template" className="w-full max-w-md">
-            <SelectValue placeholder="Select a template" />
+        <FieldLabel htmlFor="bw-campaign">Campaign</FieldLabel>
+        <Select
+          value={campaignId}
+          onValueChange={(v) => {
+            setCampaignId(v);
+            // Another campaign: the template is picked again from its list.
+            if (picked && picked.campaign.id !== v) onChange("");
+          }}
+        >
+          <SelectTrigger id="bw-campaign" className="w-full">
+            <SelectValue placeholder="Select a campaign" />
           </SelectTrigger>
           <SelectContent>
-            {sampleCampaigns
-              .filter((c) => c.templates.length > 0)
-              .map((c) => (
-                <SelectGroup key={c.id}>
-                  <SelectLabel>{c.name}</SelectLabel>
-                  {c.templates.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                      {t.status === "inactive" && (
-                        <span className="text-muted-foreground">
-                          · Inactive
-                        </span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
+            <SelectGroup>
+              {groups.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
               ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
-        <FieldDescription>
-          Templates live in campaigns. The batch is counted in that
-          campaign&apos;s report.
-        </FieldDescription>
+        {campaign && <FieldDescription>{targeting.join(" · ")}</FieldDescription>}
       </Field>
-
-      {picked && (
-        <div className="flex flex-col gap-3 rounded-lg border p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-medium">{picked.template.name}</span>
-            <StatusBadge
-              status={active ? "template-active" : "template-inactive"}
-            />
-          </div>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm">
-            <dt className="text-muted-foreground">Subject</dt>
-            <dd>{SUBJECTS[picked.template.id] ? <SubjectText subject={SUBJECTS[picked.template.id]} /> : "–"}</dd>
-            <dt className="text-muted-foreground">Campaign</dt>
-            <dd>
-              {picked.campaign.name}
-              {picked.campaign.countries.length > 0 && (
-                <span className="text-muted-foreground">
-                  {" "}
-                  · {picked.campaign.countries.join(", ")}
-                </span>
-              )}
-            </dd>
-            <dt className="text-muted-foreground">Owner</dt>
-            <dd>
-              {picked.template.owner === CURRENT_USER
-                ? "You"
-                : picked.template.owner}
-            </dd>
-          </dl>
-        </div>
       )}
+      <Field data-disabled={!group || undefined}>
+        <FieldLabel htmlFor="bw-template">Template</FieldLabel>
+        <Select
+          value={templateId && group?.templates.some((t) => t.id === templateId) ? templateId : ""}
+          onValueChange={(v) => (v === NEW_TEMPLATE ? setCreating(true) : onChange(v))}
+          disabled={!group}
+        >
+          <SelectTrigger id="bw-template" className="w-full">
+            <SelectValue
+              placeholder={!group ? "Pick a campaign first" : group.templates.length ? "Select a template" : "No active template in this campaign"}
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {group?.templates.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                  {t.status === "inactive" && <span className="text-muted-foreground">· Inactive</span>}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+            {group && group.templates.length > 0 && <SelectSeparator />}
+            <SelectItem value={NEW_TEMPLATE}>
+              <PlusIcon />
+              New template
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      <NewTemplateDialog
+        open={creating}
+        onOpenChange={setCreating}
+        campaigns={sampleCampaigns}
+        defaultCampaignId={campaignId}
+        returnTo={returnTo}
+      />
 
       {picked && !canEdit && (
         <Alert variant="destructive">
           <LockIcon />
           <AlertTitle>You can&apos;t send this template</AlertTitle>
-          <AlertDescription>
-            Sending needs the owner, a share from them, or an admin. Ask{" "}
-            {picked.template.owner.split("@")[0]} to share it with you.
-          </AlertDescription>
+          <AlertDescription>Ask {picked.template.owner.split("@")[0]} to share it with you.</AlertDescription>
         </Alert>
       )}
       {picked && canEdit && !active && (
         <Alert variant="warning">
           <TriangleAlertIcon />
           <AlertTitle>This template is inactive</AlertTitle>
-          <AlertDescription>
-            Only active templates can send. Check its content, then mark it
-            active.
-          </AlertDescription>
+          <AlertDescription>Check its content, then mark it active to send it.</AlertDescription>
           <AlertAction>
             <Button variant="outline" size="sm" onClick={onActivate}>
               Mark active
@@ -804,251 +772,251 @@ function TemplateStep({
   );
 }
 
-function RecipientsStep({
-  lists,
-  listIds,
-  onChange,
+// Self-upload recipients as a table like Leads › Self-upload (designer 2026-11-13; it was tag cards): search, then
+// Contact · Company · Email status · Tags · Last sent, scrolling inside. People who can't receive it, duplicates and
+// ones this template already reached are counted as "left out" below, as before.
+
+/** Contacts carrying every one of these tags (Leads › Self-upload Tag filter, AND). */
+function withAllTags(contacts: Contact[], tags: string[]) {
+  const want = tags.map((t) => t.toLowerCase());
+  return contacts.filter((c) => {
+    const own = c.tags.map((t) => t.toLowerCase());
+    return want.every((t) => own.includes(t));
+  });
+}
+
+function ContactsStep({
+  contacts,
+  tagFilter,
+  onTagFilter,
+  selected,
+  onSelected,
   audience,
-  excludeListIds,
-  onExcludeLists,
-  excludeTags,
-  onExcludeTags,
-  tagOptions,
   templateId,
 }: {
-  lists: ContactList[];
-  listIds: string[];
-  onChange: (ids: string[]) => void;
+  contacts: Contact[];
+  tagFilter: string[];
+  onTagFilter: (tags: string[]) => void;
+  selected: ReadonlySet<string>;
+  onSelected: (next: Set<string>) => void;
   audience: RefinedAudience;
-  excludeListIds: string[];
-  onExcludeLists: (ids: string[]) => void;
-  excludeTags: string[];
-  onExcludeTags: (tags: string[]) => void;
-  /** Contact tags found in the picked lists. */
-  tagOptions: string[];
   templateId?: string;
 }) {
   const [reviewing, setReviewing] = useState(false);
-  if (lists.length === 0) {
+  const [query, setQuery] = useState("");
+  // Memoised: a new list sends the pager back to page 1.
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const tagged = tagFilter.length ? withAllTags(contacts, tagFilter) : contacts;
+    return q
+      ? tagged.filter((c) =>
+          [`${c.firstName} ${c.lastName}`, c.email, c.company, ...c.tags].some((v) => v.toLowerCase().includes(q))
+        )
+      : tagged;
+  }, [contacts, tagFilter, query]);
+  const paging = usePaging(rows);
+  if (contacts.length === 0) {
     return (
-      <Empty className="border">
+      <Empty className="col-span-2 border">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <UsersIcon />
           </EmptyMedia>
-          <EmptyTitle>No contact lists yet</EmptyTitle>
-          <EmptyDescription>
-            Upload a spreadsheet or save companies as a list, then come back to
-            send.
-          </EmptyDescription>
+          <EmptyTitle>No contacts yet</EmptyTitle>
+          <EmptyDescription>Upload your contacts, then come back to send.</EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button variant="outline" asChild>
-            <Link href="/contacts">Go to Contacts</Link>
+            <Link href="/contacts">Go to Self-upload</Link>
           </Button>
         </EmptyContent>
       </Empty>
     );
   }
-  const toggle = (id: string, on: boolean) =>
-    onChange(on ? [...listIds, id] : listIds.filter((x) => x !== id));
-  const SOURCE = {
-    upload: "Uploaded",
-    companies: "From Companies",
-    agent: "Made by the agent",
-  } as const;
-  // "Don't send to" lists: any list not already picked above. The picker works on names.
-  const otherLists = lists.filter((l) => !listIds.includes(l.id));
-  const nameOf = (id: string) => lists.find((l) => l.id === id)?.name ?? id;
+  const ids = rows.map((c) => c.id);
+  const allPicked = ids.length > 0 && ids.every((id) => selected.has(id));
+  const pageIds = paging.rows.map((c) => c.id);
+  const pagePicked = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  const pageSome = pageIds.some((id) => selected.has(id));
+  const setMany = (list: string[], on: boolean) => {
+    const next = new Set(selected);
+    list.forEach((id) => (on ? next.add(id) : next.delete(id)));
+    onSelected(next);
+  };
+  const pickAll = (on: boolean) => setMany(ids, on);
+  const pickPage = (on: boolean) => setMany(pageIds, on);
+  const toggle = (id: string, on: boolean) => {
+    const next = new Set(selected);
+    if (on) next.add(id);
+    else next.delete(id);
+    onSelected(next);
+  };
   const leftOut = audience.contacts - audience.recipients;
 
   return (
-    <div className="flex flex-col gap-6">
-      <FieldSet>
-        <FieldLegend variant="label">Send to</FieldLegend>
-        <FieldDescription>
-          People in more than one list get one email.{" "}
-          <Link
-            href="/contacts"
-            className="text-primary underline-offset-4 hover:underline"
-          >
-            Manage lists
-          </Link>
-        </FieldDescription>
-        <div className="grid gap-3 md:grid-cols-2">
-          {lists.map((l) => (
-            <FieldLabel key={l.id} htmlFor={`bw-list-${l.id}`}>
-              <Field orientation="horizontal">
-                <Checkbox
-                  id={`bw-list-${l.id}`}
-                  checked={listIds.includes(l.id)}
-                  onCheckedChange={(v) => toggle(l.id, v === true)}
-                />
-                <FieldContent>
-                  <FieldTitle>{l.name}</FieldTitle>
-                  <FieldDescription className="tabular-nums">
-                    {n(l.contacts)} contacts · {SOURCE[l.source]}
-                  </FieldDescription>
-                </FieldContent>
-              </Field>
-            </FieldLabel>
-          ))}
-        </div>
-      </FieldSet>
-
-      {listIds.length > 0 && (
-        <FieldSet>
-          <FieldLegend variant="label">Don&apos;t send to (optional)</FieldLegend>
-          <FieldDescription>
-            People in these lists or with these tags are left out, even when
-            they are in a list above.
-          </FieldDescription>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="bw-exclude-lists">Lists</FieldLabel>
-              {otherLists.length > 0 ? (
-                <MultiSelect
-                  id="bw-exclude-lists"
-                  options={otherLists.map((l) => l.name)}
-                  value={excludeListIds.map(nameOf)}
-                  onChange={(names) =>
-                    onExcludeLists(
-                      otherLists
-                        .filter((l) => names.includes(l.name))
-                        .map((l) => l.id),
-                    )
-                  }
-                  placeholder="No list left out"
-                />
-              ) : (
-                <Button
-                  id="bw-exclude-lists"
-                  variant="outline"
-                  disabled
-                  className="w-full justify-start font-normal"
-                >
-                  Every list is picked above
-                </Button>
-              )}
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="bw-exclude-tags">Contact tags</FieldLabel>
-              {tagOptions.length > 0 ? (
-                <MultiSelect
-                  id="bw-exclude-tags"
-                  options={tagOptions}
-                  value={excludeTags.filter((t) => tagOptions.includes(t))}
-                  onChange={onExcludeTags}
-                  placeholder="No tag left out"
-                />
-              ) : (
-                <Button
-                  id="bw-exclude-tags"
-                  variant="outline"
-                  disabled
-                  className="w-full justify-start font-normal"
-                >
-                  No tags in these lists
-                </Button>
-              )}
-            </Field>
-          </div>
-        </FieldSet>
-      )}
-
-      {listIds.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <h3 className="text-sm font-medium">Estimated recipients</h3>
-            <p className="tabular-nums">
-              <span className="font-heading text-2xl font-semibold tracking-title">
-                {n(audience.recipients)}
-              </span>{" "}
-              <span className="text-muted-foreground">
-                of {n(audience.contacts)} contacts
-              </span>
-            </p>
-            <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground tabular-nums">
-              {leftOut === 0
-                ? "Everyone in these lists gets this email."
-                : `${n(leftOut)} won't get this email.`}
-              {leftOut > 0 && (
-                <Button
-                  variant="link"
-                  className="h-auto p-0"
-                  onClick={() => setReviewing(true)}
-                >
-                  <ListChecksIcon data-icon="inline-start" />
-                  Review who is left out
-                </Button>
-              )}
-            </p>
-          </div>
-          <LeftOutDialog
-            open={reviewing}
-            onOpenChange={setReviewing}
-            audience={audience}
-            templateId={templateId}
-            excludeListIds={excludeListIds}
-            excludeTags={excludeTags}
+    // `contents`: the toolbar joins the wizard's grid, on the source tabs' row (designer 2026-11-14).
+    <div className="contents">
+      <div className="col-start-2 row-start-1 flex shrink-0 items-center justify-end gap-2">
+        <InputGroup className="h-8 w-64">
+          <InputGroupAddon align="inline-start">
+            <SearchIcon />
+          </InputGroupAddon>
+          <InputGroupInput
+            type="search"
+            aria-label="Search contacts"
+            placeholder="Name, email, company"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
           />
-          <dl className="grid max-w-md grid-cols-[1fr_auto] gap-x-6 gap-y-1.5 text-sm tabular-nums">
-            <dt className="text-muted-foreground">Contacts in these lists</dt>
-            <dd className="text-right">{n(audience.contacts)}</dd>
-            <dt className="text-muted-foreground">In more than one list</dt>
-            <dd className="text-right">−{n(audience.duplicates)}</dd>
-            <Hint label="Unsubscribed, bounced before, or an address that can't receive mail">
-              <dt className="text-muted-foreground">
-                Unsubscribed, bounced or invalid
-              </dt>
-            </Hint>
-            <dd className="text-right">−{n(audience.unreachable)}</dd>
-            <dt className="text-muted-foreground">
-              Already received this template
-            </dt>
-            <dd className="text-right">−{n(audience.alreadyReceived)}</dd>
-            {audience.excluded > 0 && (
-              <>
-                <dt className="text-muted-foreground">In Don&apos;t send to</dt>
-                <dd className="text-right">−{n(audience.excluded)}</dd>
-              </>
+        </InputGroup>
+        <FilterPopover count={tagFilter.length} onClearAll={() => onTagFilter([])} size="default">
+          <FilterMultiSelect
+            label="Tag"
+            options={tagsOf(contacts)}
+            value={tagFilter}
+            onChange={onTagFilter}
+            placeholder="Any tag"
+            searchPlaceholder="Search tags"
+          />
+        </FilterPopover>
+      </div>
+      <div className="col-span-2 flex min-h-0 flex-col gap-3 self-stretch">
+      <FilterChips
+        chips={tagFilter.map((t) => ({
+          key: `tag:${t}`,
+          label: "Tag",
+          value: t,
+          onRemove: () => onTagFilter(tagFilter.filter((x) => x !== t)),
+        }))}
+        onClearAll={() => onTagFilter([])}
+      />
+
+      <TableFrame
+        paging={paging}
+        noun="contacts"
+        label="Contact pages"
+        status={
+          <>
+            {/* Selection line above the rows, as Unlocked companies: count, what it sends to, select every match. */}
+            <span>
+              <span className="font-medium text-foreground">{n(selected.size)}</span> of{" "}
+              <span className="font-medium text-foreground">{n(rows.length)}</span> selected
+            </span>
+            {selected.size > 0 && (
+              <span>
+                <span className="font-medium text-foreground">{n(audience.recipients)}</span> recipients
+              </span>
             )}
-            {audience.truncated > 0 && (
-              <>
-                <dt className="text-muted-foreground">
-                  Over the {n(BATCH_CAP)} limit per batch
-                </dt>
-                <dd className="text-right">−{n(audience.truncated)}</dd>
-              </>
+            {selected.size > 0 && leftOut > 0 && (
+              <Button variant="link" className="h-auto border-0 p-0 tabular-nums" onClick={() => setReviewing(true)}>
+                {n(leftOut)} left out
+              </Button>
             )}
-            <Separator className="col-span-2 my-1" />
-            <dt className="font-medium">Will receive it</dt>
-            <dd className="text-right font-medium">{n(audience.recipients)}</dd>
-          </dl>
+            {pagePicked && !allPicked && rows.length > paging.rows.length && (
+              <Button variant="link" className="h-auto border-0 p-0" onClick={() => pickAll(true)}>
+                Select all {n(rows.length)} matching
+              </Button>
+            )}
+            {selected.size > 0 && (
+              <Button variant="link" className="h-auto border-0 p-0" onClick={() => onSelected(new Set())}>
+                Clear selection
+              </Button>
+            )}
+          </>
+        }
+      >
+        <Table aria-label="Contacts to send to" className={cn(TABLE, "table-fixed")}>
+          <colgroup>
+            <col className="w-10" />
+            <col />
+            <col className="w-48" />
+            <col className="w-32" />
+            <col className="w-56" />
+            <col className="w-32" />
+          </colgroup>
+          <TableHeader className={HEADER}>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className={cn(HEAD_CELL, "px-0 text-center")}>
+                <div className="flex justify-center">
+                  <Checkbox
+                    aria-label="Select this page"
+                    checked={pagePicked ? true : pageSome ? "indeterminate" : false}
+                    onCheckedChange={(v) => pickPage(v === true)}
+                  />
+                </div>
+              </TableHead>
+              <TableHead className={HEAD_CELL}>Contact</TableHead>
+              <TableHead className={HEAD_CELL}>Company</TableHead>
+              <TableHead className={HEAD_CELL}>Email status</TableHead>
+              <TableHead className={HEAD_CELL}>Tags</TableHead>
+              <TableHead className={HEAD_CELL}>Last sent</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {paging.rows.length === 0 ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={6} className={cn(BODY_CELL, "h-24 text-center text-muted-foreground")}>
+                  No results.
+                </TableCell>
+              </TableRow>
+            ) : (
+              paging.rows.map((c) => {
+                const on = selected.has(c.id);
+                return (
+                  <TableRow key={c.id} className="border-0" data-state={on ? "selected" : undefined}>
+                    <TableCell className={cn(BODY_CELL, "px-0 text-center")}>
+                      <div className="flex justify-center">
+                        <Checkbox
+                          aria-label={`Select ${c.firstName} ${c.lastName}`}
+                          checked={on}
+                          onCheckedChange={(v) => toggle(c.id, v === true)}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell className={BODY_CELL}>
+                      <span className="flex min-w-0 flex-col">
+                        <span className="truncate font-medium">{`${c.firstName} ${c.lastName}`.trim() || c.email}</span>
+                        <span className="truncate text-muted-foreground">{c.email}</span>
+                      </span>
+                    </TableCell>
+                    <TableCell className={cn(BODY_CELL, "truncate")}>{c.company}</TableCell>
+                    <TableCell className={BODY_CELL}>
+                      {c.unreachable ? <Badge variant="destructive">Invalid</Badge> : <Badge variant="success">Valid</Badge>}
+                    </TableCell>
+                    <TableCell className={BODY_CELL}>
+                      <span className="flex min-w-0 items-center gap-1">
+                        {c.tags.slice(0, 2).map((t) => (
+                          <Badge key={t} variant="secondary" className="truncate">
+                            {t}
+                          </Badge>
+                        ))}
+                        {c.tags.length > 2 && <Badge variant="outline">+{c.tags.length - 2}</Badge>}
+                      </span>
+                    </TableCell>
+                    <TableCell className={cn(BODY_CELL, "text-muted-foreground tabular-nums")}>
+                      {c.lastSent ? formatDate(c.lastSent.on) : ""}
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </TableFrame>
+
+      {selected.size > 0 && (
+        <>
+          <LeftOutDialog open={reviewing} onOpenChange={setReviewing} audience={audience} templateId={templateId} excludeTags={[]} />
           {audience.truncated > 0 && (
             <Alert variant="warning">
               <TriangleAlertIcon />
               <AlertTitle>Only the first {n(BATCH_CAP)} are sent</AlertTitle>
-              <AlertDescription>
-                A batch holds up to {n(BATCH_CAP)} people. Send the other{" "}
-                {n(audience.truncated)} in a second batch; people who already
-                got this template are skipped automatically.
-              </AlertDescription>
+              <AlertDescription>Send the other {n(audience.truncated)} in a second batch.</AlertDescription>
             </Alert>
           )}
-          {audience.recipients === 0 && (
-            <Alert variant="destructive">
-              <CircleAlertIcon />
-              <AlertTitle>Nobody left to send to</AlertTitle>
-              <AlertDescription>
-                Everyone in these lists already received this template,
-                can&apos;t be reached or is in Don&apos;t send to. Pick another
-                list or leave out fewer people.
-              </AlertDescription>
-            </Alert>
-          )}
-        </div>
+        </>
       )}
+      </div>
     </div>
   );
 }
@@ -1072,21 +1040,13 @@ function SenderStep({
 }) {
   const sender = pool.find((s) => s.id === senderId);
   return (
-    <FieldSet>
-      <FieldLegend variant="label">Sender</FieldLegend>
-      <FieldDescription>
-        You can send as yourself, as identities an admin shared with everyone,
-        or through Saella&apos;s shared sender. The template remembers your
-        choice for next time.
-      </FieldDescription>
+    <FieldSet className="max-w-2xl">
+      <FieldLegend className="sr-only">Sender</FieldLegend>
       {locked && (
         <Alert variant="warning">
           <TriangleAlertIcon />
           <AlertTitle>No sender can send yet</AlertTitle>
-          <AlertDescription>
-            Confirm a sender on a verified domain in Sending settings, then come
-            back.
-          </AlertDescription>
+          <AlertDescription>Confirm a sender on a verified domain first.</AlertDescription>
           <AlertAction>
             <Button variant="outline" size="sm" asChild>
               <Link href="/settings/sending">Set up a sender</Link>
@@ -1094,224 +1054,112 @@ function SenderStep({
           </AlertAction>
         </Alert>
       )}
-      <RadioGroup
-        value={senderId ?? ""}
-        onValueChange={onChange}
-        className="gap-3"
-      >
-        {pool.map((s) => {
-          const avail = senderAvailability(s);
-          return (
-            <FieldLabel key={s.id} htmlFor={`bw-sender-${s.id}`}>
-              <Field
-                orientation="horizontal"
-                data-disabled={!avail.ok || undefined}
-              >
-                <RadioGroupItem
-                  value={s.id}
-                  id={`bw-sender-${s.id}`}
-                  disabled={!avail.ok}
-                />
-                <FieldContent>
-                  <FieldTitle>
-                    {s.name}
-                    {s.shared && <Badge variant="secondary">Shared</Badge>}
-                    {s.ownerId === CURRENT_USER_ID && (
-                      <Badge variant="secondary">You</Badge>
-                    )}
-                    {s.id === lastUsedId && avail.ok && (
-                      <Badge variant="brand">
-                        Last used with this template
-                      </Badge>
-                    )}
-                  </FieldTitle>
-                  <FieldDescription>
-                    {s.email}
-                    {!avail.ok && ` · ${avail.reason}`}
-                    {avail.ok &&
-                      s.shared &&
-                      ` · Up to ${n(SHARED_MONTHLY_CAP)} sends a month (${n(sharedLeft)} left)`}
-                  </FieldDescription>
-                </FieldContent>
-              </Field>
-            </FieldLabel>
-          );
-        })}
-      </RadioGroup>
+      {/* A dropdown of the senders that can send now (designer 2026-11-13): unconfirmed ones and other members' own
+          senders aren't listed; they're set up in Settings › Sending. */}
+      {!locked && (
+        <Field>
+          <FieldLabel htmlFor="bw-sender">Sender</FieldLabel>
+          <Select value={senderId ?? ""} onValueChange={onChange}>
+            <SelectTrigger id="bw-sender" className="w-full">
+              <SelectValue placeholder="Pick a sender" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {pool
+                  .filter((s) => senderAvailability(s).ok)
+                  .map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <span>{s.name}</span>
+                      <span className="text-muted-foreground">{s.email}</span>
+                      {s.id === lastUsedId && <Badge variant="brand">Last used</Badge>}
+                    </SelectItem>
+                  ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          {sender?.shared && (
+            <FieldDescription className="tabular-nums">
+              {n(sharedLeft)} of {n(SHARED_MONTHLY_CAP)} sends left this month on the shared sender.
+            </FieldDescription>
+          )}
+        </Field>
+      )}
       {sender?.shared && recipients > sharedLeft && (
         <FieldError>
-          This batch needs {n(recipients)} sends; the shared sender has{" "}
-          {n(sharedLeft)} left this month. Pick your own sender or fewer
-          recipients.
+          This batch needs {n(recipients)} sends; the shared sender has {n(sharedLeft)} left. Pick your own sender or
+          fewer recipients.
         </FieldError>
       )}
     </FieldSet>
   );
 }
 
-function ScheduleStep({
-  when,
-  onWhen,
-  date,
-  time,
-  onDate,
-  onTime,
-  error,
-  estimate,
-  campaignEnd,
-}: {
-  when: "now" | "later";
-  onWhen: (w: "now" | "later") => void;
-  date: string;
-  time: string;
-  onDate: (v: string) => void;
-  onTime: (v: string) => void;
-  error?: string;
-  estimate: ReturnType<typeof sendEstimate>;
-  campaignEnd?: string;
-}) {
-  return (
-    <FieldGroup>
-      <RadioGroup
-        value={when}
-        onValueChange={(v) => onWhen(v as "now" | "later")}
-        className="grid gap-3 md:grid-cols-2"
-      >
-        <FieldLabel htmlFor="bw-when-now">
-          <Field orientation="horizontal">
-            <FieldContent>
-              <FieldTitle>Send now</FieldTitle>
-              <FieldDescription>
-                Starts within a minute and goes out gradually.
-              </FieldDescription>
-            </FieldContent>
-            <RadioGroupItem value="now" id="bw-when-now" />
-          </Field>
-        </FieldLabel>
-        <FieldLabel htmlFor="bw-when-later">
-          <Field orientation="horizontal">
-            <FieldContent>
-              <FieldTitle>Schedule for later</FieldTitle>
-              <FieldDescription>
-                Pick a day and time, for example their working morning.
-              </FieldDescription>
-            </FieldContent>
-            <RadioGroupItem value="later" id="bw-when-later" />
-          </Field>
-        </FieldLabel>
-      </RadioGroup>
-
-      {when === "later" && (
-        <div className="flex flex-wrap gap-4">
-          <Field className="w-48" data-invalid={!!error || undefined}>
-            <FieldLabel htmlFor="bw-date">Date</FieldLabel>
-            <DatePicker
-              id="bw-date"
-              value={date}
-              min="2026-10-27"
-              max={campaignEnd}
-              invalid={!!error}
-              onChange={onDate}
-            />
-          </Field>
-          <Field className="w-36" data-invalid={!!error || undefined}>
-            <FieldLabel htmlFor="bw-time">Time</FieldLabel>
-            <TimePicker id="bw-time" value={time} invalid={!!error} onChange={onTime} />
-          </Field>
-          <FieldDescription className="basis-full">
-            Times are in your workspace time zone, {TZ_LABEL}.
-            {campaignEnd &&
-              ` The campaign ends ${formatDate(campaignEnd, true)}.`}
-          </FieldDescription>
-          {error && <FieldError className="basis-full">{error}</FieldError>}
-        </div>
-      )}
-
-      <p className="text-sm text-muted-foreground">
-        Saella sends about 600 emails an hour to protect your sender reputation.{" "}
-        {estimate.label} to send this batch.
-      </p>
-      {estimate.overflow > 0 && <OverDailyAlert estimate={estimate} />}
-    </FieldGroup>
-  );
-}
-
-function OverDailyAlert({
-  estimate,
-}: {
-  estimate: ReturnType<typeof sendEstimate>;
-}) {
+// Over today's allowance the rest is deferred, not failed (AC-EC-W-03; PATTERNS 9.12): info, never red.
+function OverDailyAlert({ estimate }: { estimate: ReturnType<typeof sendEstimate> }) {
   return (
     <Alert variant="info">
       <CalendarClockIcon />
-      <AlertTitle>
-        This batch spreads over about {estimate.days} days
-      </AlertTitle>
-      <AlertDescription>
-        Your workspace sends up to {n(DAILY_ALLOWANCE)} emails a day.{" "}
-        {n(estimate.leftToday)} can go today; the other {n(estimate.overflow)}{" "}
-        go out automatically over the next days.
+      <AlertTitle>Spreads over about {estimate.days} days</AlertTitle>
+      <AlertDescription className="tabular-nums">
+        {n(estimate.leftToday)} go today, the other {n(estimate.overflow)} over the next days (up to{" "}
+        {n(DAILY_ALLOWANCE)} a day).
       </AlertDescription>
     </Alert>
   );
 }
 
+type ReviewRow = {
+  label: string;
+  value: string;
+  sub?: ReactNode;
+  action?: { label: string; onClick: () => void };
+};
+
 function ReviewStep({
   rows,
-  onEdit,
   name,
   onName,
   placeholder,
-  confirmed,
-  onConfirm,
-  recipients,
-  scheduled,
   overDaily,
   sendError,
   checks,
 }: {
-  rows: { label: string; value: string; sub?: ReactNode; step: number }[];
-  onEdit: (step: number) => void;
+  rows: ReviewRow[];
   name: string;
   onName: (v: string) => void;
   placeholder: string;
-  confirmed: boolean;
-  onConfirm: (v: boolean) => void;
-  recipients: number;
-  scheduled: boolean;
   overDaily?: ReturnType<typeof sendEstimate>;
   sendError: string | null;
   /** Per-recipient check of the merge tags (R2). */
-  checks: React.ReactNode;
+  checks: ReactNode;
 }) {
   return (
     <FieldGroup>
       <dl className="flex flex-col divide-y rounded-lg border">
         {rows.map((r) => (
-          <div
-            key={r.label}
-            className="grid grid-cols-[8rem_1fr_auto] items-start gap-4 px-4 py-3"
-          >
+          <div key={r.label} className="grid grid-cols-[7rem_minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5">
             <dt className="text-sm text-muted-foreground">{r.label}</dt>
             <dd className="flex min-w-0 flex-col">
               <span className="font-medium tabular-nums">{r.value}</span>
-              {r.sub && (
-                <span className="truncate text-sm text-muted-foreground">
-                  {r.sub}
-                </span>
-              )}
+              {r.sub && <span className="truncate text-sm text-muted-foreground tabular-nums">{r.sub}</span>}
             </dd>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onEdit(r.step)}
-              aria-label={`Change ${r.label.toLowerCase()}`}
-            >
-              Change
-            </Button>
+            {r.action ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={r.action.onClick}
+                aria-label={`${r.action.label}: ${r.label.toLowerCase()}`}
+              >
+                {r.action.label}
+              </Button>
+            ) : (
+              <span />
+            )}
           </div>
         ))}
       </dl>
+
+      {overDaily && <OverDailyAlert estimate={overDaily} />}
 
       {checks}
 
@@ -1324,98 +1172,15 @@ function ReviewStep({
           placeholder={placeholder}
           onChange={(e) => onName(e.target.value)}
         />
-        <FieldDescription>
-          Leave it blank to use the code {placeholder} in reports.
-        </FieldDescription>
       </Field>
-
-      {overDaily && <OverDailyAlert estimate={overDaily} />}
-
-      <FieldLabel htmlFor="bw-confirm">
-        <Field orientation="horizontal">
-          <Checkbox
-            id="bw-confirm"
-            checked={confirmed}
-            onCheckedChange={(v) => onConfirm(v === true)}
-          />
-          <FieldContent>
-            <FieldTitle>
-              I checked the template, the recipients and the sender
-            </FieldTitle>
-            <FieldDescription>
-              {scheduled
-                ? `${n(recipients)} emails go out at the scheduled time. You can cancel until then.`
-                : `${n(recipients)} emails start going out right away. A sent email can't be taken back.`}
-            </FieldDescription>
-          </FieldContent>
-        </Field>
-      </FieldLabel>
 
       {sendError && (
         <Alert variant="destructive">
           <CircleAlertIcon />
           <AlertTitle>Couldn&apos;t create the batch</AlertTitle>
-          <AlertDescription>
-            {sendError} Try again in a moment.
-          </AlertDescription>
+          <AlertDescription>{sendError} Try again in a moment.</AlertDescription>
         </Alert>
       )}
     </FieldGroup>
-  );
-}
-
-function SummaryCard({
-  template,
-  campaign,
-  recipients,
-  sender,
-  when,
-  estimate,
-  showEstimate = true,
-}: {
-  template?: string;
-  campaign?: string;
-  recipients?: number;
-  sender?: string;
-  when?: string;
-  estimate?: string;
-  /** Off when sending now: the When row already carries the estimate. */
-  showEstimate?: boolean;
-}) {
-  const row = (label: string, value?: React.ReactNode) => (
-    <>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd
-        className={value ? "text-right" : "text-right text-subtle-foreground"}
-      >
-        {value ?? "Not set"}
-      </dd>
-    </>
-  );
-  return (
-    <Card className="lg:sticky lg:top-4">
-      <CardHeader>
-        <CardTitle>This batch</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm tabular-nums">
-          {row(
-            "Template",
-            template && <span className="line-clamp-2">{template}</span>,
-          )}
-          {row(
-            "Campaign",
-            campaign && <span className="line-clamp-2">{campaign}</span>,
-          )}
-          {row(
-            "Recipients",
-            recipients !== undefined ? n(recipients) : undefined,
-          )}
-          {row("Sender", sender)}
-          {row("When", when)}
-          {showEstimate && row("Time to send", estimate)}
-        </dl>
-      </CardContent>
-    </Card>
   );
 }

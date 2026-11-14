@@ -19,8 +19,11 @@ import { Item } from "@/components/ui/item";
 //   default; we show it on.
 // - Everything lands in the in-app feed; email only for actionable or must-not-miss events (BR-RULE-NTF-02,
 //   AC-NTF-F-04). Users can't turn those off, so the table is read-only: it tells people what to expect.
-// - Channels per event follow the PRD's table; where the PRD contradicts itself (admin transfer and send-as:
-//   AC-NTF-M-06 says email, the diagrams say in-app only) we show in-app only and flag it in the report.
+// - Events, recipients and channels follow what the live app dispatches (Repo 2026-11-03: notifyAdmins, template-notify,
+//   campaign-expiry, membership, domain-recheck, auto-pause). Owners get template activity by email too; sending pauses
+//   and domain changes go to the admin. There is no "batch finished" notification. Admin transfer and send-as are
+//   in-app only (PRD AC-NTF-M-06 says email). The marketing opt-out is stored (notification_prefs) but the live app
+//   has no screen for it yet; the default is on.
 // Preview with ?state= loading | error | saving-error
 type Row = { event: string; who: string; inApp: boolean; email: boolean };
 
@@ -31,26 +34,26 @@ const ROWS: { group: string; rows: Row[] }[] = [
       { event: "Someone asks to join", who: "Admin", inApp: true, email: true },
       { event: "An invited member joins", who: "Admin", inApp: true, email: true },
       { event: "Your join request is approved", who: "You", inApp: true, email: true },
-      { event: "Your join request is declined", who: "You", inApp: false, email: true },
+      { event: "Your join request is rejected", who: "You", inApp: false, email: true },
       { event: "The admin role moves", who: "Old and new admin", inApp: true, email: false },
       { event: "Teammates can send as you", who: "You", inApp: true, email: false },
-      { event: "Templates are reassigned to you", who: "New owner", inApp: true, email: false },
+      { event: "Templates are reassigned to you", who: "New owner", inApp: true, email: true },
     ],
   },
   {
     group: "Templates and sending",
     rows: [
-      { event: "Your template is edited, shared, sent or rescheduled", who: "Owner", inApp: true, email: false },
-      { event: "A template is shared with you", who: "You", inApp: true, email: false },
-      { event: "A batch finishes", who: "Sender", inApp: true, email: false },
-      { event: "A campaign ends", who: "Everyone", inApp: true, email: false },
-      { event: "Sending is paused for the workspace", who: "Everyone", inApp: true, email: true },
+      { event: "Your template is edited, shared, copied, sent or rescheduled", who: "Owner", inApp: true, email: true },
+      { event: "A template is shared with you, or your access ends", who: "You", inApp: true, email: true },
+      { event: "A campaign ends", who: "People on its templates", inApp: true, email: true },
+      { event: "Sending is paused for the workspace", who: "Admin", inApp: true, email: true },
     ],
   },
   {
-    group: "Domains and account",
+    group: "Domain and account",
     rows: [
-      { event: "A domain is verified or has a problem", who: "Everyone", inApp: true, email: true },
+      { event: "Someone verifies your company's domain and becomes admin", who: "Everyone", inApp: true, email: true },
+      { event: "The domain is verified or loses a record", who: "Admin", inApp: true, email: true },
       { event: "Policy and security notices", who: "Everyone", inApp: true, email: true },
       { event: "Welcome when you first sign in", who: "You", inApp: true, email: true },
     ],
@@ -127,7 +130,7 @@ export function NotificationsScreen() {
           id="what-title"
           title="What you're told about"
           description="Everything shows under the bell. Things you need to act on also come by email."
-          info="These can't be turned off: they're about your account, your team or your sending. Emails use the language you chose in Language."
+          info="These can't be turned off. They cover your account, team and sending."
         />
         <div className="rounded-card border">
           <Table>

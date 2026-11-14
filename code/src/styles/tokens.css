@@ -74,6 +74,7 @@
   --primary-subtle: #fdf3e9; /* [LP] peach-soft. Dòng bảng đang chọn, chip giá trị filter */
   --peach: #fbe7d3; /* [LP] peach. ::selection, highlight */
   --cream: #fef9f3; /* [LP-src] cream. Nền onboarding/empty state */
+  --table-head: #f3ece3; /* Hàng tiêu đề bảng: trung tính ấm theo tông primary Saella, không xám (người dùng chốt 2026-11-12) */
   --deep: #04191c; /* [LP] deep. Dải tối (dành cho dark mode sau này) */
   --deep-2: #0a2a2e; /* [LP] deep-2 */
 
@@ -118,6 +119,10 @@
   --status-paused-foreground: var(--warning-soft-foreground); /* 6.10:1 */
   --status-failed: var(--destructive-soft);
   --status-failed-foreground: var(--destructive-soft-foreground); /* 5.32:1 */
+  /* Đang chạy (campaign / template Active): xanh tươi hơn Sent để nổi giữa các badge xám (người dùng chốt 2026-11-12). */
+  --status-active: #d3f6e2;
+  --status-active-foreground: #0d6e3a; /* ~5.6:1 trên nền */
+  --status-active-dot: #12b76a;
 
   /* ---------- Riêng Saella: hình khối, bóng, chữ, chuyển động ---------- */
   --card-radius: 12px; /* [LP] --radius-card */
@@ -211,6 +216,7 @@
   --primary-subtle: #201810; /* dòng bảng đang chọn: ấm nhẹ trên nền xám. Chữ 16.77:1, chữ mờ 6.78:1 */
   --peach: #55340f; /* selection */
   --cream: #121212; /* nền empty state/onboarding: nhích nhẹ khỏi nền. Chữ mờ 7.25:1 */
+  --table-head: #4a3e32; /* hàng tiêu đề bảng: ấm, sáng hơn card #171717 đủ thấy rõ; khác dòng đang chọn (primary-subtle #201810) */
   --deep: #04191c; /* [LP] giữ cho overlay dialog */
   --deep-2: #0a2a2e;
 
@@ -220,6 +226,9 @@
   --success-foreground: #0a0a0a;
   --success-soft: #0f3527;
   --success-soft-foreground: #6fd6a3; /* 7.58:1 trên soft, 10.09:1 trên card */
+  --status-active: #0b3d25;
+  --status-active-foreground: #6ee7a6; /* ~9:1 trên nền */
+  --status-active-dot: #32d583;
 
   --warning: #e6b43c;
   --warning-foreground: #0a0a0a;
@@ -280,6 +289,7 @@
   --color-primary-subtle: var(--primary-subtle);
   --color-peach: var(--peach);
   --color-cream: var(--cream);
+  --color-table-head: var(--table-head);
   --color-deep: var(--deep);
   --color-deep-2: var(--deep-2);
   --color-subtle-foreground: var(--subtle-foreground);
@@ -311,6 +321,9 @@
   --color-status-sending-foreground: var(--status-sending-foreground);
   --color-status-sent: var(--status-sent);
   --color-status-sent-foreground: var(--status-sent-foreground);
+  --color-status-active: var(--status-active);
+  --color-status-active-foreground: var(--status-active-foreground);
+  --color-status-active-dot: var(--status-active-dot);
   --color-status-paused: var(--status-paused);
   --color-status-paused-foreground: var(--status-paused-foreground);
   --color-status-failed: var(--status-failed);

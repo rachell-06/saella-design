@@ -6,10 +6,31 @@ import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
 
+// Saella: a click on the backdrop closes the dialog like Cancel (user request 2026-11-11). Radix AlertDialog blocks
+// outside clicks by design; every Saella confirm treats "dismiss" as "don't do it", so closing is always safe.
+const CloseContext = React.createContext<(() => void) | null>(null)
+
 function AlertDialog({
+  open: openProp,
+  defaultOpen = false,
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
-  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+  const [inner, setInner] = React.useState(defaultOpen)
+  const open = openProp ?? inner
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      if (openProp === undefined) setInner(next)
+      onOpenChange?.(next)
+    },
+    [openProp, onOpenChange]
+  )
+  const close = React.useCallback(() => setOpen(false), [setOpen])
+  return (
+    <CloseContext.Provider value={close}>
+      <AlertDialogPrimitive.Root data-slot="alert-dialog" open={open} onOpenChange={setOpen} {...props} />
+    </CloseContext.Provider>
+  )
 }
 
 function AlertDialogTrigger({
@@ -30,11 +51,17 @@ function AlertDialogPortal({
 
 function AlertDialogOverlay({
   className,
+  onClick,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
+  const close = React.useContext(CloseContext)
   return (
     <AlertDialogPrimitive.Overlay
       data-slot="alert-dialog-overlay"
+      onClick={(e) => {
+        onClick?.(e)
+        if (!e.defaultPrevented) close?.()
+      }}
       className={cn(
         "fixed inset-0 z-50 bg-deep/40 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
@@ -58,7 +85,7 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-card bg-popover shadow-float p-4 text-popover-foreground ring-1 ring-border duration-100 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full overflow-y-auto overscroll-contain -translate-x-1/2 -translate-y-1/2 gap-4 rounded-card bg-popover shadow-float p-4 text-popover-foreground ring-1 ring-border duration-100 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -91,7 +118,7 @@ function AlertDialogFooter({
     <div
       data-slot="alert-dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-card border-t bg-muted/50 p-4 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end",
+        "sticky -bottom-4 z-10 -mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-card border-t bg-[color-mix(in_oklch,var(--muted)_50%,var(--popover))] p-4 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end",
         className
       )}
       {...props}

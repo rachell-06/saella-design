@@ -11,6 +11,7 @@ export const buttonMeta: ComponentMeta = {
     ghost: "Row actions in tables, icon-only toolbar buttons, menu triggers.",
     destructive: "Confirm button of an AlertDialog for delete / archive / cancel-send. Soft red fill.",
     link: "Inline text action inside a sentence, e.g. 'View report'.",
+    ai: "AI action (Generate, Write with AI, Suggest…) with a Sparkles icon: brand tint, never solid. Doesn't count as the page's one solid orange button.",
     "size=sm | icon-sm": "Inside table rows and dense toolbars.",
     "size=icon*": "Icon-only; always give aria-label and a Tooltip.",
   },
@@ -21,7 +22,7 @@ export const buttonMeta: ComponentMeta = {
       "on/off state": "Switch or Toggle",
     },
   },
-  tokens: ["--primary", "--primary-hover", "--primary-foreground", "--destructive-soft", "--destructive-soft-foreground", "--input", "--accent", "--ring", "--radius-lg"],
+  tokens: ["--primary", "--primary-hover", "--primary-foreground", "--primary-subtle", "--primary-soft-foreground", "--brand", "--destructive-soft", "--destructive-soft-foreground", "--input", "--accent", "--ring", "--radius-lg"],
   aiHints: [
     "Exactly one variant=default per page; everything else is outline or ghost.",
     "Delete flow: Button (ghost/outline) → AlertDialog → confirm with variant=destructive, cancel with outline.",
@@ -29,6 +30,7 @@ export const buttonMeta: ComponentMeta = {
     "Loading: keep the width, put <Spinner /> inside and set disabled + aria-busy.",
   ],
   invalid: [
+    "An AI action (sparkle icon) in outline/ghost or solid default: use variant=ai.",
     "Two variant=default buttons on the same page.",
     "variant=destructive directly on a page without an AlertDialog confirmation.",
     "Custom colours via className (bg-red-*, hex). Add a token instead.",

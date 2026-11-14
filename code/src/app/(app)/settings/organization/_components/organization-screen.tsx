@@ -4,15 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
+  ArrowRightLeftIcon,
   CircleAlertIcon,
-  CircleCheckIcon,
-  FileTextIcon,
   InfoIcon,
   LockIcon,
   MoreHorizontalIcon,
-  ShieldIcon,
   UserCheckIcon,
   UserPlusIcon,
+  TriangleAlertIcon,
   UserXIcon,
   XIcon,
 } from "lucide-react";
@@ -41,6 +40,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ConfirmDialog, type ConfirmRequest } from "../../_components/confirm-dialog";
 import {
   CURRENT_USER_ID,
+  FREE_MAIL,
   MAX_SEATS,
   ORG,
   type OrgMember,
@@ -66,6 +66,13 @@ import { Item } from "@/components/ui/item";
 // - Seats: 10 per org (PRD-05).
 // Preview with ?state= loading | error | member | unclaimed | no-requests
 type Preview = "loading" | "error" | "member" | "unclaimed" | "no-requests" | "";
+
+const STATUS_VARIANT: Record<OrgMember["status"], "success" | "secondary" | "info" | "warning"> = {
+  invited: "info",
+  requested: "warning",
+  active: "success",
+  disabled: "secondary",
+};
 
 const STATUS_LABEL: Record<OrgMember["status"], string> = {
   invited: "Invited",
@@ -147,15 +154,15 @@ export function OrganizationScreen() {
     });
   }
 
-  function decline(m: OrgMember) {
+  function reject(m: OrgMember) {
     setConfirm({
-      title: `Decline ${m.email}?`,
+      title: `Reject ${m.email}?`,
       description: "Nothing is deleted. They keep working in their own workspace and get an email saying so.",
-      confirmLabel: "Decline",
+      confirmLabel: "Reject",
       destructive: true,
       onConfirm: () => {
         setMembers((list) => list.filter((x) => x.id !== m.id));
-        toast(`Declined ${m.email}`);
+        toast(`Rejected ${m.email}`);
       },
     });
   }
@@ -190,6 +197,8 @@ export function OrganizationScreen() {
     e.preventDefault();
     const email = invite.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setInviteError("Enter a full email address.");
+    // Same business-email rule as sign-up (live app api/org/members POST).
+    if (FREE_MAIL.includes(email.split("@")[1])) return setInviteError("Use their work email address, not a personal one.");
     if (members.some((m) => m.email === email)) return setInviteError(`${email} is already on the list.`);
     if (seatsUsed >= MAX_SEATS) return setInviteError(`All ${MAX_SEATS} seats are used. Disable a member or remove an invite first.`);
     setMembers((list) => [
@@ -219,41 +228,18 @@ export function OrganizationScreen() {
 
   // ---- render -------------------------------------------------------------------------------------------
 
-  const claim = (
-    <section className="flex flex-col gap-4" aria-labelledby="claim-title">
-      <SectionHeader
-        id="claim-title"
-        title="Domain"
-        description="One workspace per email domain. Colleagues who sign up with this domain ask to join."
-      />
-      {preview === "unclaimed" ? (
-        <Alert variant="warning">
-          <CircleAlertIcon />
-          <AlertTitle>This workspace has no admin yet</AlertTitle>
-          <AlertDescription>
-            Nobody has proved control of {ORG.domain}, so join requests have no one to approve them. Publish the
-            domain&apos;s DNS records and press Verify to become the admin.
-          </AlertDescription>
-          <AlertAction>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/settings/sending">Go to Sending</Link>
-            </Button>
-          </AlertAction>
-        </Alert>
-      ) : (
-        <Item variant="outline" className="gap-x-3 gap-y-1 rounded-card px-4 py-3 text-[length:inherit]">
-          <ShieldIcon className="size-4 text-muted-foreground" aria-hidden />
-          <span className="font-medium">{ORG.domain}</span>
-          <Badge variant="success">
-            <CircleCheckIcon data-icon="inline-start" />
-            Claimed
-          </Badge>
-          <span className="text-sm text-muted-foreground">
-            by {ORG.name} since {formatDay(ORG.claimedOn, true)} · Admin: {admin?.name ?? "none"}
-          </span>
-        </Item>
-      )}
-    </section>
+  // The domain and its claim live in Settings → Domain (2026-11-11). Here only the case that blocks members:
+  // nobody has verified it, so there is no admin to approve join requests.
+  const claim = preview === "unclaimed" && (
+    <Alert variant="warning">
+      <TriangleAlertIcon />
+      <AlertTitle>Verify your domain to become admin</AlertTitle>
+      <AlertAction>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/settings/domain">Go to Domain</Link>
+        </Button>
+      </AlertAction>
+    </Alert>
   );
 
   if (!isAdmin) {
@@ -291,14 +277,11 @@ export function OrganizationScreen() {
           <ul className="flex flex-col divide-y rounded-card border">
             {requests.map((m) => (
               <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <MemberName m={m} />
-                <span className="text-sm text-muted-foreground tabular-nums">
-                  Asked {m.requestedOn ? formatDay(m.requestedOn) : "recently"}
-                </span>
+                <MemberName m={m} meta={`Asked ${m.requestedOn ? formatDay(m.requestedOn) : "recently"}`} />
                 <div className="ml-auto flex gap-2">
-                  <Button variant="outline" onClick={() => decline(m)}>
+                  <Button variant="outline" onClick={() => reject(m)}>
                     <XIcon data-icon="inline-start" />
-                    Decline
+                    Reject
                   </Button>
                   <Button onClick={() => approve(m)}>
                     <UserCheckIcon data-icon="inline-start" />
@@ -359,7 +342,7 @@ export function OrganizationScreen() {
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Seats</span>
                 <span className="tabular-nums">
-                  {seatsUsed} of {MAX_SEATS}
+                  {seatsUsed}/{MAX_SEATS}
                 </span>
               </div>
               <Progress value={(seatsUsed / MAX_SEATS) * 100} aria-label={`${seatsUsed} of ${MAX_SEATS} seats used`} />
@@ -370,6 +353,7 @@ export function OrganizationScreen() {
               <TableRow>
                 <TableHead>Member</TableHead>
                 <TableHead className="w-32">Role</TableHead>
+                <TableHead className="w-28">Status</TableHead>
                 <TableHead className="w-44">
                   <span className="flex items-center gap-1">
                     Send-as
@@ -380,8 +364,7 @@ export function OrganizationScreen() {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent className="max-w-64">
-                        Teammates can pick these people as the “from” when they send. The default sender is set in
-                        Sending › Senders.
+                        Teammates can send as them. Default: Sending › Senders.
                       </TooltipContent>
                     </Tooltip>
                   </span>
@@ -400,16 +383,15 @@ export function OrganizationScreen() {
                   return (
                     <TableRow key={m.id}>
                       <TableCell>
-                        <div className="flex items-center gap-3">
-                          <MemberName m={m} />
-                          {m.status !== "active" && (
-                            <Badge variant={m.status === "disabled" ? "secondary" : "info"}>{STATUS_LABEL[m.status]}</Badge>
-                          )}
-                        </div>
+                        <MemberName m={m} />
                       </TableCell>
                       <TableCell>
                         {/* Plain text for both roles: one display type per column (DESIGN §2). */}
                         {m.role === "admin" ? "Admin" : "Member"}
+                      </TableCell>
+                      <TableCell>
+                        {/* Own column, a badge on every row (PATTERNS 9.1, 2026-11-11). */}
+                        <Badge variant={STATUS_VARIANT[m.status]}>{STATUS_LABEL[m.status]}</Badge>
                       </TableCell>
                       <TableCell>
                         {m.status === "active" ? (
@@ -469,8 +451,8 @@ export function OrganizationScreen() {
                                       disabled={m.templates === 0}
                                       onSelect={() => setReassign({ from: m, to: activeOthers.find((x) => x.id !== m.id)?.id ?? CURRENT_USER_ID })}
                                     >
-                                      <FileTextIcon />
-                                      Reassign templates{m.templates ? ` (${m.templates})` : ""}
+                                      <ArrowRightLeftIcon />
+                                      Reassign templates
                                     </DropdownMenuItem>
                                   </>
                                 )}
@@ -497,8 +479,7 @@ export function OrganizationScreen() {
         <SectionHeader id="danger-title" title="Transfer the admin role" />
         <Item variant="outline" className="flex-col items-stretch gap-3 rounded-card px-4 py-4 text-[length:inherit]">
           <p className="text-muted-foreground">
-            Only an Active member of this workspace can receive it. After the transfer you become a regular member and
-            can&apos;t undo it yourself.
+            Only an active member can take it over. You become a regular member and can&apos;t undo it yourself.
           </p>
           <div className="flex flex-wrap gap-2">
             <Select value={transferTo} onValueChange={setTransferTo} disabled={activeOthers.length === 0}>
@@ -529,7 +510,8 @@ export function OrganizationScreen() {
         request={
           reassign
             ? {
-                title: `Reassign ${reassign.from.email}'s templates?`,
+                // The count lives here, not in the menu label.
+                title: `Reassign ${reassign.from.name || reassign.from.email}'s ${reassign.from.templates} template${reassign.from.templates === 1 ? "" : "s"}?`,
                 description:
                   "Every template they own moves to the member you pick. Sent history keeps their name; paused automations stay paused until the new owner resumes them.",
                 confirmLabel: "Reassign templates",
@@ -610,7 +592,9 @@ export function OrganizationScreen() {
   );
 }
 
-function MemberName({ m }: { m: OrgMember }) {
+// Name on the first line, email and any extra detail on the second, so a row reads as two aligned lines.
+// Status never sits here: it has its own column (PATTERNS 9.1).
+function MemberName({ m, meta }: { m: OrgMember; meta?: string }) {
   const initials = (m.name || m.email)
     .split(/[\s@.]/)
     .filter(Boolean)
@@ -624,7 +608,11 @@ function MemberName({ m }: { m: OrgMember }) {
       </Avatar>
       <div className="flex min-w-0 flex-col">
         <span className="truncate font-medium">{m.name || m.email}</span>
-        {m.name && <span className="truncate text-sm text-muted-foreground">{m.email}</span>}
+        {(m.name || meta) && (
+          <span className="truncate text-sm text-muted-foreground tabular-nums">
+            {[m.name ? m.email : "", meta].filter(Boolean).join(" · ")}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -633,12 +621,11 @@ function MemberName({ m }: { m: OrgMember }) {
 // Template ownership in one place (PRD-02 sharing rules as the live app states them in its notifications,
 // lib/i18n/messages.ts ntf.tpl.*, ntf.shared.*, ntf.revoked.*, ntf.owner.*; ORG-SEQ-004).
 // Studio pass 2026-10-28: was its own section of bullet text; now behind ⓘ (secondary info, DESIGN.md).
+// Cut to what decides an action (PATTERNS 9.13, 2026-11-11).
 const OWNERSHIP_RULES = [
-  "Each template has one owner: the person who created it, or whoever it was reassigned to.",
-  "The owner can share a template. People it's shared with can edit and send it; the owner is told about every edit, send and schedule change.",
-  "Removing someone's access leaves them able to view and copy the template, not edit or send it.",
-  "When a member is disabled, automations on their templates pause. Reassign the templates so the new owner can resume them; sent history keeps the original name.",
-  "Batches record who sent them and which address they sent as.",
+  "One owner per template.",
+  "Shared people can edit and send.",
+  "Disabled member? Reassign to resume automations.",
 ];
 
 function OwnershipInfo() {
@@ -649,9 +636,8 @@ function OwnershipInfo() {
           <InfoIcon />
         </Button>
       </HoverCardTrigger>
-      <HoverCardContent align="start" className="flex w-96 flex-col gap-2">
-        <p className="text-sm font-medium text-foreground">Template ownership</p>
-        <ul className="flex list-disc flex-col gap-1.5 pl-4 text-sm text-muted-foreground marker:text-subtle-foreground">
+      <HoverCardContent align="start" className="w-auto max-w-none">
+        <ul className="flex list-disc flex-col gap-1.5 pl-4 text-sm whitespace-nowrap text-muted-foreground marker:text-subtle-foreground">
           {OWNERSHIP_RULES.map((r) => (
             <li key={r}>{r}</li>
           ))}

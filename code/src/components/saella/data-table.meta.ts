@@ -10,8 +10,8 @@ export const dataTableMeta: ComponentMeta = {
     renderExpanded: "Child rows under a parent, e.g. a campaign's templates. Adds a chevron column.",
     loading: "Skeleton rows with the real column count.",
     emptyState: "Shown when data is empty: why it is empty + one next action.",
-    "columns[].meta.align='end'": "Numeric columns: right-aligned, tabular-nums.",
-    revealOnRowHover: "className for row actions that appear on hover or keyboard focus.",
+    "columns[].meta.align='end'": "Numeric columns: tabular-nums. Left-aligned like every column (PATTERNS 9.1).",
+    revealOnRowHover: "className for row actions: always visible, muted, darken on row hover. Never hide them: a hidden actions column reads as empty.",
   },
   relationships: {
     usedIn: ["Leads (companies, contacts)", "Templates", "Batch recipients"],

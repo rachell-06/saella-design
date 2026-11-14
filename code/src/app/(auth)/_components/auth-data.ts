@@ -3,35 +3,32 @@ import { WORKSPACE, members } from "@/lib/mock/workspace";
 // Mock rules for sign-in and sign-up (PRD-01 Authentication, read 2026-10-28). In the live app the database is
 // the only email authority (BR-RULE-AU-01); here a short list stands in for it. Names are fictional.
 
-// Free-mail and disposable providers are refused before anything is created (BR-AU-01, AC-AU-S-01).
-const PERSONAL = [
+// Any email address is accepted, personal ones included (designer decision 2026-11-13; differs from PRD-01
+// BR-AU-01 / AC-AU-S-01 and the live app, which refuse free-mail and disposable providers: decisions.md "Chưa chốt").
+// Public mail domains are still known, so they never count as a company: no join-by-domain for them.
+const PUBLIC_DOMAINS = [
   "gmail.com", "googlemail.com", "yahoo.com", "yahoo.com.vn", "outlook.com", "hotmail.com", "live.com",
   "icloud.com", "me.com", "aol.com", "proton.me", "protonmail.com", "gmx.com", "yandex.com", "mail.ru",
   "qq.com", "163.com", "126.com", "zoho.com",
 ];
-const DISPOSABLE = ["mailinator.com", "yopmail.com", "10minutemail.com", "guerrillamail.com", "tempmail.com", "trashmail.com"];
 
-export type EmailVerdict =
-  | { ok: true; domain: string }
-  | { ok: false; reason: "format" | "work_email" | "disposable_email" };
+/** A free-mail provider: anyone can have an address there, so the domain says nothing about the company. */
+export function isPublicDomain(domain: string) {
+  return PUBLIC_DOMAINS.includes(domain.trim().toLowerCase());
+}
+
+export type EmailVerdict = { ok: true; domain: string } | { ok: false; reason: "format" };
 
 const EMAIL = /^[^\s@]+@([a-z0-9-]+\.)+[a-z]{2,}$/i;
 
 export function checkEmail(raw: string): EmailVerdict {
   const email = raw.trim().toLowerCase();
   if (!EMAIL.test(email)) return { ok: false, reason: "format" };
-  const domain = email.split("@")[1];
-  if (DISPOSABLE.includes(domain)) return { ok: false, reason: "disposable_email" };
-  if (PERSONAL.includes(domain)) return { ok: false, reason: "work_email" };
-  // Academic domains (.edu and country variants) are accepted like any organisation (AC-AU-S-05).
-  return { ok: true, domain };
+  return { ok: true, domain: email.split("@")[1] };
 }
 
-// Copy from the live app (lib/i18n/messages.ts: msg.login.workemail, lf.disposable).
 export const VERDICT_MESSAGE: Record<Exclude<EmailVerdict, { ok: true }>["reason"], string> = {
-  format: "Enter an email address like you@yourcompany.com.",
-  work_email: "A business email is required. Personal providers (Gmail, Outlook, …) aren't accepted. Use your company domain.",
-  disposable_email: "A business email is required. That looks like a temporary mailbox. Use your company domain.",
+  format: "Enter an email address like you@example.com.",
 };
 
 // Extra accounts for the session states. u5 is disabled by the admin (BR-RULE-ORG-06).
@@ -52,9 +49,49 @@ export function lookupAccount(email: string): Account {
   return m.status === "pending" ? { kind: "requested" } : { kind: "active", name: m.name };
 }
 
-/** One workspace per email domain (BR-AU-03); a claimed domain sends new sign-ups to request-to-join. */
+/** One workspace per company domain (BR-AU-03); a claimed domain sends new sign-ups to request-to-join. A public
+ *  mail domain (gmail.com…) is never a company: sign-up there always creates a new workspace. */
 export function domainOwner(domain: string) {
+  if (isPublicDomain(domain)) return null;
   return domain === WORKSPACE.domain ? WORKSPACE.company : null;
+}
+
+// Mock session. The live app gates /onboarding on a signed-in user whose workspace has no onboarded_at
+// (Repo app/onboarding/page.tsx, lib/email/onboarding.ts; AC-ONB-G-01/02): nobody signed in → /login, already
+// onboarded → Overview. Here sign-in writes this record to sessionStorage (this tab only, gone on close) and
+// onboarding reads it. Storage can be blocked, so every access is guarded and a failure reads as signed out.
+export type MockSession = { email: string; onboarded: boolean };
+const SESSION_KEY = "saella-mock-session";
+
+export function saveSession(s: MockSession) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
+  } catch {}
+}
+
+export function readSessionRaw(): string | null {
+  try {
+    return sessionStorage.getItem(SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function parseSession(raw: string | null): MockSession | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as MockSession;
+  } catch {
+    return null;
+  }
+}
+
+export const readSession = () => parseSession(readSessionRaw());
+
+export function clearSession() {
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {}
 }
 
 /** Preview codes: 000000 is wrong, 999999 is expired, any other 6 digits verify. */

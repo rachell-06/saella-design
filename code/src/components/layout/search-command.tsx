@@ -19,13 +19,14 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd";
 
 // Quick search in the app header (pattern from Studio Admin, 2026-10-27). Opens with Ctrl+K / ⌘K
 // (Studio Admin uses J; K is what most tools use). Lists pages from the sidebar plus common actions.
-export function SearchCommand({ onAskAgent }: { onAskAgent?: () => void }) {
+// The visible box was removed from the top bar (designer 2026-11-12: unused); Ctrl+K / ⌘K still opens the palette.
+export function SearchCommand({ onAskAgent, showTrigger = true }: { onAskAgent?: () => void; showTrigger?: boolean }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+      if (e.key?.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         setOpen((o) => !o);
       }
@@ -41,6 +42,7 @@ export function SearchCommand({ onAskAgent }: { onAskAgent?: () => void }) {
 
   return (
     <>
+      {showTrigger && (
       <Button
         variant="outline"
         onClick={() => setOpen(true)}
@@ -53,6 +55,7 @@ export function SearchCommand({ onAskAgent }: { onAskAgent?: () => void }) {
           <Kbd>K</Kbd>
         </KbdGroup>
       </Button>
+      )}
       <CommandDialog open={open} onOpenChange={setOpen} title="Search" description="Go to a page or run an action">
         <Command>
           <CommandInput placeholder="Search pages and actions…" />

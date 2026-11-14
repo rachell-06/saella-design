@@ -16,26 +16,38 @@ import { cn } from "@/lib/utils";
 export type TreeGroup = { value: string; label: string; options: { value: string; label: string }[] };
 
 export function TreeSelect({
+  id,
   label,
   groups,
   value,
   onChange,
   searchPlaceholder = "Search",
   emptyText = "Nothing matches",
+  more,
+  selectAll = false,
   className,
 }: {
-  /** Button text, e.g. "Industry". */
+  /** For a Label's htmlFor. */
+  id?: string;
+  /** Button text: the first pick, or "Any industry" when nothing is picked. Further picks show as "+N" (same as MultiSelect). */
   label: string;
   groups: TreeGroup[];
   value: string[];
   onChange: (value: string[]) => void;
   searchPlaceholder?: string;
   emptyText?: string;
+  /** "+N" after the label; default: one per further option picked. Campaigns count a fully checked group as one. */
+  more?: number;
+  /** Footer "Select all" (live campaign Industry picker): checks every option. Off by default. */
+  selectAll?: boolean;
   className?: string;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const selected = useMemo(() => new Set(value), [value]);
+  const extra = more ?? value.length - 1;
+  const allValues = useMemo(() => groups.flatMap((g) => g.options.map((o) => o.value)), [groups]);
+  const everything = allValues.every((v) => selected.has(v));
 
   const q = query.trim().toLowerCase();
   const shown = groups
@@ -54,14 +66,21 @@ export function TreeSelect({
   return (
     <Popover onOpenChange={(o) => !o && setQuery("")}>
       <PopoverTrigger asChild>
-        <Button variant="outline" className={className}>
-          {label}
-          {value.length > 0 && (
-            <Badge variant="brand" className="tabular-nums">
-              {value.length}
-            </Badge>
-          )}
-          <ChevronDownIcon data-icon="inline-end" />
+        {/* Same trigger as MultiSelect: h-8, "Any …" in subtle-foreground, first pick + "+N", chevron at the end. */}
+        <Button
+          id={id}
+          variant="outline"
+          className={cn("w-full justify-between font-normal", value.length === 0 && "text-subtle-foreground", className)}
+        >
+          <span className="flex min-w-0 flex-1 items-center gap-1.5">
+            <span className="truncate">{label}</span>
+            {value.length > 0 && extra > 0 && (
+              <Badge variant="brand" className="h-5 shrink-0 px-1.5 tabular-nums" aria-label={`and ${extra} more`}>
+                +{extra}
+              </Badge>
+            )}
+          </span>
+          <ChevronDownIcon data-icon="inline-end" className="text-muted-foreground" />
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="flex w-80 flex-col gap-2 p-2">
@@ -79,7 +98,7 @@ export function TreeSelect({
             const expanded = Boolean(q) || open[g.value];
             return (
               <div key={g.value} role="treeitem" aria-expanded={expanded} aria-selected={all}>
-                <div className="flex items-center gap-1 rounded-md px-1 py-0.5">
+                <div className="flex items-center gap-1 rounded-md px-1">
                   <Button
                     variant="ghost"
                     size="icon-xs"
@@ -113,12 +132,22 @@ export function TreeSelect({
             );
           })}
         </div>
-        {value.length > 0 && (
+        {(value.length > 0 || selectAll) && (
           <div className="flex items-center justify-between border-t px-1 pt-2">
-            <span className="text-sm text-muted-foreground tabular-nums">{value.length} selected</span>
-            <Button variant="link" size="sm" onClick={() => onChange([])}>
-              Clear
-            </Button>
+            {/* Counts what the trigger shows (a full section = 1 when `more` is passed), so "+N" and "N selected" agree. */}
+            <span className="text-sm text-muted-foreground tabular-nums">{value.length > 0 && `${more !== undefined ? more + 1 : value.length} selected`}</span>
+            <span className="flex items-center gap-3">
+              {selectAll && !everything && (
+                <Button variant="link" size="sm" onClick={() => onChange(allValues)}>
+                  Select all
+                </Button>
+              )}
+              {value.length > 0 && (
+                <Button variant="link" size="sm" onClick={() => onChange([])}>
+                  Clear
+                </Button>
+              )}
+            </span>
           </div>
         )}
       </PopoverContent>

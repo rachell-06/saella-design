@@ -60,6 +60,8 @@ export function DataTable<TData extends RowData>({
   renderExpanded,
   getRowCanExpand,
   defaultExpanded = {},
+  onRowClick,
+  activeRowId,
 }: {
   data: TData[];
   columns: DataTableColumn<TData>[];
@@ -79,6 +81,14 @@ export function DataTable<TData extends RowData>({
   getRowCanExpand?: (row: TData) => boolean;
   /** `true` expands every row, or a map of row ids. */
   defaultExpanded?: ExpandedState;
+  /**
+   * Opens the row's detail (e.g. a side sheet) from a click anywhere on the row (PATTERNS 9.1). Clicks on controls
+   * inside the row (buttons, links, checkboxes, menus, inputs) are ignored. Keep a real button in the row (usually
+   * the name) for keyboard users.
+   */
+  onRowClick?: (row: TData) => void;
+  /** Row id whose detail is open: the row stays highlighted while it is. */
+  activeRowId?: string | null;
 }) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting);
   const [rowSelection, setRowSelection] = useState({});
@@ -135,11 +145,10 @@ export function DataTable<TData extends RowData>({
               <TableRow key={group.id} className="group/row">
                 {group.headers.map((header) => {
                   const sorted = header.column.getIsSorted();
-                  const alignEnd = (header.column.columnDef.meta as ColumnMeta | undefined)?.align === "end";
                   return (
                     <TableHead
                       key={header.id}
-                      className={cn(alignEnd && "text-right", (header.column.id === "select" || header.column.id === "expand") && "w-10")}
+                      className={cn((header.column.id === "select" || header.column.id === "expand") && "w-10")}
                       aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
                     >
                       {header.isPlaceholder ? null : header.column.getCanSort() ? (
@@ -149,7 +158,6 @@ export function DataTable<TData extends RowData>({
                           onClick={header.column.getToggleSortingHandler()}
                           className={cn(
                             "group/sort -mx-1 h-auto gap-1 rounded-sm border-0 px-1 py-0 text-[length:inherit] font-[inherit] text-[color:inherit] hover:bg-transparent hover:text-foreground",
-                            alignEnd && "flex-row-reverse",
                             sorted && "text-foreground"
                           )}
                         >
@@ -186,14 +194,24 @@ export function DataTable<TData extends RowData>({
               rows.map((row) => (
                 <Fragment key={row.id}>
                   <TableRow
-                    data-state={row.getIsSelected() ? "selected" : undefined}
+                    data-state={row.getIsSelected() || row.id === activeRowId ? "selected" : undefined}
                     data-expanded={row.getIsExpanded() || undefined}
-                    className="group/row"
+                    aria-current={row.id === activeRowId || undefined}
+                    className={cn("group/row", onRowClick && "cursor-pointer")}
+                    onClick={
+                      onRowClick
+                        ? (e) => {
+                            const t = e.target as HTMLElement;
+                            if (t.closest("button, a, input, label, select, textarea, [role=checkbox], [role=menuitem], [data-no-row-click]")) return;
+                            onRowClick(row.original);
+                          }
+                        : undefined
+                    }
                   >
                     {row.getVisibleCells().map((cell) => {
                       const alignEnd = (cell.column.columnDef.meta as ColumnMeta | undefined)?.align === "end";
                       return (
-                        <TableCell key={cell.id} className={cn(alignEnd && "text-right tabular-nums")}>
+                        <TableCell key={cell.id} className={cn(alignEnd && "tabular-nums")}>
                           <table.FlexRender cell={cell} />
                         </TableCell>
                       );
@@ -269,7 +287,7 @@ export function DataTable<TData extends RowData>({
   );
 }
 
-/** Per-column options read by DataTable. Set `meta: { align: "end" }` on number columns. */
+/** Per-column options read by DataTable. Set `meta: { align: "end" }` on number columns: tabular-nums only; every column stays left-aligned (PATTERNS 9.1). */
 export type ColumnMeta = { align?: "start" | "end" };
 
 function PageButton({
@@ -291,15 +309,21 @@ function PageButton({
 }
 
 /**
- * Controls that only matter when you act on a row (checkbox, row actions): hidden until the row is hovered
- * or focused, always shown while a selection is in progress, on checked boxes, and on devices without hover.
- * Use it on row-action wrappers in cells too.
+ * Row checkboxes: hidden until the row is hovered or focused, always shown while a selection is in progress,
+ * on checked boxes, and on devices without hover. The empty select column reads as a margin, not a missing value.
  */
-export const revealOnRowHover = cn(
+const revealSelect = cn(
   "opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100",
   "group-data-[selecting=true]/dt:opacity-100 data-[state=checked]:opacity-100 data-[state=indeterminate]:opacity-100",
   "[@media(hover:none)]:opacity-100"
 );
+
+/**
+ * Row actions (the "…" menu and icon actions in the last cell) stay visible, muted, and darken on row hover.
+ * Hidden actions made the column look empty and users missed them (user request 2026-11-11).
+ */
+export const revealOnRowHover =
+  "text-muted-foreground transition-colors group-hover/row:text-foreground group-focus-within/row:text-foreground";
 
 function selectColumn<TData extends RowData>(): DataTableColumn<TData> {
   return {
@@ -308,7 +332,7 @@ function selectColumn<TData extends RowData>(): DataTableColumn<TData> {
     header: ({ table }) => (
       <Checkbox
         aria-label="Select all rows on this page"
-        className={revealOnRowHover}
+        className={revealSelect}
         checked={
           table.getIsAllPageRowsSelected() ? true : table.getIsSomePageRowsSelected() ? "indeterminate" : false
         }
@@ -318,7 +342,7 @@ function selectColumn<TData extends RowData>(): DataTableColumn<TData> {
     cell: ({ row }) => (
       <Checkbox
         aria-label="Select row"
-        className={revealOnRowHover}
+        className={revealSelect}
         checked={row.getIsSelected()}
         onCheckedChange={(v) => row.toggleSelected(v === true)}
       />

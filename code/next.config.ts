@@ -9,8 +9,10 @@ const nextConfig: NextConfig = {
   // The floating "N" dev-tools button sat on top of the account avatar in the sidebar (2026-10-29). Build and
   // runtime errors still open the overlay.
   devIndicators: false,
-  cacheComponents: true,
-  partialPrefetching: true,
+  // The shared demo build (Vercel, SAELLA_DEMO_BUILD=1) turns these off: most screens read the URL outside
+  // <Suspense>, which cacheComponents refuses to prerender. Local dev keeps them on.
+  cacheComponents: process.env.SAELLA_DEMO_BUILD !== "1",
+  partialPrefetching: process.env.SAELLA_DEMO_BUILD !== "1",
   turbopack: {
     rules: {
       "*.css": {

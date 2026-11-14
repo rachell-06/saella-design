@@ -1,27 +1,36 @@
 "use client";
 
-import { CircleCheckIcon, CircleSlashIcon, TriangleAlertIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { type EmailSafety, SAFETY_LABEL } from "@/lib/mock/contacts";
+import { cn } from "@/lib/utils";
 
-// Email safety badge (R10, 2026-10-29). Only the two levels that need a look get colour: caution is warning,
-// do not send is destructive; safe stays neutral so a long, mostly safe list reads calm. Same badge in the
-// contact table and the contact profile.
+// Email status as the live app (lib/email/contact-status.ts; decisions.md "Leads › Contacts"): Valid or Invalid.
+// The table's Status column shows a badge on every row, Valid included (PATTERNS 9.1 "Tag trạng thái có cột riêng");
+// Invalid carries its reason. Same Invalid badge in the contact profile.
+// Presentation from Studio Admin /dashboard/users StatusBadge (2026-11-10): outlined pill, tinted fill, dot + word,
+// its hard-coded colours swapped for Saella's destructive-soft tokens.
 
-const STYLE: Record<EmailSafety, { variant: "secondary" | "warning" | "destructive"; icon: React.ReactNode }> = {
-  safe: { variant: "secondary", icon: <CircleCheckIcon /> },
-  caution: { variant: "warning", icon: <TriangleAlertIcon /> },
-  do_not_send: { variant: "destructive", icon: <CircleSlashIcon /> },
-};
-
-/** Sort order for the Email status column: what needs attention first. */
-export const SAFETY_RANK: Record<EmailSafety, number> = { do_not_send: 0, caution: 1, safe: 2 };
-
-export function SafetyBadge({ safety, ...props }: { safety: EmailSafety } & React.ComponentProps<typeof Badge>) {
+export function InvalidBadge({ className, ...props }: React.ComponentProps<typeof Badge>) {
   return (
-    <Badge variant={STYLE[safety].variant} {...props}>
-      {STYLE[safety].icon}
-      {SAFETY_LABEL[safety]}
+    <Badge
+      variant="outline"
+      className={cn("gap-1.5 border-destructive/20 bg-destructive-soft px-2 text-destructive-soft-foreground", className)}
+      {...props}
+    >
+      <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
+      Invalid
+    </Badge>
+  );
+}
+
+export function ValidBadge({ className, ...props }: React.ComponentProps<typeof Badge>) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn("gap-1.5 border-success/20 bg-success-soft px-2 text-success-soft-foreground", className)}
+      {...props}
+    >
+      <span aria-hidden className="size-1.5 rounded-full bg-success" />
+      Valid
     </Badge>
   );
 }

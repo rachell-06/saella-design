@@ -1,4 +1,7 @@
-import { type Campaign, MARKETS, INDUSTRIES, type Template, CURRENT_USER } from "@/lib/mock/campaigns";
+import { type Campaign, MARKETS, industryClasses, type Template, CURRENT_USER } from "@/lib/mock/campaigns";
+
+// The seven sections the old flat industry list had (I, G, F, C, L, H, M), one per campaign.
+const SECTIONS = ["I", "G", "F", "C", "L", "H", "M"];
 
 // 60 fictional campaigns for the long-list preview (?state=many): 18 active, 5 not started, 37 ended.
 // Generated from fixed formulas (no randomness) so screenshots stay stable. Numbers are illustrative.
@@ -62,7 +65,7 @@ export const manyCampaigns: Campaign[] = Array.from({ length: 60 }, (_, i) => {
     startsOn: notStarted ? `2027-${pad(1 + (i % 3))}-01` : ended ? `2026-${pad(2 + (i % 6))}-01` : "2026-09-01",
     endsOn: notStarted ? `2027-${pad(4 + (i % 3))}-30` : ended ? `2026-${pad(3 + (i % 6))}-28` : i % 3 ? "2026-12-31" : undefined,
     countries: [country],
-    industries: [INDUSTRIES[i % INDUSTRIES.length]],
+    industries: industryClasses(SECTIONS[i % SECTIONS.length]),
     templates: templatesFor(i, ended, notStarted),
   };
 });

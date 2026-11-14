@@ -1,12 +1,13 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { type ContactList, contactLists, members } from "@/lib/mock/workspace";
 
-// Contacts mock (2026-10-28). Lists come from the shared `contactLists`; their contacts are generated here,
-// deterministically so screenshots are stable. A small module store keeps lists and contacts across client
-// navigation (/contacts → /contacts/[listId] → /companies "Save as contact list"), which React state alone
-// would lose. Names are fictional; "today" is 2026-10-27.
+// Contacts mock (2026-10-28; one flat book since 2026-11-10). The workspace has one contact book grouped by tag,
+// no named lists (PRD Contacts BR-RULE-CON-05, live app email_individual_contacts.tags; decisions.md "Leads ›
+// Contacts"). Contacts are generated here from a few groups, each with its own tags, deterministically so
+// screenshots are stable. A small module store keeps the book across client navigation (/contacts, the batch
+// wizard), which React state alone would lose. Self-upload holds only contacts the user uploads, never registry
+// data (designer decision 2026-11-12). Names are fictional.
 
 import { CURRENT_USER_ID, TODAY } from "@/lib/mock/constants";
 export { CURRENT_USER_ID, TODAY };
@@ -40,8 +41,8 @@ export const SAFETY_LABEL: Record<EmailSafety, string> = {
 export type CautionReason = "catch_all" | "role_address" | "new_domain" | "not_delivered";
 
 export const CAUTION_LABEL: Record<CautionReason, string> = {
-  catch_all: "The domain accepts every address, so we can't tell whether this mailbox exists",
-  role_address: "Shared inbox (info@, sales@…): often filtered, and nobody in particular reads it",
+  catch_all: "Accepts any address, so we can't confirm this mailbox exists",
+  role_address: "Shared inbox (info@, sales@…): often filtered, rarely read",
   new_domain: "The domain was registered recently and has no sending history",
   not_delivered: "No email has reached this address yet",
 };
@@ -78,140 +79,14 @@ export type Contact = {
   /** Set by address checks (catch-all domain, role inbox, new domain). Still sent to; shown as "Send with caution". */
   caution?: Exclude<CautionReason, "not_delivered">;
   addedOn: string;
-  /** Saved from the company registry: the address stays masked until unlocked (PRD-04 CO-UNLOCK-001). Sending still works. */
-  masked?: boolean;
   /** Last template sent to this contact (live app: "Templates sent" column). */
   lastSent?: { template: string; on: string };
 };
 
-export type ListMeta = Omit<ContactList, "contacts" | "unreachable">;
-
-type State = { lists: ListMeta[]; contacts: Record<string, Contact[]> };
+type State = { contacts: Contact[] };
 
 // ---------------------------------------------------------------------------------------------------------
-// Deterministic generation
-
-function rng(seed: number) {
-  let a = seed;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-const FIRST = ["Mai", "Huong", "Quang", "Thao", "Duc", "Lan", "Somchai", "Niran", "Aisyah", "Farid", "Siti", "Rizal", "Mei Ling", "Wei", "Joy", "Paolo", "Hana", "Khanh", "Arif", "Ploy", "Dewi", "Tuan", "Nadia", "Carlo"];
-const LAST = ["Nguyen", "Tran", "Le", "Pham", "Hoang", "Srisuk", "Wongsa", "Rahman", "Abdullah", "Tan", "Lim", "Santos", "Reyes", "Putri", "Wijaya", "Vu", "Dang", "Ong", "Chua", "Bautista"];
-const COMPANY_A = ["Lotus Bay", "Riverside", "Green Lagoon", "Silver Sand", "Mekong Star", "Palm Grove", "Coral Point", "Jade Hill", "Sunrise", "Harbor Light", "Orchid", "Blue Reef", "Golden Bamboo", "Lantern", "Bamboo Leaf", "Cloud Nine"];
-const COMPANY_B: Record<string, string[]> = {
-  l1: ["Hotel", "Resort", "Boutique Hotel", "Suites", "Hotel & Spa"],
-  l2: ["Home Living", "Trading", "Interiors", "Supply", "Tiles"],
-  l3: ["Distribution", "Building Supply", "Trading Sdn Bhd", "Materials", "Wholesale"],
-  l4: ["Architects", "Design Studio", "Atelier", "Interiors"],
-};
-const POSITIONS: Record<string, string[]> = {
-  l1: ["Purchasing manager", "Procurement officer", "General manager", "F&B manager", "Housekeeping manager"],
-  l2: ["Owner", "Buyer", "Sales manager", "Showroom manager"],
-  l3: ["Purchasing director", "Category manager", "Owner", "Operations manager"],
-  l4: ["Principal architect", "Interior designer", "Project architect", "Design director"],
-};
-const EXTRA_TAGS = ["vip", "met in person", "reorder", "samples sent"];
-const AUTO_REASONS: UnreachableReason[] = ["no_mailbox", "no_mailbox", "bounced", "low_quality", "complained", "bad_format"];
-const ROLE_INBOXES = ["info", "sales", "purchasing", "contact"];
-const SENT_TEMPLATES: Record<string, string> = {
-  l1: "Intro – ceramics catalog",
-  l2: "Nice to meet you at the fair",
-  l3: "Q4 reorder reminder",
-  l4: "New tile range lookbook",
-};
-
-const slug = (s: string) => s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "");
-
-function generate(list: ContactList): Contact[] {
-  const r = rng(list.id.charCodeAt(1) * 7919);
-  const pick = <T,>(xs: T[]) => xs[Math.floor(r() * xs.length)];
-  const suffixes = COMPANY_B[list.id] ?? ["Trading"];
-  const positions = POSITIONS[list.id] ?? ["Manager"];
-  const tld = list.id === "l1" ? "vn" : list.id === "l4" ? "sg" : list.id === "l2" ? "co.th" : "my";
-  // Spread the unreachable ones evenly through the list.
-  const every = list.unreachable > 0 ? Math.floor(list.contacts / list.unreachable) : Infinity;
-  return Array.from({ length: list.contacts }, (_, i) => {
-    const firstName = pick(FIRST);
-    const lastName = pick(LAST);
-    const company = `${pick(COMPANY_A)} ${pick(suffixes)}`;
-    const extra = r() < 0.18 ? [pick(EXTRA_TAGS)] : [];
-    const unreachable = i % every === every - 1 && Math.floor(i / every) < list.unreachable ? AUTO_REASONS[i % AUTO_REASONS.length] : undefined;
-    const day = 1 + (i % 27);
-    // A few addresses that may bounce (R10); picked by index so the random stream, and every other field, stays as it was.
-    const caution: Contact["caution"] = unreachable
-      ? undefined
-      : i % 29 === 3
-        ? "role_address"
-        : i % 37 === 8
-          ? "catch_all"
-          : i % 53 === 14
-            ? "new_domain"
-            : undefined;
-    const user = caution === "role_address" ? ROLE_INBOXES[i % ROLE_INBOXES.length] : `${slug(firstName)}.${slug(lastName)}${i > 40 ? i : ""}`;
-    return {
-      id: `${list.id}-c${i + 1}`,
-      firstName,
-      lastName,
-      email: `${user}@${slug(company)}.${tld}`,
-      company,
-      position: r() < 0.85 ? pick(positions) : undefined,
-      phone: r() < 0.5 ? `+${list.id === "l1" ? "84 28" : list.id === "l4" ? "65 6" : "60 3"}${Math.floor(1000000 + r() * 8999999)}` : undefined,
-      tags: extra,
-      unreachable,
-      caution,
-      addedOn: list.createdOn,
-      lastSent: r() < 0.7 && SENT_TEMPLATES[list.id] ? { template: SENT_TEMPLATES[list.id], on: `2026-10-${String(day).padStart(2, "0")}` } : undefined,
-    };
-  });
-}
-
-let state: State = {
-  lists: contactLists.map((l): ListMeta => ({ id: l.id, name: l.name, source: l.source, tags: l.tags, createdOn: l.createdOn, ownerId: l.ownerId })),
-  contacts: Object.fromEntries(contactLists.map((l) => [l.id, generate(l)])),
-};
-
-const listeners = new Set<() => void>();
-function setState(fn: (s: State) => State) {
-  state = fn(state);
-  listeners.forEach((l) => l());
-}
-function subscribe(l: () => void) {
-  listeners.add(l);
-  return () => listeners.delete(l);
-}
-
-/** Lists and contacts, shared by /contacts, /contacts/[listId] and /companies. */
-export function useContactsStore() {
-  return useSyncExternalStore(subscribe, () => state, () => state);
-}
-
-export function listStats(contacts: Contact[] = []) {
-  return { contacts: contacts.length, unreachable: contacts.filter((c) => c.unreachable).length };
-}
-
-/** Contacts per safety level, for the filter counts. */
-export function safetyCounts(contacts: Contact[]): Record<EmailSafety, number> {
-  const out: Record<EmailSafety, number> = { safe: 0, caution: 0, do_not_send: 0 };
-  for (const c of contacts) out[emailSafety(c)] += 1;
-  return out;
-}
-
-export const ownerName = (id: string) => members.find((m) => m.id === id)?.name ?? "Unknown";
-export const SOURCE_LABEL: Record<ListMeta["source"], string> = {
-  upload: "Uploaded",
-  companies: "From Companies",
-  agent: "Built by the agent",
-};
-
-// ---------------------------------------------------------------------------------------------------------
-// Tags (live app: lib/email/contact-tags.ts normalizeTags)
+// Tags (live app: lib/email/contact-tags.ts normalizeTags). Above the generator, which uses them at load.
 
 export const MAX_TAGS_PER_CONTACT = 20;
 export const MAX_TAG_LENGTH = 60;
@@ -231,57 +106,228 @@ export function normalizeTags(raw: string[]): string[] {
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Actions
+// Deterministic generation
 
-
-export function createList(meta: Pick<ListMeta, "name" | "source"> & { tags?: string[] }, contacts: Contact[] = []): string {
-  const id = `l-${Date.now().toString(36)}`;
-  setState((s) => ({
-    lists: [{ id, name: meta.name, source: meta.source, tags: meta.tags ?? [], createdOn: TODAY, ownerId: CURRENT_USER_ID }, ...s.lists],
-    contacts: { ...s.contacts, [id]: contacts },
-  }));
-  return id;
+function rng(seed: number) {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-export function renameList(id: string, name: string) {
-  setState((s) => ({ ...s, lists: s.lists.map((l) => (l.id === id ? { ...l, name } : l)) }));
-}
+const FIRST = ["Mai", "Huong", "Quang", "Thao", "Duc", "Lan", "Somchai", "Niran", "Aisyah", "Farid", "Siti", "Rizal", "Mei Ling", "Wei", "Joy", "Paolo", "Hana", "Khanh", "Arif", "Ploy", "Dewi", "Tuan", "Nadia", "Carlo"];
+const LAST = ["Nguyen", "Tran", "Le", "Pham", "Hoang", "Srisuk", "Wongsa", "Rahman", "Abdullah", "Tan", "Lim", "Santos", "Reyes", "Putri", "Wijaya", "Vu", "Dang", "Ong", "Chua", "Bautista"];
+const COMPANY_A = ["Lotus Bay", "Riverside", "Green Lagoon", "Silver Sand", "Mekong Star", "Palm Grove", "Coral Point", "Jade Hill", "Sunrise", "Harbor Light", "Orchid", "Blue Reef", "Golden Bamboo", "Lantern", "Bamboo Leaf", "Cloud Nine"];
+/**
+ * How the demo book was filled: one group per way people came in, each with the tags its people carry. Only a
+ * seed for the generator; the app knows tags, not groups. Batches in workspace.ts send to these tags.
+ */
+type Group = {
+  /** Id prefix of the generated contacts. */
+  key: string;
+  /** Random seed, so every field stays the same between renders. */
+  seed: number;
+  tags: string[];
+  size: number;
+  unreachable: number;
+  addedOn: string;
+  companySuffixes: string[];
+  positions: string[];
+  tld: string;
+  phonePrefix: string;
+  /** Template these people last got (live app "Templates sent"). */
+  sentTemplate: string;
+};
 
-export function deleteList(id: string) {
-  setState((s) => {
-    const rest = { ...s.contacts };
-    delete rest[id];
-    return { lists: s.lists.filter((l) => l.id !== id), contacts: rest };
+const GROUPS: Group[] = [
+  {
+    key: "h",
+    seed: 49,
+    tags: ["hotel", "vietnam"],
+    size: 1240,
+    unreachable: 22,
+    addedOn: "2026-09-28",
+    companySuffixes: ["Hotel", "Resort", "Boutique Hotel", "Suites", "Hotel & Spa"],
+    positions: ["Purchasing manager", "Procurement officer", "General manager", "F&B manager", "Housekeeping manager"],
+    tld: "vn",
+    phonePrefix: "84 28",
+    sentTemplate: "Intro – ceramics catalog",
+  },
+  {
+    key: "f",
+    seed: 50,
+    tags: ["fair", "thailand"],
+    size: 312,
+    unreachable: 7,
+    addedOn: "2026-09-02",
+    companySuffixes: ["Home Living", "Trading", "Interiors", "Supply", "Tiles"],
+    positions: ["Owner", "Buyer", "Sales manager", "Showroom manager"],
+    tld: "co.th",
+    phonePrefix: "60 3",
+    sentTemplate: "Nice to meet you at the fair",
+  },
+  {
+    key: "d",
+    seed: 51,
+    tags: ["distributor"],
+    size: 2875,
+    unreachable: 85,
+    addedOn: "2026-08-14",
+    companySuffixes: ["Distribution", "Building Supply", "Trading Sdn Bhd", "Materials", "Wholesale"],
+    positions: ["Purchasing director", "Category manager", "Owner", "Operations manager"],
+    tld: "my",
+    phonePrefix: "60 3",
+    sentTemplate: "Q4 reorder reminder",
+  },
+  {
+    key: "a",
+    seed: 52,
+    tags: ["architect", "singapore"],
+    size: 248,
+    unreachable: 3,
+    addedOn: "2026-10-20",
+    companySuffixes: ["Architects", "Design Studio", "Atelier", "Interiors"],
+    positions: ["Principal architect", "Interior designer", "Project architect", "Design director"],
+    tld: "sg",
+    phonePrefix: "65 6",
+    sentTemplate: "New tile range lookbook",
+  },
+];
+
+const EXTRA_TAGS = ["vip", "met in person", "reorder", "samples sent"];
+const AUTO_REASONS: UnreachableReason[] = ["no_mailbox", "no_mailbox", "bounced", "low_quality", "complained", "bad_format"];
+const ROLE_INBOXES = ["info", "sales", "purchasing", "contact"];
+
+const slug = (s: string) => s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "");
+
+function generate(g: Group): Contact[] {
+  const r = rng(g.seed * 7919);
+  const pick = <T,>(xs: T[]) => xs[Math.floor(r() * xs.length)];
+  // Spread the unreachable ones evenly through the group.
+  const every = g.unreachable > 0 ? Math.floor(g.size / g.unreachable) : Infinity;
+  return Array.from({ length: g.size }, (_, i) => {
+    const firstName = pick(FIRST);
+    const lastName = pick(LAST);
+    const company = `${pick(COMPANY_A)} ${pick(g.companySuffixes)}`;
+    const extra = r() < 0.18 ? [pick(EXTRA_TAGS)] : [];
+    const unreachable = i % every === every - 1 && Math.floor(i / every) < g.unreachable ? AUTO_REASONS[i % AUTO_REASONS.length] : undefined;
+    const day = 1 + (i % 27);
+    // A few addresses that may bounce (R10); picked by index so the random stream, and every other field, stays as it was.
+    const caution: Contact["caution"] = unreachable
+      ? undefined
+      : i % 29 === 3
+        ? "role_address"
+        : i % 37 === 8
+          ? "catch_all"
+          : i % 53 === 14
+            ? "new_domain"
+            : undefined;
+    const user = caution === "role_address" ? ROLE_INBOXES[i % ROLE_INBOXES.length] : `${slug(firstName)}.${slug(lastName)}${i > 40 ? i : ""}`;
+    return {
+      id: `${g.key}-c${i + 1}`,
+      firstName,
+      lastName,
+      email: `${user}@${slug(company)}.${g.tld}`,
+      company,
+      position: r() < 0.85 ? pick(g.positions) : undefined,
+      phone: r() < 0.5 ? `+${g.phonePrefix}${Math.floor(1000000 + r() * 8999999)}` : undefined,
+      tags: normalizeTags([...g.tags, ...extra]),
+      unreachable,
+      caution,
+      addedOn: g.addedOn,
+      lastSent: r() < 0.7 ? { template: g.sentTemplate, on: `2026-10-${String(day).padStart(2, "0")}` } : undefined,
+    };
   });
 }
 
-const contactKey = (c: Pick<Contact, "email" | "company">) => `${c.email.trim().toLowerCase()}|${c.company.trim().toLowerCase()}`;
+// Newest first, as the live app lists contacts (CON-SEQ-002 orders by creation time).
+const byNewest = (a: Contact, b: Contact) => b.addedOn.localeCompare(a.addedOn);
+
+let state: State = { contacts: GROUPS.flatMap(generate).sort(byNewest) };
+
+const listeners = new Set<() => void>();
+function setState(fn: (s: State) => State) {
+  state = fn(state);
+  listeners.forEach((l) => l());
+}
+function subscribe(l: () => void) {
+  listeners.add(l);
+  return () => listeners.delete(l);
+}
+
+/** The contact book, shared by /contacts, /companies and the batch wizard. */
+export function useContactsStore() {
+  return useSyncExternalStore(subscribe, () => state, () => state);
+}
+
+/** The book right now, for code outside React (import preview, setup checks). */
+export const getContacts = () => state.contacts;
+
+/** Distinct tags, case-insensitive, sorted (CON-SEQ-002 tags endpoint). */
+export function tagsOf(contacts: Pick<Contact, "tags">[]) {
+  return [...new Map(contacts.flatMap((c) => c.tags).map((t) => [t.toLowerCase(), t])).values()].sort((a, b) => a.localeCompare(b));
+}
+
+/** Contacts carrying any of these tags (case-insensitive), the way Contacts and batches pick people. */
+export function withAnyTag<T extends Pick<Contact, "tags">>(contacts: T[], tags: string[]) {
+  const want = new Set(tags.map((t) => t.toLowerCase()));
+  return contacts.filter((c) => c.tags.some((t) => want.has(t.toLowerCase())));
+}
+
+/** /contacts filtered by these tags, e.g. the "View contacts" action after saving. */
+export function contactsHref(tags: string[]) {
+  if (tags.length === 0) return "/contacts";
+  const q = new URLSearchParams(tags.map((t) => ["tag", t]));
+  return `/contacts?${q}`;
+}
+
+/** Contacts per safety level, for the filter counts. */
+export function safetyCounts(contacts: Contact[]): Record<EmailSafety, number> {
+  const out: Record<EmailSafety, number> = { safe: 0, caution: 0, do_not_send: 0 };
+  for (const c of contacts) out[emailSafety(c)] += 1;
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Actions
+
+/** The dedupe key: a contact is unique per (email, company name) in the workspace (BR-RULE-CON-05). */
+export const contactKey = (c: Pick<Contact, "email" | "company">) => `${c.email.trim().toLowerCase()}|${c.company.trim().toLowerCase()}`;
 
 /**
- * Add contacts to a list. A contact is unique per (email, company) and saving again updates it in place
- * (PRD Contacts BR-RULE-CON-05, AC-CON-I-04); tags are merged, not replaced, on add (CON-SEQ-003).
+ * Add contacts to the book, each with `tags` on top of its own. Same email + company already in the book →
+ * updated in place, tags merged, not replaced (PRD Contacts BR-RULE-CON-05, AC-CON-I-04, CON-SEQ-003).
  */
-export function upsertContacts(listId: string, incoming: Omit<Contact, "id" | "addedOn">[]) {
-  const existing = state.contacts[listId] ?? [];
-  const byKey = new Map(existing.map((c) => [contactKey(c), c]));
+export function upsertContacts(incoming: Omit<Contact, "id" | "addedOn">[], tags: string[] = []) {
+  const byKey = new Map(state.contacts.map((c) => [contactKey(c), c]));
+  const changed = new Map<string, Contact>();
+  const fresh: Contact[] = [];
   let added = 0;
   let updated = 0;
-  const next = [...existing];
+  const stamp = Date.now().toString(36);
   for (const c of incoming) {
-    const hit = byKey.get(contactKey(c));
+    const key = contactKey(c);
+    const hit = byKey.get(key);
     if (hit) {
       updated += 1;
-      const merged = { ...hit, ...stripEmpty(c), tags: normalizeTags([...hit.tags, ...c.tags]) };
-      next[next.indexOf(hit)] = merged;
-      byKey.set(contactKey(c), merged);
+      const merged = { ...hit, ...stripEmpty(c), id: hit.id, addedOn: hit.addedOn, tags: normalizeTags([...hit.tags, ...c.tags, ...tags]) };
+      byKey.set(key, merged);
+      changed.set(hit.id, merged);
+      const i = fresh.indexOf(hit);
+      if (i >= 0) fresh[i] = merged;
     } else {
       added += 1;
-      const row = { ...c, id: `${listId}-n${Date.now().toString(36)}${added}`, addedOn: TODAY, tags: normalizeTags(c.tags) };
-      next.unshift(row);
-      byKey.set(contactKey(c), row);
+      const row: Contact = { ...c, id: `n${stamp}-${added}`, addedOn: TODAY, tags: normalizeTags([...c.tags, ...tags]) };
+      fresh.push(row);
+      byKey.set(key, row);
     }
   }
-  setState((s) => ({ ...s, contacts: { ...s.contacts, [listId]: next } }));
+  // New rows first: the book lists newest first.
+  setState((s) => ({ contacts: [...fresh, ...s.contacts.map((c) => changed.get(c.id) ?? c)] }));
   return { added, updated };
 }
 
@@ -289,22 +335,20 @@ function stripEmpty<T extends object>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== "")) as Partial<T>;
 }
 
-export function isDuplicateIn(listId: string, c: Pick<Contact, "email" | "company">) {
+/** Whether this email + company is already in the book (import preview, AC-CON-I-04). */
+export function isInBook(c: Pick<Contact, "email" | "company">) {
   const key = contactKey(c);
-  return (state.contacts[listId] ?? []).some((x) => contactKey(x) === key);
+  return state.contacts.some((x) => contactKey(x) === key);
 }
 
-export function updateContacts(listId: string, ids: string[], fn: (c: Contact) => Contact) {
+export function updateContacts(ids: string[], fn: (c: Contact) => Contact) {
   const set = new Set(ids);
-  setState((s) => ({
-    ...s,
-    contacts: { ...s.contacts, [listId]: (s.contacts[listId] ?? []).map((c) => (set.has(c.id) ? fn(c) : c)) },
-  }));
+  setState((s) => ({ contacts: s.contacts.map((c) => (set.has(c.id) ? fn(c) : c)) }));
 }
 
-export function removeContacts(listId: string, ids: string[]) {
+export function removeContacts(ids: string[]) {
   const set = new Set(ids);
-  setState((s) => ({ ...s, contacts: { ...s.contacts, [listId]: (s.contacts[listId] ?? []).filter((c) => !set.has(c.id)) } }));
+  setState((s) => ({ contacts: s.contacts.filter((c) => !set.has(c.id)) }));
 }
 
 export function formatDate(iso: string) {
@@ -313,4 +357,3 @@ export function formatDate(iso: string) {
 
 export const fmt = (n: number) => n.toLocaleString("en-US");
 
-export { maskEmail } from "@/lib/format";

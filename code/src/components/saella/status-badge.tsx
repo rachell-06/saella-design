@@ -12,10 +12,10 @@ export type Status = CampaignStatus | TemplateStatus | BatchStatus;
 
 const statusStyles: Record<Status, { label: string; className: string }> = {
   "not-started": { label: "Not started", className: "bg-info-soft text-info-soft-foreground" },
-  active: { label: "Active", className: "bg-success-soft text-success-soft-foreground" },
+  active: { label: "Active", className: "bg-status-active text-status-active-foreground [&>[data-dot]]:bg-status-active-dot" },
   ended: { label: "Ended", className: "bg-muted text-muted-foreground" },
   archived: { label: "Archived", className: "bg-muted text-subtle-foreground" },
-  "template-active": { label: "Active", className: "bg-success-soft text-success-soft-foreground" },
+  "template-active": { label: "Active", className: "bg-status-active text-status-active-foreground [&>[data-dot]]:bg-status-active-dot" },
   "template-inactive": { label: "Inactive", className: "bg-muted text-muted-foreground" },
   draft: { label: "Draft", className: "bg-status-draft text-status-draft-foreground" },
   scheduled: { label: "Scheduled", className: "bg-status-scheduled text-status-scheduled-foreground" },
@@ -41,9 +41,9 @@ export function StatusBadge({
 }) {
   const style = statusStyles[status];
   return (
-    <Badge data-status={status} className={cn(style.className, className)}>
+    <Badge data-status={status} className={cn("gap-1.5 border-current/20 px-2", style.className, className)}>
       {/* Static dot: no infinite animation on controls (DESIGN.md); the brand colour already marks Sending as live. */}
-      <span aria-hidden className="size-1.5 rounded-full bg-current" />
+      <span aria-hidden data-dot className="size-1.5 rounded-full bg-current" />
       {label ?? style.label}
     </Badge>
   );

@@ -15,6 +15,8 @@ export type ConfirmRequest = {
   title: string;
   description: React.ReactNode;
   confirmLabel: string;
+  /** Defaults to "Cancel"; e.g. "Keep it" when removing a domain (PATTERNS 9.10). */
+  cancelLabel?: string;
   destructive?: boolean;
   onConfirm: () => void;
 };
@@ -41,7 +43,7 @@ export function ConfirmDialog({
         </AlertDialogHeader>
         {children}
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{request?.cancelLabel ?? "Cancel"}</AlertDialogCancel>
           <AlertDialogAction
             variant={request?.destructive ? "destructive" : "default"}
             disabled={confirmDisabled}

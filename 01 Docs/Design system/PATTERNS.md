@@ -7,9 +7,26 @@ Các mục giữ số 9.x (trước là mục 9 của `DESIGN.md`); code và doc
 ## 9.1 Bảng dữ liệu + bộ lọc
 **Dùng cho** Leads, Templates, Recipients, Settings. Quy tắc trình bày bảng: DESIGN.md mục 2 "Bảng".
 - **Cấu trúc.** `PageHeader` (tiêu đề `text-3xl`, nút nhỏ bên phải) → `FilterBar` (ô tìm, menu lọc, chip giá trị như "Country: Vietnam" nền `primary-subtle` có ×; "Clear filters" chỉ hiện khi đang lọc; số kết quả cập nhật ngay) → bảng.
+- **Cuộn trong khung** (chốt 2026-11-14, DESIGN.md mục 2 "Bảng"): mọi bảng cuộn trong vùng riêng, tiêu đề dính; đếm và phân trang ("1–50 of N", "Show 50 more") nằm ở chân khung, ngay dưới vùng cuộn.
 - **Luồng dữ liệu.** Lọc **trước** khi đưa vào bảng; bộ lọc nằm trên URL để agent và thông báo dẫn link được. Bảng chỉ sắp xếp, chọn, phân trang.
-- **Chọn nhiều.** Thanh thao tác hàng loạt hiện **phía trên** bảng (nền `primary-subtle`); thanh lọc vẫn giữ.
-- **Hình thức.** Bảng cao hết trang, tiêu đề dính khi cuộn. Cột số căn phải, `tabular-nums`. Icon sắp xếp chỉ ở cột đang sắp xếp.
+- **Chọn nhiều** (ĐX 2026-11-12, góp ý người dùng: thao tác chen vào đầu card làm rối). Thao tác hàng loạt nằm trong **thanh nổi** giữa, dưới bảng: `N selected | hành động | ✕` (✕ = Clear selection, nút icon có tooltip); nền `popover`, viền, `shadow-card`, control `size="sm"`, hiện bằng fade + trượt ngắn (tắt khi giảm chuyển động). Thanh là con flex dưới card nên bảng co lại, không che hàng phân trang, không đè nút "Ask the agent". Đầu card giữ nguyên (tiêu đề, tìm, Filter) dù có chọn hay không. Hành động chính của lựa chọn là nút cam đặc duy nhất của trang lúc đó; nếu `PageHeader` có nút cùng việc thì ẩn khi đang chọn để không lặp. Bảng không còn thao tác hàng loạt thì bỏ cột checkbox và thanh. Component dùng chung: `SelectionBar` (`components/saella/selection-bar.tsx`, khe `children` cho hành động). Mẫu: Find companies `N selected | Unlock · X credits | ✕`; Unlocked `Export` (mở dialog xuất file, mục 9.14); Self-upload `Add tags | Remove tag | Delete` (Delete hỏi lại bằng `AlertDialog`). Còn lệch: `DataTable` `bulkActions` vẫn vẽ thanh trên bảng; Social › Posts có bản chép riêng, nên chuyển sang `SelectionBar`.
+- **Chọn mọi kết quả qua các trang** (2026-11-14, New batch › Unlocked companies). Checkbox tiêu đề chỉ chọn **trang đang xem**. Khi cả trang đã chọn và còn kết quả ở trang khác, dòng đếm trên bảng hiện link "Select all N matching" (chọn mọi dòng khớp bộ lọc và ô tìm); có chọn thì kèm "Clear selection". Dòng đếm một dòng: "120 of 3,562 selected", không thêm ô số. Lựa chọn giữ nguyên khi đổi trang hoặc đổi bộ lọc.
+- **Không có cột ⋯ khi mọi thao tác dòng đã có chỗ khác** (người dùng chốt 2026-11-13): bấm dòng mở sheet, thao tác chính nằm ngay trong ô (vd. nút khoá Unlock ở Find companies) thì bỏ menu ⋯. Bảng còn thao tác chỉ có trong menu (Edit, Delete ở Self-upload) thì giữ.
+- **Hình thức.** Bảng cao hết trang, tiêu đề dính khi cuộn. Mọi cột căn trái, kể cả cột số (vẫn `tabular-nums`), cả tên cột lẫn ô; mũi tên sắp xếp nằm cạnh tên cột, bên trái. Chỉ cột thao tác dòng (⋯, nút icon cuối hàng) căn phải; cột checkbox giữ nguyên (designer chốt 2026-11-13). Icon sắp xếp chỉ ở cột đang sắp xếp.
+- **Bảng xếp hạng theo chỉ số** (leaderboard, người dùng yêu cầu 2026-11-12). Menu chỉ số mở đầu bằng "All metrics" và là mặc định: thứ tự mặc định, không tô cột nào. Chọn một chỉ số thì cả cột đó (tiêu đề + ô) phủ nền `primary-soft/40` (trong suốt để nền rê chuột của dòng vẫn thấy), tiêu đề chữ `primary-soft-foreground` kèm mũi tên ↓ (Highest) hoặc ↑ (Lowest), `aria-sort` trên tiêu đề. Số ở cột đó in đậm. Xếp theo đúng giá trị hiện ở cột (Highest giảm dần, Lowest tăng dần) để cột đọc theo thứ tự; dòng dưới ngưỡng mẫu không xếp hạng mà nằm trong "Not enough data to rank yet" (người dùng chốt 2026-11-12). Trên Overview chỉ hiện top 3 của thứ hạng hiện tại, thêm link "View all" (ghost, h-7) khi còn dòng; tiêu đề thẻ không có dòng chữ phụ, không giải thích ngưỡng mẫu (luật ngưỡng vẫn áp, người dùng chốt 2026-11-12); bấm cả dòng để lọc hoặc mở.
+- **Một bảng chỉ ở một tab** (người dùng chốt 2026-11-12). Bảng dùng chung cho nhiều tab của cùng màn (vd. Deliverability by recipient domain ở Overview) chỉ đặt ở tab hợp nhất. Tab khác chỉ hiện một Alert `warning` ngắn (≤12 từ) khi bảng đó có dòng bị tô theo ngưỡng 9.7, kèm nút "View in <tab>" chuyển tab, giữ bộ lọc, cuộn tới bảng. Không có gì bị tô: không hiện gì.
+- **Dòng có trang chi tiết thì bấm cả dòng để mở** (người dùng chốt 2026-11-11): `DataTable` `onRowClick` + `activeRowId`. Dòng có con trỏ tay và nền khi rê chuột (không gạch chân tên), dòng đang mở giữ nền chọn. Tên vẫn là nút thật cho bàn phím. Bấm vào control trong dòng (checkbox, menu, link) không mở.
+- **Trạng thái: tab hay Filter** (người dùng chốt 2026-11-12). Tab khi người dùng hay chuyển giữa các trạng thái và cần thấy số của từng trạng thái ngay. Đưa vào Filter (mục đầu, một lựa chọn, mặc định All, kèm số mỗi lựa chọn) khi màn thường xem tất cả cùng lúc, như Campaigns. Status khác All thành chip như các bộ lọc khác và tính vào số trên nút Filter.
+- **Bộ lọc gọn** (người dùng chốt 2026-11-12). Popover Filter mỗi mục một control có nhãn ở trên (Select cho một lựa chọn, `MultiSelect` cho nhiều lựa chọn), không trải danh sách checkbox ra, để popover chỉ vài dòng + chân Clear all / Done. Ngoại lệ: mục chỉ có **2–3 lựa chọn** thì hiện thẳng ra để bấm (checkbox hoặc chip bật/tắt), không giấu vào dropdown; từ 4 lựa chọn trở lên mới gom thành một control.
+  Spec chung (designer 2026-11-13, dựng một lần trong `components/saella/filter-popover.tsx`; màn không tự style):
+  - **Nút:** `FilterPopover`, outline "Filter" + `ListFilterIcon` + badge số. Cao bằng ô tìm bên cạnh: thanh công cụ trang h-8 (`size="default"`), đầu card h-7 (`size="sm"`); chữ luôn 14px.
+  - **Popover:** w-80, thân p-4, các mục cách nhau gap-4; chân Clear all (ghost, sm) trái, Done (outline, sm) phải.
+  - **Mục:** nhãn ở trên (`Label`, 14px/500, `FilterField`), cách control gap-2. Mọi control h-8, chữ 14px; `FilterSelect`, `FilterMultiSelect`, `TreeSelect` có trigger giống hệt (viền, bo, chevron muted, "+N" badge brand); `MultiSelect` hiện bao nhiêu lựa chọn vừa ô thì hiện ("fair, hotel, distributor"), phần không vừa mới gom vào "+N" (2026-11-14); chưa chọn thì "Any …"/"All" màu `subtle-foreground`. Số mỗi lựa chọn là "(n)" muted (`FilterOption.count`). Dòng trong dropdown cao 28px, bo `rounded-md`.
+  - **2–3 lựa chọn:** `FilterCheckList` (nhiều) hoặc `FilterRadioList` (một), xếp ngang.
+  - **Thứ tự mục:** trạng thái trước, rồi các lựa chọn đơn khác, rồi chọn nhiều; danh sách checkbox ngang không phải trạng thái để cuối.
+  - **Chip dưới thanh công cụ:** `FilterChips`: chip nền `primary-subtle` viền `primary-soft`, `rounded-md`, h-6, "Nhãn: giá trị ×" (nhiều giá trị: giá trị đầu + "+N", tooltip phần còn lại; nhiều chip cùng nhãn thì nhãn ghi một lần: "Tag: [fair ×] [hotel ×]", 2026-11-14). Lọc nhiều tag ở Leads › Self-upload là "có đủ tất cả tag" (2026-11-14), cách nhau gap-2, rồi Clear all (ghost, sm). Màn có điểm reset khác (New batch: "Reset to campaign") truyền `action`, cùng kiểu nút.
+- **Tag trạng thái có cột riêng** (người dùng chốt 2026-11-11). Badge trạng thái (Active, Disabled, Invited, Paused…) nằm trong cột "Status" riêng, cùng vị trí ở mọi dòng, không chen cạnh tên hay email. Dòng không có trạng thái đặc biệt vẫn hiện badge mặc định (vd. "Active") để cột đồng nhất. Không lặp badge khi tab hoặc bộ lọc đang chọn đã nói trạng thái đó (vd. tab "Active" ở Campaigns: thẻ không hiện "Active"). Thẻ campaign không có badge trạng thái ở mọi chế độ xem, kể cả All (người dùng chốt 2026-11-12): trạng thái chỉ lọc qua Filter. Ngoại lệ đi cùng ô tên: tag là dữ liệu của chính tên (vd. "+3" ngành) và nhãn thuộc tính đánh dấu một dòng duy nhất, không phải trạng thái (vd. "Default" ở bảng Senders).
+- **Bảng trong section card** (designer 2026-11-12, mẫu Studio Admin "Recent Leads"; đầu tiên ở template detail). Hai tầng: card có padding riêng → đầu card (tiêu đề, mô tả ≤1 dòng nếu cần; thao tác, bộ lọc, tìm ở bên phải) → bảng nằm trong khung riêng `rounded-lg border` bên trong padding của card, không tràn sát mép card. Hàng tiêu đề bảng nền token `--table-head` (`bg-table-head`, trung tính ấm theo tông primary: #f3ece3 sáng, #4a3e32 tối; đục để dòng cuộn đi dưới; không dùng `bg-muted`/xám). Mặc định cho **mọi bảng**: `TableHeader` (components/ui/table.tsx) đã có `bg-table-head` (2026-11-13). Bảng dài: khung có chiều cao tối đa, cuộn bên trong, tiêu đề dính; chân bảng "Showing N of M" là chữ nhạt dưới khung.
 - **Trạng thái.**
 
 | Trạng thái | Hiển thị |
@@ -28,10 +45,12 @@ Các mục giữ số 9.x (trước là mục 9 của `DESIGN.md`); code và doc
 
 ## 9.3 Trình soạn email
 **Dùng cho** Templates editor, Write with AI.
-- **Ba vùng.** Trái: khối, merge tag. Giữa: xem như người nhận. Phải: thuộc tính khối, kiểm nội dung.
+- **Hai khung như app thật** (2026-11-14). Trái: trình soạn (Letter: rich text TipTap; Design: khối, sửa chữ ngay trên email). Phải: xem như người nhận, luôn hiện. Không có thẻ thuộc tính khối: chữ sửa tại chỗ, ảnh chọn / kéo thả / dán ngay trên khối, alt text và link nút mở popover từ thanh nổi của khối.
+- **Email trước tiên** (designer 2026-11-14). Mở trình soạn là thấy ngay email ở màn đầu (1440×900: mép trên khung email ≤ ~420px; 1366×768 vẫn thấy). Trên email chỉ còn: một dòng tóm tắt campaign · sender (Details để mở tên, campaign, sender), dòng Subject, Preheader, kiểm subject một dòng, thanh công cụ. Kiểm nội dung là nút "N to fix before Mark active" trên dòng trạng thái dưới tiêu đề, mở danh sách; chọn một mục thì nhảy tới trường hoặc khối. Không đặt khối nào đẩy email xuống khi chọn khối.
+- **Thứ tự và thêm khối** (2026-11-14). Kéo bằng tay nắm trên thanh nổi của khối đang chọn (không kéo từ chữ đang sửa), vạch cam ở chỗ thả, Undo trong toast; Alt+↑/↓ cũng di chuyển và đọc vị trí mới. Thêm khối: nút "Add block" trên thanh công cụ (sau khối đang chọn hoặc cuối), "+" ở khe giữa hai khối, "Add a block below" trên thanh nổi; khối chữ mới nhận con trỏ ngay.
 - **Merge tag** hiện dạng chip, kể cả ngoài trình soạn (subject ở báo cáo batch và New batch, `SubjectText`). Tag lạ viền `destructive` và chặn "Mark active".
 - **Kiểm subject** chấm ngay khi gõ, không chặn lưu. Chỉ liệt kê mục chưa đạt; mục đạt gộp thành "6 of 6 look good".
-- **Write with AI.** Một lối vào duy nhất (tab ở panel phải). Kết quả vào vùng xem trước; người dùng chọn "Use" / "Try again", không ghi đè thẳng.
+- **Write with Saella.** Một lối vào: nút trên thanh công cụ trình soạn, mở hộp thoại (một ô nhập mỗi lúc, ảnh tham khảo trong ô). Bản nháp hiện trong hộp; người dùng chọn "Use this draft" / "Try again", không ghi đè thẳng; Undo trong toast.
 - **Màu email tách khỏi màu UI.** Màu template do người dùng chọn. Khung email luôn dùng bảng màu sáng `.email-canvas` (token `--email-*`, cố ý không có bản `.dark`), kể cả khi app ở dark: hiện đúng thứ người nhận thấy.
 
 ## 9.4 Agent đề xuất → người dùng duyệt
@@ -39,14 +58,16 @@ Theo PRD-03 (https://pgg-prd-lib.vercel.app/docs/saella-prd-aiagent).
 
 | Phần | Thiết kế |
 |---|---|
-| **Lối vào** | Nút nổi "Ask the agent" trên mọi trang trừ `/agent`. Nền `primary-soft`, viền `primary/20`, có bóng vì là phần tử nổi; không bao giờ cam đặc, để nút cam đặc của trang vẫn là duy nhất. Mở panel phải, kéo 320–900px |
-| **Ô nhập** | "Ask the agent…", có đính kèm, dòng nhắc "Writes wait for your approval". Đang trả lời thì nút Gửi thành Stop |
+| **Lối vào** | Agent chỉ có panel, không có trang riêng (bỏ `/agent` 2026-11-13). Nút nổi "Ask the agent" trên mọi trang (kiểu nút: `DESIGN.md` mục 8, `AgentPanel`). Màn khác mở panel kèm câu hỏi đầu bằng `openAgent({ prompt })` (`features/agent-chat`), không dẫn link. Mở cửa sổ chat nổi góc phải dưới thay chỗ nút (400px, cao từ dưới thanh trên 0,5rem tới cách đáy 1rem; Expand lên 560px; `rounded-card`, viền, `shadow-float`, nền `popover`; Esc đóng; trang không co), bản panel ghim phải kéo 320–900px xem bằng `?agent=dock` (đang thử, `decisions.md` Chưa chốt) |
+| **Đầu panel** | Saella mini + "Agent" + tiêu đề thread · Chat history · New chat · Expand (cửa sổ nổi) · Close. Không có menu Approvals (bỏ 2026-11-13): duyệt ở thẻ trong hội thoại. Chat history: mọi thread mới nhất trước, tối đa 50, mỗi dòng tiêu đề + Private/Company · thời gian (AC-AG-T-01/02), cuộn trong menu |
+| **Ô nhập** | "Ask the agent…", có đính kèm (1 ảnh + 1 tài liệu, ≤ 5 MB, chỉ lượt này). Thanh dưới: kẹp giấy, nút Gửi; đang trả lời thì Gửi thành Stop |
+| **Không chip duyệt** | Ô nhập không có chip duyệt (bỏ 2026-11-12, người dùng chốt): agent tự làm các bước, chỉ dừng ở bước gửi email bằng thẻ duyệt trong chat; thẻ có "Always allow" (bật/thu hồi, chỉ cho người đó, PRD-03 AC-AG-P-01..03). Không câu trấn an tĩnh trong ô nhập hay lời chào. |
 | **Tin nhắn** | Người dùng: bong bóng `muted` bên phải. Agent: không bong bóng, rộng hết để chứa bảng và thẻ duyệt. Lần đầu: Saella mini 56px + 3 gợi ý bấm được |
 | **Đang làm** | `AgentSteps`: mỗi tool call một dòng (quay khi chạy, tick khi xong, đỏ khi lỗi), bấm để xem chi tiết |
-| **Duyệt** | `ApprovalCard` cho bước bị chặn (chặn 2 hay 5 bước: chờ chốt, `decisions.md`). Dải "Needs your approval" nền `primary-soft`; thân = hành động + chi tiết + một dòng hệ quả; nút **Approve** / **Always allow this step** / **No**. Ghi chú "Always allow" nằm trong ⓘ cạnh tiêu đề Campaign flow |
+| **Duyệt** | `ApprovalCard` cho bước bị chặn (chặn 2 hay 5 bước: chờ chốt, `decisions.md`). Dải "Needs your approval" nền `primary-soft`; thân = hành động + chi tiết + một dòng hệ quả; nút **Approve** / **Always allow this step** / **No**. Thu hồi bằng "Ask me again" dưới bước đã chạy tự động |
 | **Gửi thật** | Tick xác nhận đúng số người nhận trước khi Approve. Từ 100 người nhận thì gửi thử 20 trước |
 | **Sau khi quyết** | Thẻ thu thành một dòng: tick + kết quả, hoặc "You said no. Nothing was changed." |
-| **Approval queue** | Sheet gom việc chờ duyệt của mọi thread: trái danh sách, phải bản xem trước đúng thứ sẽ lưu/gửi |
+| **Always allow** | Bật bằng "Always allow this step" trên thẻ duyệt. Bước chạy tự động có dòng mờ "Ran without asking · Ask me again" dưới thẻ; "Ask me again" (link) thu hồi, agent lại hỏi (AC-AG-P-02) |
 | **Lỗi** | Mất kết nối: bong bóng `destructive` + "Try again". Quá số bước: "Stopped for safety…". Giới hạn tần suất: dòng có thời gian chờ |
 
 ## 9.5 Màn trống
@@ -57,10 +78,13 @@ Theo PRD-03 (https://pgg-prd-lib.vercel.app/docs/saella-prd-aiagent).
 **Dùng cho** Campaigns (campaign → template).
 - **Bố cục.** Tab trạng thái có đếm, cùng hàng với tìm kiếm + lọc. Dưới là khung chia đôi: trái 280px danh sách cha (mục chọn nền `primary-subtle` + vạch `brand` bên trái), phải là chi tiết (đầu trang, `KpiStrip`, bảng con có hàng tiêu đề).
 - **Trạng thái chọn** ghi vào URL (`?c=<id>`). Bộ lọc làm mất mục đang chọn thì tự chọn mục đầu.
-- **Dòng con phụ thuộc** (follow-up) nằm ngay dưới dòng gốc, thụt vào có ↳; dòng phụ là điều kiện.
+- **Follow-up và automation chỉ ở trang chi tiết template** (designer chốt 2026-11-13). Danh sách Templates và Campaigns không có dòng follow-up, không có lối vào Automate; người dùng mở template để xem và đặt lịch, follow-up (thẻ Automation, hai tab Schedule / Follow-up: bảng lịch gửi; bảng flow có dòng mở ra từng bước, đánh dấu "This template" ở bước của template đang xem). Tìm kiếm hay bộ lọc khớp một follow-up thì hiện template gốc của nó; số kết quả chỉ đếm template.
 - **Mở rộng dòng** (`renderExpanded`) chỉ khi dòng con ít và không cần đủ cột.
 
 ## 9.7 Số liệu
+- **Dòng phụ dưới số KPI viết "X/Y đơn vị"** (người dùng chốt 2026-11-12): "8,479/8,675 sent", không "8,479 of 8,675 sent". Câu văn và tooltip vẫn viết chữ ("12 bounced of 120 sent").
+- **Số dư credit chỉ ghi phần còn lại** (người dùng chốt 2026-11-12, ngoại lệ của quy tắc X/Y trên): "815 credits left", không "815/1,100", không "815 of 820". Vòng tròn ở sidebar vẫn vẽ tỉ lệ còn lại.
+- **Dòng credit vào/ra** (người dùng chốt 2026-11-12): số dương (+1,000, hoàn credit) màu `success-soft-foreground`, số âm (−18) màu `destructive-soft-foreground`, giữ dấu +/− (dấu trừ thật "−"), `tabular-nums`. Chỉ dùng cho dòng chảy (bảng Usage, tóm tắt Credits used / added); số dư còn lại không tô màu.
 Ngưỡng và màu: DESIGN.md mục 2 "Số liệu". Mục này quy định cách trình bày.
 
 **Một nguồn dữ liệu.** KPI, biểu đồ và bảng chia nhỏ trong cùng một khối lọc tính từ cùng một tập dữ liệu đã lọc. Tỉ lệ tổng = tổng tử ÷ tổng mẫu, không lấy trung bình tỉ lệ từng dòng.
@@ -73,13 +97,13 @@ Ngưỡng và màu: DESIGN.md mục 2 "Số liệu". Mục này quy định các
 | Open, Click, Reply, Unsub | "3,462 of 8,479 delivered" |
 
 **Tỉ lệ trong bảng.**
-- Mỗi tỉ lệ một cột số căn phải, để so và sắp xếp được. Số đếm xám trong ngoặc ngay sau: "12.2% (93)" (chốt 2026-11-05).
+- Mỗi tỉ lệ một cột số căn trái như mọi cột (9.1), `tabular-nums`, để so và sắp xếp được. Số đếm xám trong ngoặc ngay sau: "12.2% (93)" (chốt 2026-11-05).
 - Mẫu số trong tooltip (không dùng `title=` native). Không cần cột Delivered riêng.
-- Thanh phần trăm (vd. Links) = phần của tổng thật, in kèm %; không so với dòng cao nhất hay với ngưỡng.
+- Thanh phần trăm (vd. Links) = phần của tổng thật, in kèm %; không so với dòng cao nhất hay với ngưỡng. Sức khoẻ gửi thư dùng **vòng điểm 0–100** như app thật (công thức và dải màu theo app thật), không dùng thanh so với ngưỡng (người dùng chốt 2026-11-12).
 
 **Tương tác.**
 - Ô số liệu ở báo cáo bấm được, mở danh sách đã lọc tương ứng.
-- Lọc theo sự kiện bằng chip có đếm (`ToggleGroup`), không dropdown.
+- Lọc theo sự kiện bằng **một dropdown** có đếm ("Opened · 1,266", mặc định "Everyone"), đặt cạnh Export và ô tìm; không bày hàng chip (người dùng chốt 2026-11-12, đổi từ chip).
 
 **Biểu đồ theo thời gian.**
 - Mỗi cột là một khoảng thời gian, cộng gộp mọi campaign trong phạm vi lọc; không bao giờ một cột mỗi campaign.
@@ -93,7 +117,7 @@ Ngưỡng và màu: DESIGN.md mục 2 "Số liệu". Mục này quy định các
 
 - Tỉ lệ của một cột = tổng tử ÷ tổng mẫu của khoảng đó. Dưới 20 lượt gửi: cột xám, tooltip "too few to judge".
 - Mỗi khoảng một ô chia đều bề ngang; cột rộng tối đa 48px, nằm giữa ô. Mỗi cột một nhãn ngay dưới ô của nó; theo ngày thì chỉ số ngày, kèm tháng ở cột đầu và ngày 1 ("Oct 5 6 … Nov 1 2 3"). Khoảng không gửi: vạch xám 2px ở đáy.
-- Ngày không có dữ liệu thì bỏ điểm, không vẽ về 0. Trục tự co theo chỉ số đang chọn.
+- Biểu đồ số lượng (vd. Send volume): ngày không gửi vẽ 0 để đường liền (người dùng chốt 2026-11-12, như app thật). Biểu đồ tỉ lệ: khoảng không có mẫu thì bỏ điểm, không vẽ về 0. Trục tự co theo chỉ số đang chọn.
 
 **Biểu đồ theo campaign → template → batch.**
 - Mỗi batch rơi vào cột của ngày gửi; open/reply về sau vẫn cộng về ngày gửi.
@@ -126,6 +150,8 @@ Các mục 9.9–9.14 viết ngày 2026-11-10 từ PRD (các module Contacts, Em
 
 ## 9.10 Phản hồi và xác nhận
 
+- **Màn hình thấp:** Dialog/AlertDialog cao tối đa `100dvh − 2rem`, nội dung cuộn bên trong, chân nút dính đáy nên nút luôn bấm được (`components/ui/dialog.tsx`, `alert-dialog.tsx`; lỗi người dùng báo 2026-11-12).
+
 | Kênh | Dùng khi | Nguồn |
 |---|---|---|
 | **Toast** (`sonner`) | Báo kết quả ngắn của một hành động: đã lưu, đã xoá, lỗi không chặn việc khác | App thật: `message.*` là kênh chính |
@@ -146,7 +172,10 @@ Các mục 9.9–9.14 viết ngày 2026-11-10 từ PRD (các module Contacts, Em
 
 **Hoàn tác (undo).** PRD và app thật đều chưa có cho dữ liệu, nên không hứa "Undo" trong toast. Xoá campaign là xoá mềm (AC-EC-C-03) nhưng chưa có giao diện khôi phục.
 
-**Thay đổi chưa lưu.** Rời trình soạn hoặc Settings khi còn thay đổi: hỏi **Save** / **Discard** / **Keep editing** (app thật `EmailDomainsManager.tsx`, `EmailTemplateEditor.tsx`).
+**Thay đổi chưa lưu.** Rời trình soạn hoặc Settings khi còn thay đổi: hỏi **Save** / **Discard** / **Keep editing** (app thật `EmailDomainsManager.tsx`, `EmailTemplateEditor.tsx`). Dùng `UnsavedDialog` + `useLeaveGuard` (`lib/leave-guard.ts`): chặn mọi đường rời trang (link, nút ← trên thanh trên, Back của trình duyệt, đóng tab). Thứ tự nút (chốt 2026-11-14): **Discard** đứng riêng bên trái; **Keep editing** + **Save** đứng cạnh nhau bên phải, Save là nút chính; mở hộp không hiện viền focus trên nút nào.
+
+- **Chân hộp có từ 3 nút** (người dùng chốt 2026-11-11): Cancel tách sát mép trái (`sm:mr-auto`), các nút hành động gom bên phải, nút mạnh nhất ngoài cùng. Hộp 2 nút giữ nguyên: Cancel cạnh nút chính, cả hai bên phải.
+- **Bấm ra ngoài là đóng** (người dùng chốt 2026-11-11): mọi Dialog và AlertDialog đóng khi bấm nền mờ hoặc Esc, tính như Cancel. Vì vậy "đóng" không bao giờ được làm thay đổi dữ liệu.
 
 ## 9.11 Form và kiểm lỗi
 
@@ -154,8 +183,10 @@ Các mục 9.9–9.14 viết ngày 2026-11-10 từ PRD (các module Contacts, Em
 - **Giới hạn độ dài.** Trường ngắn (tên, tiêu đề) dùng giới hạn cứng. Trường dài (hướng dẫn agent, 4,000 ký tự, AC-AG-I-01) **không cắt ngầm**: hiện bộ đếm "n / 4,000", vượt thì báo lỗi và khoá nút lưu (app thật `AgentSettingsSection.tsx`).
 - **Giới hạn số lượng** (số domain, sender, thành viên, dòng import, dung lượng file): nói trước khi người dùng chạm tới, vd. "Up to 1,000 rows, 5 MB" ngay ở ô chọn file. Khi đã đầy, nút thêm khoá kèm tooltip nói lý do (app thật: nút Add domain).
 - **Trùng lặp.** Contact trùng email + công ty thì **cập nhật** bản cũ, không tạo bản mới (PRD AC-CON-M-02, AC-CON-I-04); giao diện nói rõ điều này ở bước xem trước import và khi lưu.
-- **Import.** Luôn có bước xem trước trước khi ghi (AC-CON-I-02); dòng lỗi hoặc bị bỏ qua được liệt kê kèm lý do.
+- **Import.** Luôn có bước xem trước trước khi ghi (AC-CON-I-02); dòng lỗi hoặc bị bỏ qua được liệt kê kèm lý do. Bước review (2026-11-12): số đếm nói một lần ở mô tả hộp (mới + cập nhật), lỗi là một cảnh báo có số dòng + tải file lỗi, lý do từng dòng nằm ở cột Result của bảng, dòng lỗi xếp lên đầu; không thêm dải số liệu hay chú thích cuối hộp.
 - **Lưu lỗi.** Giữ nguyên dữ liệu đã nhập và ở lại bước hiện tại (PRD Onboarding AC-ONB-W-04).
+
+- **Lỗi không đổi màu nhãn** (người dùng chốt 2026-11-11): chỉ viền ô nhập và dòng lỗi (`FieldError`) đỏ; nhãn giữ màu chữ thường.
 
 ## 9.12 Quyền và giới hạn
 
@@ -171,9 +202,12 @@ Các mục 9.9–9.14 viết ngày 2026-11-10 từ PRD (các module Contacts, Em
 **Giới hạn gói, credit, hạn mức gửi:**
 - Hiện phần còn lại trước khi chạm giới hạn. Khi chạm: `Alert` nói chuyện gì xảy ra và cách mở khoá, vd. "Shared-domain monthly limit reached. Verify your own domain to send more." (app thật `api/email/send/route.ts`).
 - Gửi vượt hạn mức ngày: phần dư dời sang ngày sau, không tính là lỗi (AC-EC-W-03); giao diện ghi rõ "deferred", không tô đỏ.
-- Hết credit: PRD chưa định giao diện (xem "Chưa chốt").
+- Hết credit: mục 9.18.
 
 ## 9.13 Định dạng, cắt chữ, ngôn ngữ
+
+- **Tiêu đề trang luôn có dòng mô tả** (người dùng chốt 2026-11-12): `PageHeader` bắt buộc một dòng dưới tiêu đề: `description` (một câu ≤12 từ nói trang này để làm gì) hoặc, ở trang chi tiết, dòng thông tin riêng (badge trạng thái, chiến dịch…) qua `children`. Không thêm dòng chỉ lặp thứ đã có trên trang (vd. subject đã ở thẻ Content). Thẻ (card) bên trong thì không bắt buộc.
+- **Không lặp thông tin:** breadcrumb chỉ liệt kê trang cha; tên trang đã là tiêu đề ngay dưới nên không lặp lại trong breadcrumb (`PageHeader`, người dùng chốt 2026-11-12).
 
 **Ngôn ngữ** (PRD Language):
 - Thứ tự chọn: cài đặt của người dùng → ngôn ngữ trình duyệt → English (BR-RULE-LNG-01). Chuỗi chưa dịch rơi về English (BR-RULE-LNG-04).
@@ -191,6 +225,8 @@ Các mục 9.9–9.14 viết ngày 2026-11-10 từ PRD (các module Contacts, Em
 **Cắt chữ.**
 - Một dòng, "…" ở cuối, tooltip hiện đủ khi rê chuột hoặc Tab tới (app thật `CompaniesTable.tsx`).
 - **Tooltip luôn dùng `Hint`** (`components/saella/hint.tsx`, bọc Tooltip của shadcn), không dùng `title=` native: nó hiện chậm, không theo token, không mở bằng bàn phím. Hint mang thông tin cần thiết trên phần tử không bấm được (vd. icon "Email on file") thì thêm `tabIndex={0}`. Ngoại lệ duy nhất: chữ bị cắt dùng `title=` lặp lại đủ chữ.
+- **Mục trong menu luôn một dòng** (người dùng chốt 2026-11-11): `DropdownMenuContent` rộng theo nội dung (`w-max`, tối đa 320px), không theo nút mở; nhãn mục ngắn để không phải xuống dòng.
+- **Tooltip và ⓘ phải ngắn: người dùng không đọc đoạn dài** (người dùng chốt 2026-11-11). Tooltip (`Hint`): một câu, tối đa ~12 từ. ⓘ: tối đa 3 gạch, mỗi gạch một dòng ngắn (~6 từ), tổng ~20 từ; không tiêu đề lặp lại nhãn đã có. Chỉ giữ điều người dùng cần để quyết định hoặc tránh lỗi; bỏ cách hệ thống chạy, ngoại lệ hiếm, lịch sử. Dài hơn thì cắt bớt, đưa vào trang con hoặc link "Learn more", không nhồi vào ⓘ.
 - Cột tên chính không bị bóp khi thêm cột; dòng phụ trong bảng cắt trước, tên cắt sau.
 - URL dài cắt ở giữa, giữ tên miền và phần cuối (**ĐX**).
 
@@ -209,6 +245,8 @@ Các mục 9.9–9.14 viết ngày 2026-11-10 từ PRD (các module Contacts, Em
 
 ## 9.15 Chữ trên màn (chốt 2026-11-10)
 Lỗi hay gặp: agent đọc PRD và code rồi đưa hết lên màn, làm màn rối và che mất thông tin chính. PRD và code là để hiểu **cách màn hoạt động**, không phải danh sách thứ cần hiện.
+
+**Việc kỹ thuật cho người không kỹ thuật** (người dùng chốt 2026-11-12): một câu kết luận trên đầu ("Ready to send…"), mỗi mục gọi bằng việc nó làm cho người dùng ("Signs your emails") kèm tên kỹ thuật xám bên cạnh, chuỗi thô (bản ghi DNS, ID) ẩn sau "Show …" và mở sẵn chỉ khi mục đó đang lỗi; trạng thái là hành động ("Done", "Not found yet", "Works · Make it stronger"). Mẫu: Settings › Domain › Records.
 
 **Phép thử cho mỗi chữ trên màn:** "người dùng **làm gì** với thông tin này?" (quyết định, bấm, so sánh, sửa). Không trả lời được thì bỏ; trả lời được nhưng hiếm khi cần thì đưa vào tooltip, ⓘ, sheet chi tiết hoặc trang con.
 
@@ -238,7 +276,7 @@ Người dùng chốt lấy Studio Admin (`D:\Workspace\Saella\Studio Admin`, tr
 |---|---|
 | Đầu trang | Tiêu đề 30px chữ thường; mô tả `text-sm` `muted-foreground` ngay dưới. Nút `size="sm"` (28px) bên phải: outline trước, nút cam cuối |
 | Nhịp khoảng cách | Khối trên trang cách 16px, từ `md` 24px. Trong card và toolbar: 8–12px |
-| Bảng | Ô lề 16px, hàng ~48px, tên cột 500 màu chữ chính không nền, rê chuột `muted/50`. Dòng hai tầng: tên `font-medium`, dòng phụ `text-sm muted-foreground` |
+| Bảng | Cột chia bằng đường kẻ dọc mảnh (`border-r border-border/50`, cột cuối không kẻ). Ô lề 16px, hàng ~48px, tên cột 500 màu chữ chính không nền, rê chuột `muted/50`. Dòng hai tầng: tên `font-medium`, dòng phụ `text-sm muted-foreground` |
 | Thao tác dòng | Nút icon ghost "⋯" ở cột cuối, menu `align="end"`; cột thao tác căn phải |
 | Phân trang | "Rows per page" (10 / 20 / 50) + "Page X of Y" + nút trang dạng icon; chỉ hiện khi dài hơn một trang (`DataTable`) |
 | Bảng trống | Một dòng "No results." căn giữa khi lọc không ra; chưa có dữ liệu thì theo mục 9.5 |
@@ -246,5 +284,41 @@ Người dùng chốt lấy Studio Admin (`D:\Workspace\Saella\Studio Admin`, tr
 | Form | Nhãn nằm trên trường; trường rộng hết khung, khung form tối đa ~512px (`max-w-lg`); hai trường ngắn đứng cạnh nhau `grid sm:grid-cols-2 gap-4` |
 | Chân dialog, sheet | Nút căn phải: Cancel (outline) trước, nút chính sau |
 | Biểu đồ | Luôn nằm trong Card có tiêu đề, điều khiển (chọn kỳ…) ở `CardAction`. Không vạch dọc, không vạch chia trục; chữ trục `text-xs` `muted-foreground`; tooltip dạng `indicator="line"` |
-| Chọn kỳ | Một `Select size="sm"` các kỳ có sẵn ở góc phải; chọn "Custom" mới mở `DateRangePicker` |
+| Chọn kỳ | Một nút `outline size="sm"` ở góc phải ghi kỳ đang chọn, mở một popover: các kỳ có sẵn bên trái (bấm là áp dụng, đóng), "Custom range" lịch 2 tháng bên phải, Apply mới áp dụng; không chọn được ngày tương lai (như app thật; mẫu: `PeriodPicker` ở Overview) |
 | Dropdown | `align="end"`, rộng 160–192px (`w-40`, `w-48`) |
+
+## 9.17 Chờ tải (ĐX 2026-11-11)
+Trang có dữ liệu nặng không được để màn trắng. App thật chỉ có `loading.tsx` ở các route Email, dùng skeleton chung của antd không khớp bố cục. Bản mới: khung trang hiện ngay, mỗi khối dữ liệu tự tải và báo tiến độ theo thời gian chờ. Demo: Overview và Leads › Self-upload, thêm `?slow=1` hoặc `?slow=fail` vào URL.
+
+| Mốc | Hiển thị |
+|---|---|
+| **0s** (bấm link) | Thanh mảnh 2px màu `brand` chạy ở mép trên (`RouteProgress`); mục sidebar vừa bấm sáng ngay, không chờ route |
+| **~0.3s** (route hiện) | `PageHeader`, tab, ô tìm, bộ lọc, nút hiện thật; vùng dữ liệu là skeleton đúng hình khối thật. Khối nào xong trước hiện trước |
+| **1s** (chốt 2026-11-14) | Hộp trạng thái đè giữa skeleton: bước đang làm + thanh tiến độ + phần trăm, để người dùng biết phải chờ bao lâu (data thật tải lâu hơn bản demo). **Đếm được** (dòng về theo từng trang): % thật, "1,500 / 4,675 contacts · 32%". **Không đếm được** (số liệu tổng hợp, biểu đồ, AI viết): % ước tính theo thời gian thường mất, ghi "~" và "usually ~8s"; tới thời gian thường mất là ~90%, sau đó nhích dần tối đa 95% và đổi thành "taking longer than usual"; không bao giờ 100% khi dữ liệu chưa về |
+| **15s** | Alert `warning` đè lên skeleton: "Still loading …" + **Retry**; yêu cầu vẫn chạy, dữ liệu về thì hiện luôn |
+| **Lỗi** | Alert `destructive` thay chỗ khối đó + **Retry**. Khối đã tải giữ nguyên |
+| **Quay lại trong phiên** | Hiện ngay bản trước, kèm "Updating… · Updated 2 min ago" ở thanh công cụ hoặc dòng đếm; không xoá trắng |
+
+**Quy tắc.**
+- Skeleton khớp bố cục thật để dữ liệu về không làm nhảy trang: cùng số ô KPI và cỡ ô (cả dòng ghi chú), biểu đồ là một khối cùng chiều cao, bảng có tên cột thật, đúng số cột, độ rộng cột và chiều cao hàng, khoảng 5–8 hàng (bảng top 5 thì 5).
+- Mỗi khối dữ liệu một vùng tải riêng (`SectionLoader`), khoá theo bộ lọc nó phụ thuộc; khối nhanh không chờ khối chậm. Khung card (tiêu đề, mô tả) hiện thật, chỉ phần thân là skeleton.
+- Bộ lọc cần dữ liệu mới có lựa chọn (vd. Tag) vẫn hiện tại chỗ, tạm `disabled`.
+- Vùng đang tải có `aria-busy`; dòng trạng thái là `aria-live="polite"`. Thanh trên cùng `aria-hidden` (Next tự đọc tên trang mới).
+- Giảm chuyển động: thanh trên cùng đứng yên đủ bề ngang, skeleton và spinner không nhấp nháy.
+- Chữ: nói bước đang làm ("Calculating delivery and open rates…", "Ranking campaigns and templates…"), có số thì nêu số; không "Please wait". Lỗi theo mục 9.10.
+- Dưới 1 giây không hiện gì ngoài skeleton (lần tải nhanh không bị nháy thanh).
+- Chữ trạng thái chỉ nói bước đang làm; thời gian và % do `LoadingStatus` tự hiện, không viết "can take up to 20 seconds" vào chữ.
+- Thời gian ước tính: production lấy từ các lần tải trước của khối đó; demo dùng độ trễ giả lập.
+
+**Component.** `RouteProgress` (gắn một lần ở `app/layout.tsx`), `useSectionLoad` + `SectionLoader` (`section-loader.tsx`), `LoadingStatus`, `SectionStalled`, `SectionError`, `UpdatedIndicator` (`loading-status.tsx`), `Skeleton` của shadcn. Chế độ chậm giả lập: `lib/mock/delay.ts`.
+
+## 9.18 Chi credit cho một hành động (ĐX 2026-11-12)
+
+Theo app thật #116 (`useCompanyUnlock.tsx`, `api/companies/unlock` + `unlock/quote`) và PRD-05 (1 credit mỗi công ty, đã unlock thì không tính lại). Mẫu: Leads › Find companies (`companies/_components/unlock-dialog.tsx`, `unlocks.ts`).
+- **Một đối tượng:** nút ghi giá ngay trên nhãn ("Unlock · 1 credit", icon khoá có tooltip "Unlock for 1 credit"), bấm là làm, không hỏi lại.
+- **Nhiều đối tượng:** nút trên thanh chọn ghi tổng giá ("Unlock · 5 credits", là nút cam đặc của trang khi đang chọn); bấm → `AlertDialog` hỏi "Unlock N companies?", chỉ ghi Cost, không hiện số dư sau khi chi (người dùng chốt 2026-11-14), nút xác nhận `default` ghi lại giá. Mục đã có thì không tính, câu mô tả nói số được miễn.
+- **Chỉ tiêu credit ở một chỗ** (người dùng chốt 2026-11-12): việc khác cần dữ liệu đã mở (gửi batch tới công ty) không tự unlock, không tính credit; nó chỉ dùng mục đã unlock và hiện một dòng "N more … match · Unlock in Leads" dẫn sang chỗ unlock với cùng bộ lọc. Không có mục nào đã mở: màn trống + nút outline "Find companies to unlock". App thật #116 tự unlock khi gửi; bản mới không theo.
+- **Số dư một nguồn:** mọi chỗ hiện hoặc trừ credit đọc cùng một số dư (mock: `lib/mock/credits.ts`), nên ô credit ở sidebar giảm ngay sau khi tiêu.
+- **Không đủ credit:** không làm phần nào (tất cả hoặc không). `AlertDialog` "Not enough credits": cần bao nhiêu, đang có bao nhiêu; nút "Top up credits" sang `/settings/billing`.
+- **Xong:** toast "N companies unlocked · X credits left"; dữ liệu hiện đầy đủ tại chỗ, đánh dấu đã mở (badge `success` "Unlocked" trong sheet).
+- Không có gì để mua (đã mở hết, hoặc không có dữ liệu ẩn): nút khoá kèm tooltip lý do (mục 9.12).

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarIcon, FileTextIcon, LayoutTemplateIcon } from "lucide-react";
 import type { DateRange } from "react-day-picker";
+import { ArrowLeftIcon, ArrowRightIcon, PaletteIcon, PenLineIcon } from "lucide-react";
+import { DesignGallery, designStartName } from "@/components/features/design-gallery";
 import { MultiSelect } from "@/components/saella/multi-select";
+import { DateRangePicker } from "@/components/saella/date-picker";
+import { TreeSelect } from "@/components/saella/tree-select";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
   DialogClose,
@@ -27,13 +29,28 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { MARKETS, INDUSTRIES, TODAY, type Campaign, formatDate } from "@/lib/mock/campaigns";
+import { INDUSTRY_TREE, MARKETS, TODAY, type Campaign, industryLabels } from "@/lib/mock/campaigns";
+import { type DesignStart, type TemplateKind } from "@/lib/mock/templates";
 
-// Create-campaign form, fields and copy from the live app (EmailCampaignBoard modal) and PRD-02 AC-EC-C-01.
-export type StartWith = "empty" | "letter" | "poster";
+// Create-campaign form, fields and copy from the live app (EmailCampaignBoard modal) and PRD-02 AC-EC-C-01. Only the
+// name is required (live POST: "name is required"; trimmed; names may repeat, as in the live app). Description is
+// PRD-02 AC-EC-C-01 (the live modal has no field, its API takes one).
+// "Start with a template (optional)" (designer 2026-11-14, back to the live app's StarterPicker): Letter or Design;
+// picking the chosen card again clears it. Design then needs a design: the dialog widens to a gallery step (live poster
+// step: Blank poster + presets, "Back" keeps the form), and the form shows "Design · <name> · Change". With a starter, the caller opens the
+// editor on a new template in the campaign (`starterHref`); without one the campaign starts empty.
+
+/** The first template to open after the campaign is created (live app: TemplateStarter). */
+export type CampaignStarter = { kind: TemplateKind; start?: DesignStart };
+
+/** The editor URL for a new template in the campaign: the same one New template builds (name left "Untitled …"). */
+export function starterHref(campaignId: string, starter: CampaignStarter) {
+  const q = new URLSearchParams({ campaign: campaignId, kind: starter.kind });
+  if (starter.kind === "design") q.set("start", starter.start ?? "blank");
+  return `/templates/draft/edit?${q}`;
+}
 
 const toIso = (d?: Date) =>
   d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : undefined;
@@ -42,18 +59,29 @@ export function NewCampaignDialog({
   open,
   onOpenChange,
   onCreate,
+  offerStarter = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (campaign: Omit<Campaign, "id" | "templates">, startWith: StartWith) => void;
+  /** `starter` is set when the user picked a first template to start with. */
+  onCreate: (campaign: Omit<Campaign, "id" | "templates">, starter?: CampaignStarter) => void;
+  /** false where a template is already being made (New template's "+ New campaign"). */
+  offerStarter?: boolean;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [countries, setCountries] = useState<string[]>([]);
   const [industries, setIndustries] = useState<string[]>([]);
   const [period, setPeriod] = useState<DateRange | undefined>();
-  const [startWith, setStartWith] = useState<StartWith>("empty");
+  const [kind, setKind] = useState<TemplateKind | undefined>();
+  // The design a Design starter opens with; chosen in the gallery step (live StarterPicker "Choose a design").
+  const [start, setStart] = useState<DesignStart | undefined>();
+  const [step, setStep] = useState<"form" | "gallery">("form");
   const [showError, setShowError] = useState(false);
+  // Design picked but no design chosen yet: the main button goes to the gallery first (live "Next: choose design").
+  // From the form, Design always goes through the gallery (designer report 2026-11-14: after Back, picking Design again
+  // created the campaign straight away). The earlier pick stays selected there; only the gallery step creates.
+  const needsDesign = offerStarter && kind === "design" && step === "form";
 
   const reset = () => {
     setName("");
@@ -61,16 +89,32 @@ export function NewCampaignDialog({
     setCountries([]);
     setIndustries([]);
     setPeriod(undefined);
-    setStartWith("empty");
+    setKind(undefined);
+    setStart(undefined);
+    setStep("form");
     setShowError(false);
+  };
+
+  // The gallery needs a valid form first, as the live modal validates before "Next: choose design".
+  const openGallery = () => {
+    if (!name.trim()) {
+      setShowError(true);
+      document.getElementById("nc-name")?.focus();
+      return;
+    }
+    setStart((s) => s ?? "blank");
+    setStep("gallery");
   };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setShowError(true);
+      setStep("form");
+      document.getElementById("nc-name")?.focus();
       return;
     }
+    if (needsDesign) return openGallery();
     onCreate(
       {
         name: name.trim(),
@@ -80,14 +124,10 @@ export function NewCampaignDialog({
         startsOn: toIso(period?.from),
         endsOn: toIso(period?.to),
       },
-      startWith
+      offerStarter && kind ? { kind, start: kind === "design" ? start : undefined } : undefined
     );
     reset();
   };
-
-  const periodLabel = period?.from
-    ? `${formatDate(toIso(period.from)!, true)} → ${period.to ? formatDate(toIso(period.to)!, true) : "…"}`
-    : "Pick a start and end date";
 
   return (
     <Dialog
@@ -97,28 +137,56 @@ export function NewCampaignDialog({
         if (!o) reset();
       }}
     >
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className={step === "gallery" ? "sm:max-w-5xl" : "sm:max-w-2xl"}>
         <form onSubmit={submit} className="flex flex-col gap-6" noValidate>
           <DialogHeader>
+            {step === "gallery" && (
+              <Button type="button" variant="ghost" size="sm" className="-ml-2 self-start" onClick={() => setStep("form")}>
+                <ArrowLeftIcon data-icon="inline-start" />
+                Back
+              </Button>
+            )}
             <DialogTitle>New campaign</DialogTitle>
             <DialogDescription>
-              A campaign groups templates that target the same countries and industries.
+              {step === "gallery"
+                ? "Pick a design for the first template. You can change everything in the editor."
+                : "A campaign groups templates that target the same countries and industries."}
             </DialogDescription>
           </DialogHeader>
 
+          {step === "gallery" ? (
+            <DesignGallery value={start} onChange={setStart} idPrefix="nc-design" />
+          ) : (
           <FieldGroup>
-            <Field data-invalid={(showError && !name.trim()) || undefined}>
-              <FieldLabel htmlFor="nc-name">Name</FieldLabel>
-              <Input
-                id="nc-name"
-                placeholder="e.g. Summer 2026 Push"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                aria-invalid={(showError && !name.trim()) || undefined}
-                autoFocus
-              />
-              {showError && !name.trim() && <FieldError>Give the campaign a name</FieldError>}
-            </Field>
+            {/* Two columns like the live modal (Name | Period, Countries | Industry), so the starter fits on screen. */}
+            <div className="grid gap-6 sm:grid-cols-2">
+              <Field data-invalid={(showError && !name.trim()) || undefined}>
+                <FieldLabel htmlFor="nc-name">Name</FieldLabel>
+                <Input
+                  id="nc-name"
+                  placeholder="e.g. Summer 2026 Push"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  aria-invalid={(showError && !name.trim()) || undefined}
+                  autoFocus
+                />
+                {showError && !name.trim() && <FieldError>Give the campaign a name</FieldError>}
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="nc-period">Campaign period (optional)</FieldLabel>
+                {/* Same range picker as everywhere (designer 2026-11-13). Live app (RangePicker disabledDate, the same
+                    in New and Edit): the start is free, so a campaign already under way can be logged; only the end
+                    can't be in the past. PRD-02 AC-EC-C-01: a period has a start and an end, so both or neither. */}
+                <DateRangePicker
+                  id="nc-period"
+                  value={period}
+                  onChange={setPeriod}
+                  endMin={new Date(`${TODAY}T00:00:00`)}
+                  optional
+                  placeholder="Pick a start and end date"
+                  className="w-full"
+                />              </Field>
+            </div>
             <Field>
               <FieldLabel htmlFor="nc-desc">Description (optional)</FieldLabel>
               <Textarea
@@ -142,68 +210,52 @@ export function NewCampaignDialog({
               </Field>
               <Field>
                 <FieldLabel htmlFor="nc-industries">Industry (optional)</FieldLabel>
-                <MultiSelect
-                  id="nc-industries"
-                  options={INDUSTRIES}
-                  value={industries}
-                  onChange={setIndustries}
-                  placeholder="Any industry"
-                />
+                <IndustryPicker id="nc-industries" value={industries} onChange={setIndustries} />
               </Field>
             </div>
-            <Field>
-              <FieldLabel htmlFor="nc-period">Campaign period (optional)</FieldLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="nc-period"
-                    variant="outline"
-                    className={period?.from ? "justify-start font-normal" : "justify-start font-normal text-subtle-foreground"}
-                  >
-                    <CalendarIcon data-icon="inline-start" />
-                    {periodLabel}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="range"
-                    numberOfMonths={2}
-                    selected={period}
-                    onSelect={setPeriod}
-                    defaultMonth={new Date(`${TODAY}T00:00:00`)}
-                    // The end date can't be in the past (live app).
-                    disabled={{ before: new Date(`${TODAY}T00:00:00`) }}
+
+            {offerStarter && (
+              <FieldSet>
+                <FieldLegend variant="label">Start with a template (optional)</FieldLegend>
+                {/* Picking the chosen card again clears it (live StarterPicker): no starter = an empty campaign. */}
+                <RadioGroup
+                  value={kind ?? ""}
+                  onValueChange={(v) => setKind(v as TemplateKind)}
+                  className="grid gap-3 sm:grid-cols-2"
+                >
+                  <StarterOption
+                    value="letter"
+                    picked={kind}
+                    onClear={() => setKind(undefined)}
+                    title="Letter"
+                    description="Reads like a personal email: text, an image, a button."
+                    icon={<PenLineIcon className="size-4 text-muted-foreground" strokeWidth={1.75} />}
                   />
-                </PopoverContent>
-              </Popover>
-              <FieldDescription>
-                Batches pre-filter the audience by country and industry. After the period ends, scheduled sends stop;
-                follow-ups keep running.
-              </FieldDescription>
-            </Field>
-            <FieldSet>
-              <FieldLegend variant="label">Start with</FieldLegend>
-              <RadioGroup
-                value={startWith}
-                onValueChange={(v) => setStartWith(v as StartWith)}
-                className="grid gap-3 sm:grid-cols-3"
-              >
-                <StartOption value="empty" title="Empty campaign" description="Add templates later." />
-                <StartOption
-                  value="letter"
-                  title="Letter"
-                  description="Rich text with fonts, colours, links and images."
-                  icon={<FileTextIcon />}
-                />
-                <StartOption
-                  value="poster"
-                  title="Poster"
-                  description="A designed HTML poster you edit in place."
-                  icon={<LayoutTemplateIcon />}
-                />
-              </RadioGroup>
-            </FieldSet>
+                  <StarterOption
+                    value="design"
+                    picked={kind}
+                    onClear={() => setKind(undefined)}
+                    title="Design"
+                    description="A poster: a hero, images and a button, centred."
+                    icon={<PaletteIcon className="size-4 text-muted-foreground" strokeWidth={1.75} />}
+                  />
+                </RadioGroup>
+                {/* No "Choose a design" link (designer 2026-11-14): the main button "Choose design" leads there.
+                    Once a design is chosen, it shows here with Change. */}
+                {kind === "design" && start && (
+                  <p className="flex items-center gap-1.5 text-sm">
+                    <span className="text-muted-foreground">Design ·</span>
+                    <span className="font-medium">{designStartName(start)}</span>
+                    <span className="text-muted-foreground">·</span>
+                    <Button type="button" variant="link" className="h-auto border-0 p-0" onClick={openGallery}>
+                      Change
+                    </Button>
+                  </p>
+                )}
+              </FieldSet>
+            )}
           </FieldGroup>
+          )}
 
           <DialogFooter>
             <DialogClose asChild>
@@ -211,7 +263,16 @@ export function NewCampaignDialog({
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit">{startWith === "poster" ? "Next: choose design" : "Create campaign"}</Button>
+            <Button type="submit">
+              {needsDesign ? (
+                <>
+                  Choose design
+                  <ArrowRightIcon data-icon="inline-end" />
+                </>
+              ) : (
+                "Create campaign"
+              )}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -219,20 +280,43 @@ export function NewCampaignDialog({
   );
 }
 
-// Choice card: the whole card is the label for its radio (shadcn "choice card" pattern).
-function StartOption({
+/** Campaign Industry (designer 2026-11-14, live campaign modal): ISIC sections → classes, search, Select all / Clear.
+ *  The value is ISIC classes; the button names a fully checked section once (first name + "+N"). Shared with Edit. */
+export function IndustryPicker({ id, value, onChange }: { id: string; value: string[]; onChange: (v: string[]) => void }) {
+  const names = industryLabels(value);
+  return (
+    <TreeSelect
+      id={id}
+      label={names[0] ?? "Any industry"}
+      more={names.length - 1}
+      groups={INDUSTRY_TREE}
+      value={value}
+      onChange={onChange}
+      selectAll
+      searchPlaceholder="Search industries"
+      emptyText="No industry matches"
+    />
+  );
+}
+
+// Same card as New template's Kind option; clicking the picked card again clears the starter.
+function StarterOption({
   value,
+  picked,
+  onClear,
   title,
   description,
   icon,
 }: {
-  value: StartWith;
+  value: TemplateKind;
+  picked?: TemplateKind;
+  onClear: () => void;
   title: string;
   description: string;
-  icon?: React.ReactNode;
+  icon: React.ReactNode;
 }) {
   return (
-    <FieldLabel htmlFor={`nc-start-${value}`}>
+    <FieldLabel htmlFor={`nc-kind-${value}`} className="has-data-checked:ring-1 has-data-checked:ring-primary">
       <Field orientation="horizontal">
         <FieldContent>
           <FieldTitle>
@@ -241,7 +325,17 @@ function StartOption({
           </FieldTitle>
           <FieldDescription>{description}</FieldDescription>
         </FieldContent>
-        <RadioGroupItem value={value} id={`nc-start-${value}`} />
+        <RadioGroupItem
+          value={value}
+          id={`nc-kind-${value}`}
+          // No visible dot (designer 2026-11-14): the card's orange border shows the pick.
+          className="sr-only"
+          onClick={(e) => {
+            if (picked !== value) return;
+            e.preventDefault();
+            onClear();
+          }}
+        />
       </Field>
     </FieldLabel>
   );

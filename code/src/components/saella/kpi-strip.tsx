@@ -87,6 +87,12 @@ export function KpiStripItem({
           {delta && value && !muted && <Delta delta={delta} />}
         </dd>
       )}
+      {/* Same height as the note line, so the strip does not move when the numbers arrive (PATTERNS.md §9.17). */}
+      {note && loading && (
+        <dd>
+          <Skeleton className="my-0.5 h-4 w-28" />
+        </dd>
+      )}
       {note && !loading && (
         // Wraps rather than truncates: in a narrow strip "667 of 1,850 delivered" lost its last word (2026-11-05).
         <dd className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">

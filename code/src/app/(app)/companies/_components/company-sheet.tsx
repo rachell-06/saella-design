@@ -1,40 +1,34 @@
 "use client";
 
-import { GlobeIcon, LockIcon, MailIcon, PhoneIcon, PlusIcon } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ArrowUpRightIcon, LockIcon, LockOpenIcon } from "lucide-react";
+import { toast } from "sonner";
+import { CopyButton } from "@/components/saella/copy-button";
+import { Hint } from "@/components/saella/hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { type Company, STATUSES, countryLabel, formatDate, isicLabel, isicSection, maskEmail, maskPhone } from "./data";
+import { type Company, STATUSES, countryLabel, formatDate, isicLabel, maskEmail, maskPhone, maskWebsite } from "@/lib/mock/companies";
 
 // Company detail in a Sheet (DESIGN.md §8.1: Sheet for detail). Registry facts first, then contact details,
-// masked until unlocked. Unlock is planned, not built: 1 credit per company once metering is on, and credits
-// are still off (PRD-04 CO-UNLOCK-001, PRD Master Upcoming tab), so the button is shown disabled with the reason.
+// masked until unlocked. Unlock (PRD Contacts US-CON-U, AC-CON-U-01..03; live app #116): one click, 1 credit,
+// reveals email, phone and website for the whole workspace; the cost is on the button, so no confirm (live app
+// unlockOne). It is the sheet's one solid button while the company is locked; once unlocked the values show in
+// full with Copy, an "Unlocked" badge marks it, and the button goes. Nothing hidden → no Unlock.
 export function CompanySheet({
   company,
-  lists,
+  unlocked,
   onOpenChange,
-  onAddToList,
-  onNewList,
+  onUnlock,
 }: {
   company: Company | null;
-  lists: { id: string; name: string }[];
+  /** The workspace has unlocked this company. */
+  unlocked: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddToList: (company: Company, listId: string) => void;
-  onNewList: (company: Company) => void;
+  onUnlock: (company: Company) => void;
 }) {
   const c = company;
+  const canUnlock = c !== null && !unlocked && Boolean(c.email);
   return (
     <Sheet open={c !== null} onOpenChange={onOpenChange}>
       <SheetContent className="flex w-full flex-col gap-0 sm:max-w-md">
@@ -43,7 +37,7 @@ export function CompanySheet({
             <SheetHeader className="border-b">
               <SheetTitle>{c.name}</SheetTitle>
               <SheetDescription>
-                {countryLabel(c.country)} · Registration no. {c.registrationNo}
+                {countryLabel(c.country)} · Tax code {c.registrationNo}
               </SheetDescription>
               {c.status !== "active" && (
                 <div>
@@ -55,80 +49,83 @@ export function CompanySheet({
             </SheetHeader>
 
             <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
-              <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
-                <Fact label="Industry">
-                  {isicLabel(c.isic)}
-                  <span className="block text-muted-foreground">
-                    ISIC {c.isic} · {isicSection(c.isic)?.label}
-                  </span>
-                </Fact>
+              <dl className="grid grid-cols-[7rem_1fr] gap-x-6 gap-y-3 text-sm">
+                {/* The name only: the ISIC code behind it is how Saella maps each country's codes, not something users
+                    read (PRODUCT.md: industry codes in plain words). */}
+                <Fact label="Industry">{isicLabel(c.isic)}</Fact>
+                {c.subIndustries.length > 0 && (
+                  <Fact label="Other industries">
+                    <ul className="flex flex-col gap-1">
+                      {c.subIndustries.map((s) => (
+                        <li key={s}>{s}</li>
+                      ))}
+                    </ul>
+                  </Fact>
+                )}
                 <Fact label="Founded">{formatDate(c.incorporatedOn)}</Fact>
                 <Fact label="Address">{c.address}</Fact>
-                {c.representative && <Fact label="Representative">{c.representative}</Fact>}
-                {c.branchOf && <Fact label="Branch">{c.branchOf}</Fact>}
+                {/* Free and always shown: the registry publishes it (live app never masks it). Not a contact: no email or phone. */}
+                {c.representative && <Fact label="Legal representative">{c.representative}</Fact>}
+                {c.branches && (
+                  <Fact label="Branches">
+                    <ul className="flex flex-col gap-1">
+                      {c.branches.map((b) => (
+                        <li key={b}>{b}</li>
+                      ))}
+                    </ul>
+                  </Fact>
+                )}
                 {c.fdi && <Fact label="Ownership">Foreign direct investment</Fact>}
               </dl>
 
               <Separator />
 
               <section aria-labelledby="co-contact" className="flex flex-col gap-3">
-                <h3 id="co-contact" className="font-heading text-base font-medium">
-                  Contact details
-                </h3>
-                <ul className="flex flex-col gap-2 text-sm">
-                  <ContactLine icon={<MailIcon />} value={c.email && maskEmail(c.email)} empty="No email in the registry" />
-                  <ContactLine icon={<PhoneIcon />} value={c.phone && maskPhone(c.phone)} empty="No phone in the registry" />
-                  <ContactLine icon={<GlobeIcon />} value={c.website && `${c.website.slice(0, 6)}•••`} empty="No website in the registry" />
-                </ul>
-                <Alert>
-                  <LockIcon />
-                  <AlertTitle>Unlocking is not available yet</AlertTitle>
-                  <AlertDescription>
-                    Full email, phone and website will cost 1 credit per company once credits are switched on. You can
-                    already send to this company: Saella uses the address without showing it.
-                  </AlertDescription>
-                </Alert>
+                <div className="flex items-center gap-2">
+                  <h3 id="co-contact" className="font-heading text-base font-medium">
+                    Contact details
+                  </h3>
+                  {unlocked && (
+                    <Badge variant="success">
+                      <LockOpenIcon data-icon="inline-start" />
+                      Unlocked
+                    </Badge>
+                  )}
+                </div>
+                {/* Labelled rows, not icons: a masked "p*****.my" alone doesn't say it is a website. */}
+                <dl className="grid grid-cols-[7rem_1fr] items-center gap-x-6 gap-y-3 text-sm">
+                  <Fact label="Email">
+                    <Contact value={c.email} masked={!unlocked && c.email ? maskEmail(c.email) : undefined} />
+                  </Fact>
+                  <Fact label="Phone">
+                    <Contact value={c.phone} masked={!unlocked && c.phone ? maskPhone(c.phone) : undefined} />
+                  </Fact>
+                  <Fact label="Website">
+                    <Contact value={c.website} masked={!unlocked && c.website ? maskWebsite(c.website) : undefined} link />
+                  </Fact>
+                </dl>
               </section>
             </div>
 
-            <SheetFooter className="flex-row border-t">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={0}>
-                    <Button variant="outline" disabled>
-                      <LockIcon data-icon="inline-start" />
-                      Unlock · 1 credit
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>Credits are off, so unlocking isn&apos;t available yet</TooltipContent>
-              </Tooltip>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="ml-auto" disabled={!c.email}>
-                    <PlusIcon data-icon="inline-start" />
-                    Add to list
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuLabel>Add to contact list</DropdownMenuLabel>
-                  <DropdownMenuGroup>
-                    {lists.map((l) => (
-                      <DropdownMenuItem key={l.id} onSelect={() => onAddToList(c, l.id)}>
-                        <span className="truncate">{l.name}</span>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem onSelect={() => onNewList(c)}>
-                      <PlusIcon />
-                      New list…
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SheetFooter>
+            {/* Unlock is the sheet's only action (no saving to Self-upload, designer decision 2026-11-12). */}
+            {/* Says exactly what this company's unlock gives (designer decision 2026-11-13): only the fields it has;
+                company contact details, never people. */}
+            {canUnlock && (
+              <SheetFooter className="flex-col items-start gap-2 border-t">
+                <p className="text-sm text-muted-foreground">
+                  Unlock reveals: {[c.email && "email", c.phone && "phone", c.website && "website"].filter(Boolean).join(", ")}
+                </p>
+                <Button onClick={() => onUnlock(c)}>
+                  <LockIcon data-icon="inline-start" />
+                  Unlock · 1 credit
+                </Button>
+              </SheetFooter>
+            )}
+            {!unlocked && !canUnlock && (
+              <SheetFooter className="border-t">
+                <p className="text-sm text-muted-foreground">Nothing to unlock: no email in our data.</p>
+              </SheetFooter>
+            )}
           </>
         )}
       </SheetContent>
@@ -145,11 +142,64 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
-function ContactLine({ icon, value, empty }: { icon: React.ReactNode; value?: string; empty: string }) {
+/** Masked until unlocked. After: email and phone copy on a click of the value, with a copy icon that shows on
+ *  hover or keyboard focus (designer decision 2026-11-12); the website is a link that opens in a new tab. */
+function Contact({ value, masked, link }: { value?: string; masked?: string; link?: boolean }) {
+  if (!value) return <span className="text-muted-foreground">Not in our data</span>;
+  // One line each (designer 2026-11-13): cut with an ellipsis, the full value on hover.
+  if (masked)
+    return (
+      <span className="block truncate text-muted-foreground tabular-nums" title={masked}>
+        {masked}
+      </span>
+    );
+  if (link) {
+    const href = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+    return (
+      // Body colour, underline on hover (designer 2026-11-13): an outside link, not a Saella action.
+      <Hint label={value}>
+        <Button
+          variant="link"
+          className="h-auto max-w-full justify-start border-0 p-0 font-normal text-foreground"
+          asChild
+        >
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            <span className="min-w-0 truncate">{value}</span>
+            <ArrowUpRightIcon data-icon="inline-end" className="text-muted-foreground" />
+          </a>
+        </Button>
+      </Hint>
+    );
+  }
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success("Copied to clipboard");
+    } catch {
+      toast.error("Couldn't copy", { description: "Select the value and copy it by hand." });
+    }
+  };
   return (
-    <li className="flex items-center gap-2 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground">
-      {icon}
-      {value ? <span className="tabular-nums">{value}</span> : <span className="text-muted-foreground">{empty}</span>}
-    </li>
+    <span className="group/copy flex w-full min-w-0 items-center gap-1">
+      <Hint
+        label={
+          <span className="flex flex-col">
+            <span className="break-all">{value}</span>
+            <span className="opacity-70">Click to copy</span>
+          </span>
+        }
+      >
+        <Button
+          variant="link"
+          className="h-auto min-w-0 shrink justify-start border-0 p-0 text-left font-normal text-foreground tabular-nums hover:no-underline"
+          onClick={copy}
+        >
+          <span className="min-w-0 truncate">{value}</span>
+        </Button>
+      </Hint>
+      <span className="opacity-0 transition-opacity group-focus-within/copy:opacity-100 group-hover/copy:opacity-100 motion-reduce:transition-none">
+        <CopyButton value={value} label="Copy" />
+      </span>
+    </span>
   );
 }

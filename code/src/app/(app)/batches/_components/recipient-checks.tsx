@@ -43,7 +43,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { listById } from "@/lib/mock/batches";
 import {
   type DataIssue,
   type Recipient,
@@ -99,16 +98,9 @@ export function RecipientChecks({
       className="flex flex-col gap-3"
       aria-busy={status === "checking" || undefined}
     >
-      <div className="flex flex-col gap-1">
-        <h3 id="bw-check-title" className="text-sm font-medium">
-          Recipient data
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          {check.fields.length > 0
-            ? `Each of the ${n(recipients)} recipients checked against the fields this template fills in: ${check.fields.join(", ")}.`
-            : "Each recipient checked against the merge tags in this template."}
-        </p>
-      </div>
+      <h3 id="bw-check-title" className="text-sm font-medium">
+        Recipient data
+      </h3>
 
       {status === "checking" ? (
         <div className="flex flex-col gap-2 rounded-lg border p-4">
@@ -140,8 +132,8 @@ export function RecipientChecks({
             className="mt-0.5 size-4 shrink-0 text-success"
           />
           {check.fields.length > 0
-            ? `Every recipient has a value for ${check.fields.map((f) => f.toLowerCase()).join(" and ")}. No merge tag goes out empty.`
-            : "This template has no personal fields, so every recipient gets the same text."}
+            ? `All ${n(recipients)} recipients have a ${check.fields.map((f) => f.toLowerCase()).join(" and ")}.`
+            : "No personal fields: every recipient gets the same text."}
         </p>
       ) : (
         <ul className="flex flex-col divide-y rounded-lg border">
@@ -316,6 +308,8 @@ function PeopleDialog({
 }) {
   const count = issue.people.length;
   const rows: Recipient[] = issue.people.slice(0, SHOWN);
+  // Saella companies carry no contact tags: no Tags column then.
+  const showTags = issue.people.some((p) => p.tags.length > 0);
   return (
     <DialogContent className="sm:max-w-2xl">
       <DialogHeader>
@@ -324,8 +318,7 @@ function PeopleDialog({
           {issue.field}
         </DialogTitle>
         <DialogDescription>
-          Fill it in on Contacts to send them the personal version next time.
-          Preview shows the email one of them gets now.
+          Preview shows the email one of them gets.
         </DialogDescription>
       </DialogHeader>
       <div className="-mx-4 max-h-96 overflow-y-auto border-y">
@@ -335,7 +328,7 @@ function PeopleDialog({
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Company</TableHead>
-              <TableHead>List</TableHead>
+              {showTags && <TableHead>Tags</TableHead>}
               <TableHead>
                 <span className="sr-only">Preview</span>
               </TableHead>
@@ -347,9 +340,11 @@ function PeopleDialog({
                 <TableCell>{`${r.firstName} ${r.lastName}`.trim()}</TableCell>
                 <TableCell className="max-w-56 truncate">{r.email}</TableCell>
                 <TableCell className="max-w-48 truncate">{r.company}</TableCell>
-                <TableCell className="max-w-40 truncate text-muted-foreground">
-                  {listById(r.listId)?.name}
-                </TableCell>
+                {showTags && (
+                  <TableCell className="max-w-40 truncate text-muted-foreground">
+                    {r.tags.join(", ")}
+                  </TableCell>
+                )}
                 <TableCell className="text-right">
                   <Button
                     variant="ghost"

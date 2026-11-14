@@ -23,15 +23,14 @@ import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetT
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { type ActivityEvent, type ActivityKind, contactActivity, formatEventTime, groupByMonth, summarize } from "./contact-activity";
-import { type Contact, emailSafety, fmt, formatDate, maskEmail, safetyReason } from "@/lib/mock/contacts";
-import { SafetyBadge } from "./email-safety";
-import { Hint } from "@/components/saella/hint";
+import { type Contact, fmt, formatDate, useContactsStore } from "@/lib/mock/contacts";
+import { invalidReason } from "./contact-book";
+import { InvalidBadge } from "./email-safety";
 
 // Contact profile in a Sheet (DESIGN.md §8.1: Sheet for contact detail; R8 2026-10-29, HubSpot H3 + Apollo A2).
 // Details on top, then the email activity timeline: one line per event, grouped by month, newest first, with a
 // one-line summary counted per batch. Each line links to the batch report. Preview: ?contact=<id> opens it,
-// &activity=loading | empty | error forces a state. The header badge and the line under Email give the email
-// safety level and its reason (R10).
+// &activity=loading | empty | error forces a state. An Invalid address shows the badge and its reason.
 
 export type ActivityState = "loading" | "empty" | "error";
 
@@ -47,26 +46,23 @@ const KIND: Record<ActivityKind, { verb: string; icon: React.ReactNode; tone: st
 
 export function ContactSheet({
   contact,
-  listId,
-  listSize,
   activityState,
   onOpenChange,
   onEdit,
   onRetry,
 }: {
   contact: Contact | null;
-  listId: string;
-  listSize: number;
-  /** Preview override; without it the activity is derived from the batches sent to this list. */
+  /** Preview override; without it the activity is derived from the batches sent to this contact's tags. */
   activityState?: ActivityState;
   onOpenChange: (open: boolean) => void;
   onEdit: (contact: Contact) => void;
   onRetry: () => void;
 }) {
   const c = contact;
+  const { contacts: book } = useContactsStore();
   const events = useMemo(
-    () => (c && !activityState ? contactActivity(c, listId, listSize) : []),
-    [c, activityState, listId, listSize]
+    () => (c && !activityState ? contactActivity(c, book) : []),
+    [c, activityState, book]
   );
   const name = c ? `${c.firstName} ${c.lastName}`.trim() : "";
 
@@ -76,26 +72,21 @@ export function ContactSheet({
         {c && (
           <>
             <SheetHeader className="border-b pr-12">
-              <SheetTitle>{name || (c.masked ? c.company : c.email)}</SheetTitle>
+              <SheetTitle>{name || c.email}</SheetTitle>
               <SheetDescription>{[c.position, c.company].filter(Boolean).join(" · ") || "No company"}</SheetDescription>
-              <div>
-                <SafetyBadge safety={emailSafety(c)} />
-              </div>
+              {c.unreachable && (
+                <div>
+                  <InvalidBadge />
+                </div>
+              )}
             </SheetHeader>
 
             <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
               <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
                 <Fact label="Email">
-                  {c.masked ? (
-                    <Hint label="Hidden until unlocked. Sending to it still works."><span tabIndex={0}>{maskEmail(c.email)}</span></Hint>
-                  ) : (
-                    c.email
-                  )}
-                  {/* Why it sits at its level (R10); "Do not send" also says it is left out of batches. */}
-                  <span className="block text-muted-foreground">
-                    {safetyReason(c)}
-                    {c.unreachable && ". Left out when you send."}
-                  </span>
+                  {c.email}
+                  {/* Invalid owes the reader a reason; Valid needs none (live app contact-status.ts). */}
+                  {c.unreachable && <span className="block text-muted-foreground">{invalidReason(c)}</span>}
                 </Fact>
                 {c.phone && <Fact label="Phone">{c.phone}</Fact>}
                 {c.tags.length > 0 && (
@@ -126,7 +117,7 @@ export function ContactSheet({
             </div>
 
             <SheetFooter className="flex-row border-t">
-              <Button variant="outline" onClick={() => onEdit(c)} disabled={c.masked}>
+              <Button variant="outline" onClick={() => onEdit(c)}>
                 <PencilIcon data-icon="inline-start" />
                 Edit contact
               </Button>

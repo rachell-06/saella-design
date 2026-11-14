@@ -14,7 +14,7 @@ export const datePickerMeta: ComponentMeta = {
   relationships: {
     usedIn: ["Batch wizard (schedule step)", "Overview date filter"],
     preferInstead: {
-      "a preset period (last 7 / 30 days)": "ToggleGroup chips or a Select of presets, then DateRangePicker for Custom",
+      "a preset period (last 7 / 30 days)": "One trigger + one popover: presets on the left apply at once, a range calendar with Apply on the right (Overview PeriodPicker, PATTERNS 9.16)",
       "relative age (founded 1–5 years ago)": "preset options, as on Companies",
     },
   },

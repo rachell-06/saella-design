@@ -1,4 +1,4 @@
-import { type Contact, isDuplicateIn } from "@/lib/mock/contacts";
+import { type Contact, isInBook } from "@/lib/mock/contacts";
 
 // Contact import logic (PRD Contacts US-CON-I + live app import route, CON-SEQ-004), kept apart from the
 // dialog so the rules read in one place:
@@ -6,7 +6,7 @@ import { type Contact, isDuplicateIn } from "@/lib/mock/contacts";
 // - only the first 1,000 rows are read, with a note (repo behaviour; AC-CON-I-03 says refuse, see report);
 // - headers match case-insensitively; unknown columns are ignored (EC-CON-03); Email is the only required field;
 // - blank rows are skipped, bad emails are reported, repeats of email + company inside the file collapse (EC-CON-05);
-// - rows already in the list update in place instead of duplicating (AC-CON-I-04), or are skipped if the user
+// - rows already in the contact book update in place instead of duplicating (AC-CON-I-04), or are skipped if the user
 //   picks "Skip" (R9 2026-10-29, HubSpot H5 / Apollo A7: duplicate rule chosen before importing);
 // - rows with errors are listed by row number and can be downloaded as a CSV with an Error column (R9).
 
@@ -118,10 +118,7 @@ export const ISSUE_LABEL: Record<RowIssue, string> = {
 };
 export type PreviewRow = { line: number; contact: Omit<Contact, "id" | "addedOn">; verdict: RowVerdict; issue?: RowIssue };
 
-/** What to do with rows whose email + company is already in the target list. */
-export type DuplicateMode = "update" | "skip";
-
-export function buildPreview(rows: string[][], mapping: FieldKey[], listId: string | undefined, tags: string[]) {
+export function buildPreview(rows: string[][], mapping: FieldKey[], tags: string[]) {
   const body = rows.slice(1);
   const truncated = body.length > MAX_ROWS;
   const seen = new Set<string>();
@@ -150,7 +147,7 @@ export function buildPreview(rows: string[][], mapping: FieldKey[], listId: stri
     const key = `${contact.email}|${contact.company.toLowerCase()}`;
     if (seen.has(key)) return { line, contact, verdict: "repeat" as const };
     seen.add(key);
-    return { line, contact, verdict: listId && isDuplicateIn(listId, contact) ? ("update" as const) : ("new" as const) };
+    return { line, contact, verdict: isInBook(contact) ? ("update" as const) : ("new" as const) };
   });
   const count = (v: RowVerdict) => out.filter((r) => r.verdict === v).length;
   return {

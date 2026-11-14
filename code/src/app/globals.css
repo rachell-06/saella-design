@@ -64,6 +64,18 @@
   ::selection {
     background-color: var(--selection);
   }
+  /* Browser autofill paints inputs light blue (designer report 2026-11-14): keep the field's own background and text.
+     The inset shadow covers the UA fill, which can't be overridden with background-color. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: var(--foreground);
+    box-shadow: 0 0 0 1000px var(--background) inset;
+    caret-color: var(--foreground);
+    transition: background-color 9999s ease-out 0s;
+  }
   html {
     @apply font-sans;
   }
@@ -97,4 +109,21 @@
 @keyframes saella-mini-tilt {
   from { transform: rotate(-6deg); }
   to { transform: rotate(6deg); }
+}
+/* Route progress (components/saella/route-progress.tsx, PATTERNS.md §9.17): the sidebar item the user clicked
+   looks selected at once, before its route renders; the old one lets go. Same look as data-active in ui/sidebar. */
+[data-sidebar="menu-button"][data-nav-pending] {
+  background-color: var(--sidebar-accent);
+  color: var(--sidebar-accent-foreground);
+  font-weight: 500;
+}
+[data-sidebar="menu-button"][data-nav-pending] svg {
+  color: var(--brand);
+}
+[data-sidebar="sidebar"]:has([data-nav-pending]) [data-sidebar="menu-button"][data-active]:not([data-active="false"]):not([data-nav-pending]) {
+  background-color: transparent;
+  font-weight: 400;
+}
+[data-sidebar="sidebar"]:has([data-nav-pending]) [data-sidebar="menu-button"][data-active]:not([data-active="false"]):not([data-nav-pending]) svg {
+  color: inherit;
 }

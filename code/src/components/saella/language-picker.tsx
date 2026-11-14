@@ -16,10 +16,11 @@ import {
 // at once. This prototype only stores the choice: the copy stays English.
 export type Locale = "vi" | "en" | "zh";
 
-export const LOCALES: { code: Locale; label: string; english: string }[] = [
-  { code: "vi", label: "Tiếng Việt", english: "Vietnamese" },
-  { code: "en", label: "English", english: "English" },
-  { code: "zh", label: "中文", english: "Chinese (Simplified)" },
+// `short`: the compact trigger text (user request 2026-11-12: "language nên gọn lại").
+export const LOCALES: { code: Locale; label: string; short: string; english: string }[] = [
+  { code: "vi", label: "Tiếng Việt", short: "VI", english: "Vietnamese" },
+  { code: "en", label: "English", short: "EN", english: "English" },
+  { code: "zh", label: "中文", short: "中文", english: "Chinese (Simplified)" },
 ];
 
 export function localeLabel(code: Locale) {
@@ -30,13 +31,13 @@ export function LanguagePicker({ value, onChange }: { value: Locale; onChange: (
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" aria-label={`Language: ${localeLabel(value)}`}>
+        <Button variant="ghost" size="sm" className="h-7 gap-1 px-2" aria-label={`Language: ${localeLabel(value)}`}>
           <LanguagesIcon data-icon="inline-start" />
-          {localeLabel(value)}
-          <ChevronDownIcon data-icon="inline-end" className="text-muted-foreground" />
+          {LOCALES.find((l) => l.code === value)?.short ?? "EN"}
+          <ChevronDownIcon data-icon="inline-end" className="size-3.5 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-44">
+      <DropdownMenuContent align="end" className="w-auto min-w-32">
         <DropdownMenuGroup>
           {LOCALES.map((l) => (
             <DropdownMenuItem key={l.code} lang={l.code} onSelect={() => onChange(l.code)}>

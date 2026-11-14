@@ -1,14 +1,15 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { CampaignsScreen } from "./_components/campaigns-screen";
+import { CampaignsBoard } from "./_components/campaigns-board";
 
 export const metadata: Metadata = { title: "Campaigns · Saella" };
 
-// The screen reads ?state= for previews, so it renders in a Suspense boundary.
+// One collapsible card per campaign (decisions.md "Campaigns", chosen 2026-11-11). The board reads ?c=, ?new= and
+// ?state= on the client, so it renders in a Suspense boundary.
 export default function CampaignsPage() {
   return (
     <Suspense>
-      <CampaignsScreen />
+      <CampaignsBoard />
     </Suspense>
   );
 }

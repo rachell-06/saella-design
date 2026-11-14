@@ -17,8 +17,10 @@ Số mục trong file này được code và docs trích dẫn (`DESIGN.md §2`,
 | Lưu, xoá, báo thành công hoặc lỗi | PATTERNS 9.10 |
 | Form, trường nhập | PATTERNS 9.11 (một bước), 9.2 (nhiều bước) |
 | Nút người dùng không được bấm, giới hạn gói | PATTERNS 9.12 |
+| Hành động tốn credit (unlock, export), hết credit | PATTERNS 9.18 |
 | Ngày giờ, số, chữ dài, ngôn ngữ | PATTERNS 9.8, 9.13 |
 | Import, xác minh domain, gửi batch, export | PATTERNS 9.14 |
+| Trang hoặc khối dữ liệu tải chậm | PATTERNS 9.17 |
 | Màn trống | PATTERNS 9.5 |
 | Viết chữ trên màn: tiêu đề, mô tả, nhãn, nội dung ô | PATTERNS 9.15 |
 | Agent | PATTERNS 9.4 |
@@ -49,10 +51,11 @@ Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại 
 - Dữ liệu cha–con (campaign → template) dùng master–detail (`PATTERNS.md` 9.6).
 
 **Bảng**
+- **Không bảng nào trải hết danh sách ra trang** (người dùng chốt 2026-11-14, áp cho mọi bảng): bảng nằm trong một vùng giới hạn chiều cao, các dòng cuộn bên trong, hàng tiêu đề dính ở trên. Mặc định trong `components/ui/table.tsx` (cao tối đa `max(20rem, 100svh − 14rem)`); bảng chiếm hết cột flex (Leads, New batch) thì vùng là phần còn lại của màn, phân trang/đếm ở chân khung. Không tự viết bảng ngoài `Table`/`DataTable`.
 - Tối đa 2 tầng chữ mỗi dòng. Một cột một kiểu hiển thị: không lẫn badge với chữ.
-- Rê chuột lên dòng: nền `muted/50` như Studio Admin (đổi 2026-11-10, trước đây không đổi nền). Thao tác dòng và checkbox hiện khi rê chuột hoặc Tab tới; bảng gọn có thể cho thao tác nổi đè lên cột cuối.
+- Rê chuột lên dòng: nền `muted/50` như Studio Admin (đổi 2026-11-10, trước đây không đổi nền). Checkbox chọn dòng luôn hiện (như Studio Admin, đổi 2026-11-10); nút thao tác dòng ⋯ hiện khi rê chuột hoặc Tab tới; bảng gọn có thể cho thao tác nổi đè lên cột cuối.
 - Một trang chỉ một hàng tab gạch chân. Bộ lọc phụ có đếm bên dưới (vd. Total / New / Already saved ở Find companies) dùng chip `ToggleGroup`.
-- Chỉ hiện nhãn trạng thái khi khác trạng thái bình thường; ngoại lệ: bảng template luôn có cột Status.
+- Chỉ hiện nhãn trạng thái khi khác trạng thái bình thường; ngoại lệ: bảng template và bảng công ty (Find companies) luôn có cột Status, mọi dòng đều có badge.
 - Ô bảng không có số thì để trống (không "0%", không "–"). Ô KPI chưa có số thì hiện "–". Cả hai không bao giờ hiện "0" thay cho "chưa biết" (PRD Master v1.6.8). Chỉ phân trang khi dài hơn một trang.
 
 **Số liệu**
@@ -66,14 +69,14 @@ Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại 
 
   Cảnh báo: chữ `warning-soft-foreground`; nguy hiểm: chữ `destructive-soft-foreground`; cả hai kèm icon và tooltip ghi ngưỡng. Open, Click, Reply, Unsub **không có ngưỡng nên không bao giờ tô màu**.
 - Dưới 20 lượt gửi: số xám, không đánh dấu, tooltip "too few to judge".
-- Nơi nào còn thanh `Progress`, độ dài thanh luôn bằng đúng con số.
+- Nơi nào còn thanh `Progress`, độ dài thanh luôn bằng đúng con số. Ngoại lệ duy nhất: thanh chờ tải ước tính (`PATTERNS.md` 9.17), luôn ghi "~" trước %.
 - Mọi thời gian hiện theo múi giờ của workspace, mặc định GMT+7; giờ gắn với hành động luôn ghi kèm múi giờ (`PATTERNS.md` 9.8).
 
 **Nội dung**
 - Chỉ hiện chữ người dùng **dùng để làm gì đó**; logic nghiệp vụ thể hiện qua cách UI hoạt động, không viết thành chữ giải thích. Chi tiết: `PATTERNS.md` 9.15.
 - Thông tin phụ vào ⓘ hoặc tooltip, tối đa 1–2 câu. Không đặt đoạn chú thích phương pháp cuối trang.
 - Gọi là **agent**, không bao giờ "assistant". Giọng chữ: `PRODUCT.md` mục 4.
-- Nhân vật chibi toàn thân **chỉ** ở onboarding. Agent dùng Saella mini. Màn trống dùng icon.
+- Nhân vật chibi toàn thân **chỉ** ở màn đăng nhập / đăng ký (đứng cạnh form ở cột trái, chỉ tay vào form, có chuyển động) và màn chào onboarding (vẫy tay trên tiêu đề) (người dùng chốt 2026-11-12). Component: `(auth)/_components/saella-character.tsx`. Panel thương hiệu các màn auth: nền tối `deep` (dark mode `deep-2`) + `WarpBackground` (lưới trắng mờ, tia `brand`, mỗi tia có một phong bì thư màu sáng ở đầu, tia là vệt đuôi: prop `beamHead`; reduced motion: chỉ lưới), giữa panel là thẻ chào (Card nền trong mờ). Agent dùng Saella mini. Màn trống dùng icon.
 - Dữ liệu mẫu: tên người, công ty hư cấu, không dùng khách thật (FTK, Vinex, VMA, Exquee, Aegis); số liệu chỉ minh hoạ, không phải claim marketing; đủ để hiện mọi trạng thái cần duyệt.
 
 **Control**
@@ -91,6 +94,8 @@ Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại 
 | Truyền đạt chỉ bằng màu | Màu + chữ hoặc icon |
 | Animation lặp vô hạn trên control; animation không tắt theo reduced motion | Mục 7 |
 | `shadcn apply` / `init --preset` (ghi đè token Saella) | Sửa `tokens.css` |
+
+Ngoại lệ duy nhất cho mã màu và icon nhiều màu: logo nhà cung cấp trên nút đăng nhập (Google, Microsoft) giữ màu chính thức của họ, cả light lẫn dark.
 
 ## 3. Token
 
@@ -112,7 +117,7 @@ Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại 
 | `status-{draft,scheduled,sending,sent,paused,failed}` | Badge trạng thái batch (mục 4.2) |
 | `chart-1..6` | Biểu đồ (mục 4.3) |
 | `sidebar*`, `sidebar-hover` | Sidebar |
-| `cream`, `peach`, `deep` | Nền onboarding / highlight chữ / overlay dialog |
+| `cream`, `peach`, `deep` | Nền nhấn nhẹ (hiện chưa dùng; trước là panel trang đăng nhập) / highlight chữ / overlay dialog |
 | `rounded-lg`, `rounded-md`, `rounded-sm`, `rounded-card`, `rounded-full` | Bo góc (mục 6) |
 | `shadow-card` / `shadow-float` | Độ nổi (mục 6) |
 | `text-dense`, `tracking-title`, `tracking-display` | Bảng dày 13px / tiêu đề 18–24px / số ≥ 30px |
@@ -192,8 +197,8 @@ Font **Geist** (`next/font`). Giao diện có ba ngôn ngữ: **English, Tiếng
 | `text-sm` | 14 / 20 | 400; nút, nhãn 500 | **Body mặc định**, ô nhập, nút, menu |
 | `text-base` | 16 / 24 | 400 | Đoạn đọc dài (chat agent, mô tả) |
 | `text-lg`, `text-xl` | 18, 20 | 600, `tracking-title` | Tiêu đề khối, dialog, card lớn |
-| `text-2xl` | 24 / 32 | 500, `tracking-title` | Tiêu đề khối lớn |
-| `text-3xl` | 30 / 36 | 400, `tracking-tight` | **Tiêu đề trang** (`PageHeader`, theo Studio Admin) |
+| `text-2xl` | 24 / 32 | 500, `tracking-tight` | **Tiêu đề trang** (`PageHeader`; người dùng chốt 2026-11-13: 30px nét 400 trông như landing page; giữ Geist, không đổi Inter vì hai font gần như giống nhau ở cùng cỡ), tiêu đề khối lớn |
+| `text-3xl` | 30 / 36 | 500, `tracking-title` | Tiêu đề màn đăng nhập / onboarding |
 | `text-3xl`+ | ≥ 30 | 400, `tracking-display` | Số KPI, onboarding |
 
 - Phân cấp bằng cỡ và màu trước, weight sau; hạn chế 700.
@@ -256,7 +261,7 @@ Không glow, không bóng màu.
 - Không mang từ LP sang: vệt sáng trên nút, chữ cuộn khi hover, reveal khi cuộn, parallax.
 - Mọi animation tắt khi `prefers-reduced-motion`. Không animation lặp vô hạn trên control.
 
-**Icon.** Lucide, stroke 1.75–2; 16px trong control, 20px trong nav. Màu theo chữ đi kèm; icon nhấn dùng `brand`. Icon mang nghĩa phải đạt 3:1.
+**Icon.** Lucide, stroke 1.75–2; 16px trong control, 20px trong nav. Màu theo chữ đi kèm; icon nhấn dùng `brand`. Icon mang nghĩa phải đạt 3:1. **Ngoại lệ: logo mạng xã hội** (Facebook, Instagram, Threads, LinkedIn, TikTok, YouTube, Pinterest…) giữ màu thương hiệu của chính mạng đó, phải nhận ra được ở cả light và dark; chỉ dùng để chỉ mạng đó, không dùng trang trí. Mọi logo mạng là **hình tròn** cùng cỡ: nền màu thương hiệu, hình trắng ở giữa; khi xếp chồng, mỗi logo có viền 2px màu nền để tách nhau. Định nghĩa ở `code/src/app/(app)/social/_components/network-icon.tsx` (chốt 2026-11-11).
 
 ## 8. Component
 
@@ -272,6 +277,8 @@ Chỉ ghi phần Saella **khác** shadcn/ui; phần còn lại theo docs shadcn.
 | `src/lib/mock/` | Dữ liệu giả và kiểu dữ liệu dùng chung | Giá trị chung (TODAY, NOW, user hiện tại, quốc gia) chỉ khai báo ở `constants.ts` |
 | `src/lib/format.ts`, `src/lib/time.ts` | Hàm định dạng, giờ theo múi giờ workspace | Không tự viết lại trong màn |
 
+**Thư viện ngoài shadcn:** soạn thư (Letter) dùng **TipTap 3.34.0** (`@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-text-style`, `@tiptap/extension-image`, `@tiptap/extensions`; ghim đúng phiên bản, designer duyệt 2026-11-14), dùng headless: thanh công cụ ghép từ component `ui/`, chữ trong thư theo `EMAIL_PROSE` (`components/features/email-body.tsx`), không dùng CSS mặc định của TipTap, không dùng extension trả phí. Thêm thư viện khác phải được duyệt.
+
 Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trước khi dùng, vì nó ghi biến thể nào dùng khi nào và tổ hợp bị cấm. Component mới hoặc hay bị dùng sai thì viết thêm meta.
 
 Áp cho mọi component trong `ui/`, kể cả khi thêm mới:
@@ -283,11 +290,11 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 
 | Component | Saella |
 |---|---|
-| Button | `default` = `primary`, hover `primary-hover`. `outline` viền `input`. `destructive` nền `destructive-soft` |
+| Button | `default` = `primary`, hover `primary-hover`. `outline` viền `input`. `destructive` nền `destructive-soft`. `ai` = hành động AI (✨): nền `primary-subtle`, chữ `primary-soft-foreground`, icon `brand`, viền `brand/30`; không bao giờ cam đặc, không tính là nút cam duy nhất của trang |
 | Input, Textarea | Viền `input`; placeholder `subtle-foreground` |
 | Select | Popover `shadow-card`; mục đang chọn có dấu check |
 | Checkbox, Radio, Switch | Bật = `primary`, tắt viền `input`. Checkbox có trạng thái "chọn một phần" |
-| Badge | Pill 12px, weight 600. Tông: trung tính, `brand`, `success`, `warning`, `info`, `destructive` (họ `-soft`) |
+| Badge | Pill 12px, weight 500 (người dùng chốt 2026-11-13; trước là 600). Tông: trung tính, `brand`, `success`, `warning`, `info`, `destructive` (họ `-soft`) |
 | Table | Theo Studio Admin: hàng tên cột không nền, chữ 14px 500 màu chữ chính; ô lề 16px; rê chuột nền `muted/50`; dòng chọn `primary-subtle`. Tiêu đề dính khi cuộn thì thêm nền `background` |
 | Tabs | Mặc định gạch dưới màu `brand`, tab chưa chọn `muted-foreground`. Chuyển chế độ xem (Rates / Counts) dùng `TabsList variant="default"` |
 | Toggle, ToggleGroup | Mục đang chọn nền `primary-soft`. Chip chọn nhiều (series biểu đồ, lọc sự kiện) |
@@ -296,6 +303,7 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 | Alert | Thêm tông `info`, `success`, `warning`. Alert cho thông báo cần nằm lại; toast cho xác nhận ngắn |
 | Toast (`sonner`) | Icon theo họ ngữ nghĩa; warning dùng `warning-soft-foreground` |
 | Card | `rounded-card` (12px) |
+| Message, Bubble, MessageScroller, Trace, Attachment, Marker | Bộ chat của shadcn cho Agent; không cài AI Elements (Vercel, sắp gộp vào shadcn). Attachment bo `rounded-card`, trạng thái đang tải dùng `shimmer` của shadcn (tự tắt khi giảm chuyển động). Marker cho mốc trong hội thoại |
 
 ### 8.2 Component Saella (`components/saella/`)
 
@@ -304,9 +312,9 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 | `StatusBadge` | Trạng thái campaign / template / batch: chấm tĩnh + chữ (mục 4.2) |
 | `KpiStrip` | Mẫu KPI hiện dùng (Overview, Campaigns, báo cáo batch, Billing); màn dựng lại từ Studio Admin thì dùng kiểu KPI của trang mẫu: một dải liền khối chia bằng hairline, không icon trang trí. Ô có `href` thì bấm được; `detail` vào tooltip; tông `warning` / `danger` khi vượt ngưỡng |
 | `RateCell`, `RateValue`, `rateKpi` | Cách duy nhất để hiện tỉ lệ email (`rate-meter.tsx`): "38.3% (466)", mẫu số trong tooltip, màu theo `RATE_BANDS`. `RateCell` cho bảng, `RateValue` nội dòng, `rateKpi` cho ô `KpiStrip` |
-| `DataTable` | Bảng TanStack v9: sắp xếp, chọn nhiều + thanh thao tác phía trên, phân trang, loading, empty, mở rộng dòng (`renderExpanded`), thao tác hiện khi rê chuột (`revealOnRowHover`) |
+| `DataTable` | Bảng TanStack v9: sắp xếp, chọn nhiều + thanh thao tác phía trên, phân trang, loading, empty, mở rộng dòng (`renderExpanded`), checkbox hiện khi rê chuột; thao tác dòng (`…`) luôn hiện, màu nhạt (`revealOnRowHover`) |
 | `FilterBar` | Ô tìm + menu lọc + chip giá trị + Clear all; điều khiển được từ ngoài (URL, agent) |
-| `MultiSelect`, `TreeSelect`, `TagInput` | Chọn nhiều, chọn theo cây, nhập tag |
+| `MultiSelect`, `TreeSelect`, `TagInput` | Chọn nhiều (Popover + Command; danh sách trên 7 mục có ô tìm, khớp theo chuỗi), chọn theo cây, nhập tag (tag có sẵn hiện thành dropdown khi focus, gõ để lọc, Enter thêm; không bày chip gợi ý) |
 | `DatePicker`, `DateRangePicker`, `TimePicker` | Chọn ngày giờ thay ô native, theo múi giờ workspace (`PATTERNS.md` 9.8) |
 | `ChartCard`, `Sparkline` | Khung biểu đồ, đường xu hướng nhỏ |
 | `Stepper` | Form nhiều bước (`PATTERNS.md` 9.2) |
@@ -316,6 +324,9 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 | `Hint` | Tooltip ngắn cho mọi phần tử, thay `title=` native (`PATTERNS.md` 9.13) |
 | `ListRow` | Một dòng chọn được trong danh sách bên trái của master–detail (campaign, thread agent, hàng chờ duyệt), dựng trên `Item` (`PATTERNS.md` 9.6) |
 | `ChipRemove` | Nút × trong chip hoặc `Badge` để gỡ nó (giá trị lọc, tag, file đính kèm) |
+| `RouteProgress` | Thanh 2px màu `brand` ở mép trên khi chuyển trang; mục sidebar vừa bấm sáng ngay (`data-nav-pending`). Gắn một lần ở `app/layout.tsx` (`PATTERNS.md` 9.17) |
+| `SectionLoader`, `useSectionLoad` | Một khối dữ liệu tự tải: skeleton đúng hình → trạng thái + thanh % sau 1s → Alert + Retry sau 15s hoặc khi lỗi; quay lại trong phiên hiện bản trước (`PATTERNS.md` 9.17) |
+| `LoadingStatus`, `UpdatedIndicator` | Dòng trạng thái khi chờ lâu (`aria-live`), tông "đang chạy" như trạng thái Sending: nền `primary-subtle`, viền `brand`/25, chữ `primary-soft-foreground`, spinner `brand`; "Updating… · Updated 2 min ago" khi đang làm mới bản cũ |
 
 **Đang bỏ (không dùng cho màn mới)**
 
@@ -334,7 +345,7 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 | `PageHeader` | Breadcrumb (tuỳ chọn), tiêu đề 30px, một dòng ngữ cảnh `text-sm`, thao tác bên phải: nút `size="sm"`, nút phụ (outline) trước, nút cam chính cuối, menu ⋯ (nếu có) sau cùng |
 | `SearchCommand` | Command palette (Ctrl/⌘K) |
 | `NotificationsMenu` | Thông báo |
-| `AgentPanel` + nút nổi "Ask the agent" | Lối vào agent (`PATTERNS.md` 9.4) |
+| `AgentPanel` + nút nổi "Ask the agent" | Lối vào agent (`PATTERNS.md` 9.4). Nút nổi là tính năng chính nên to và tương phản cao: pill nền `foreground` (ink) cao 48px, Saella mini 30px, `shadow-float`; không dùng cam đặc để không tranh nút chính của trang (2026-11-11) |
 | `LeadsTabs` | Tab của nhóm Leads |
 | `ThemeProvider` | Theme, mặc định light |
 

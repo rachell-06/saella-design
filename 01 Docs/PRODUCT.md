@@ -63,7 +63,7 @@ UI copy: plain English, specific verbs ("Send to 1,240 contacts", not "Proceed")
 - **The default AI dashboard**: dark background, purple gradient, pill badges, four identical stat cards at the top of every page, decorative charts that answer no question.
 - **A noisy growth-hack tool**: countdown timers, red-orange everywhere, boastful numbers.
 - **A heavy enterprise CRM** (HubSpot, Salesforce): deep nested menus, dense settings screens. Saella is for teams without a tool admin.
-- **A landing page inside the app**: heroes, large illustrations, the full-body character outside onboarding.
+- **A landing page inside the app**: heroes, large illustrations, the full-body character outside sign-in/sign-up and the onboarding welcome.
 - **An agent that takes over**: the agent sending or making risky changes without the user seeing it first.
 
 References worth learning from (details in `Research/Competitor.md`): Apollo.io (lead search + filters), Mailchimp (editor, campaign reports), Clay/Unify (agent proposals, draft approval), Buffer (multi-network posting).

@@ -18,12 +18,15 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive-soft text-destructive-soft-foreground hover:bg-[color-mix(in_oklch,var(--destructive-soft),var(--destructive)_14%)] focus-visible:border-destructive focus-visible:ring-destructive",
         link: "text-primary underline-offset-4 hover:underline",
+        // Saella: AI actions (Generate, Write with AI, Suggest…), always with a sparkle icon. Brand tint, never solid:
+        // the page's main action keeps the only solid orange button (DESIGN.md mục 2; user choice 2026-11-11).
+        ai: "border-brand/30 bg-primary-subtle text-primary-soft-foreground hover:bg-[color-mix(in_oklch,var(--primary-subtle),var(--brand)_14%)] aria-expanded:bg-[color-mix(in_oklch,var(--primary-subtle),var(--brand)_14%)] [&_svg]:text-brand",
       },
       size: {
         default:
           "h-8 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
         xs: "h-6 gap-1 rounded-[min(var(--radius-md),10px)] px-2 text-xs in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem] in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
+        sm: "h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-sm in-data-[slot=button-group]:rounded-lg has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3.5",
         lg: "h-9 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
         icon: "size-8",
         "icon-xs":

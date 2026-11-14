@@ -1,61 +1,43 @@
-import { Fragment } from "react";
-import Link from "next/link";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
+"use client";
 
-// Top of every product screen: optional breadcrumb, title (24px weight 500, foundations §2),
-// one line of context, and the screen's main actions on the right.
+import { cn } from "@/lib/utils";
+
+import { useTopbarCrumbs } from "@/components/layout/topbar-crumbs";
+
+// Top of every product screen: title (24px weight 500, DESIGN.md type scale), one line of context, and the screen's main
+// actions on the right. Parent pages (`breadcrumbs`) are shown in the app's top bar with a back button
+// (designer 2026-11-12), not above the title; the trail never repeats this page's title.
 export type Crumb = { label: string; href?: string };
+
+type PageHeaderProps = {
+  title: string;
+  /** Parent pages only; shown in the top bar with a back button to the nearest one. */
+  breadcrumbs?: Crumb[];
+  actions?: React.ReactNode;
+  /** Centre the actions against the title block instead of its top (editor headers, designer 2026-11-14). */
+  centerActions?: boolean;
+} & (
+  // Every page title has a line under it (designer 2026-11-12): a short description, or, on detail pages, a line of
+  // its own facts (status badge, campaign…) passed as children. Never both unless each says something new.
+  | { description: string; children?: React.ReactNode }
+  | { description?: string; children: React.ReactNode }
+);
 
 export function PageHeader({
   title,
   description,
   breadcrumbs,
   actions,
+  centerActions,
   children,
-}: {
-  title: string;
-  description?: string;
-  /** Parent pages; the current page is added from `title`. */
-  breadcrumbs?: Crumb[];
-  actions?: React.ReactNode;
-  /** Extra line under the title, e.g. a StatusBadge. */
-  children?: React.ReactNode;
-}) {
+}: PageHeaderProps) {
+  useTopbarCrumbs(breadcrumbs);
   return (
     <header className="flex flex-col gap-3">
-      {breadcrumbs && breadcrumbs.length > 0 && (
-        <Breadcrumb>
-          <BreadcrumbList>
-            {breadcrumbs.map((crumb) => (
-              <Fragment key={crumb.label}>
-                <BreadcrumbItem>
-                  {crumb.href ? (
-                    <BreadcrumbLink asChild>
-                      <Link href={crumb.href}>{crumb.label}</Link>
-                    </BreadcrumbLink>
-                  ) : (
-                    crumb.label
-                  )}
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-              </Fragment>
-            ))}
-            <BreadcrumbItem>
-              <BreadcrumbPage>{title}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-      )}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className={cn("flex flex-wrap justify-between gap-4", centerActions ? "items-center" : "items-start")}>
         <div className="flex min-w-0 flex-col gap-1">
-          <h1 className="font-heading text-3xl font-normal tracking-tight">{title}</h1>
+          {/* 24px medium (designer 2026-11-13): 30px weight 400 read like a landing page, not an app. */}
+          <h1 className="font-heading text-2xl font-medium tracking-tight">{title}</h1>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
           {children}
         </div>

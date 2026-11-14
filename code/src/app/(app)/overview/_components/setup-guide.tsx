@@ -1,179 +1,255 @@
 "use client";
 
+// Get started checklist, as the live app builds it (Repo EmailOnboardingChecklist + guided-steps.ts, PRD Master
+// v1.5.3/1.5.4, v1.6.3). Until every step is done (by the data, or ticked by the user) Overview shows this instead of
+// the numbers. Six steps: Saella's "Company details" first (onboarding no longer asks for the company, and "Saella
+// shows your data" needs its countries and industries), then the five of the
+// shared guided list. Only the current step has a button, later steps are dimmed.
+// A step can be ticked by hand after a confirm; a hand tick can be undone, a step the data proves done cannot.
+// Ticking "Create the campaign" also ticks "Design the email" (live app `implies`).
+
+import { useState } from "react";
 import Link from "next/link";
-import { CircleCheckIcon, XIcon } from "lucide-react";
+import { CheckIcon } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Item,
-  ItemActions,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemMedia,
-  ItemTitle,
-} from "@/components/ui/item";
 import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
+import { openAgent } from "@/components/features/agent-chat/agent-chat-provider";
 import { Hint } from "@/components/saella/hint";
+import { cn } from "@/lib/utils";
 
-// "Get started" card for a new workspace (R14, learned from Mailchimp F5 setup guide + Apollo A5 Next steps).
-// Four steps in the order sending needs them; done steps are inferred from data the workspace already has
-// (a verified domain, a confirmed sender, a contact list, a sent batch), so the backend stores nothing but the
-// dismissal. The first unfinished step is "next" and gets the stronger button; later ones stay quiet.
-// Neutral on purpose (user request 2026-10-29, fewer colors on Overview): grey progress, no tinted rows.
+export type SetupStepKey = "company" | "data" | "campaign" | "template" | "domain" | "send";
 
-export type SetupStepKey = "domain" | "sender" | "list" | "batch";
+// "Show me" hands a turn to the agent in the live app; here it opens the agent panel with that turn as the first
+// message (openAgent; the full page /agent is gone).
+const SEE_DATA_TURN =
+  "Show me the companies in my target country and the industries I focus on.";
 
-const STEPS: {
+export const STEPS: {
   key: SetupStepKey;
-  title: string;
-  description: string;
-  href: string;
-  action: string;
+  label: string;
+  desc: string;
+  cta: string;
+  /** Where the button goes; a step with `prompt` opens the agent panel instead. */
+  href?: string;
+  prompt?: string;
+  implies?: SetupStepKey[];
 }[] = [
   {
+    key: "company",
+    label: "Add company details",
+    desc: "Your company, target countries and industries.",
+    cta: "Add details",
+    href: "/settings/workspace",
+  },
+  {
+    key: "data",
+    label: "Saella shows your data",
+    desc: "See the companies matching your countries and industries.",
+    cta: "Show me",
+    prompt: SEE_DATA_TURN,
+  },
+  {
+    key: "campaign",
+    label: "Create the campaign",
+    desc: "One container for the audience, its templates and its sends.",
+    cta: "Create campaign",
+    href: "/campaigns",
+    implies: ["template"],
+  },
+  {
+    key: "template",
+    label: "Design the email",
+    desc: "Write it yourself or let Saella design it, then edit in place.",
+    cta: "Design email",
+    href: "/templates",
+  },
+  {
     key: "domain",
-    title: "Verify a domain",
-    description: "Add four DNS records so emails go out from your own address.",
-    href: "/settings/sending",
-    action: "Verify domain",
+    label: "Verify domain & sender",
+    desc: "Add the DNS records and confirm the address you send from.",
+    cta: "Verify",
+    href: "/settings/domain",
   },
   {
-    key: "sender",
-    title: "Confirm a sender",
-    description:
-      "Add the address you send from and click the link we email to it.",
-    href: "/settings/sending#senders-title",
-    action: "Add sender",
-  },
-  {
-    key: "list",
-    title: "Add a contact list",
-    description:
-      "Upload a CSV or pick companies to build the list you send to.",
-    href: "/contacts",
-    action: "Add list",
-  },
-  {
-    key: "batch",
-    title: "Send your first batch",
-    description: "Pick a template and a list, check the preview, then send.",
+    key: "send",
+    label: "Send your first 50",
+    desc: "Start small: a first batch of about 50 recipients.",
+    cta: "Prepare the send",
     href: "/batches/new",
-    action: "New batch",
   },
 ];
 
 export function SetupGuide({
-  done,
-  onDismiss,
+  workspace,
+  proven,
+  marked,
+  onMark,
 }: {
-  done: Set<SetupStepKey>;
-  onDismiss: () => void;
+  workspace: string;
+  /** Steps the workspace data proves done. */
+  proven: Set<SetupStepKey>;
+  /** Steps the user ticked by hand. */
+  marked: Set<SetupStepKey>;
+  onMark: (keys: SetupStepKey[], on: boolean) => void;
 }) {
-  const count = STEPS.filter((s) => done.has(s.key)).length;
-  const next = STEPS.find((s) => !done.has(s.key))?.key;
+  const [confirm, setConfirm] = useState<(typeof STEPS)[number] | null>(null);
+  const isDone = (k: SetupStepKey) => proven.has(k) || marked.has(k);
+  const count = STEPS.filter((s) => isDone(s.key)).length;
+  const active = STEPS.find((s) => !isDone(s.key))?.key;
+  const also = confirm?.implies
+    ?.filter((k) => !isDone(k))
+    .map((k) => STEPS.find((s) => s.key === k)!.label);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-heading text-base font-medium">
-          Get started
-        </CardTitle>
-        <CardDescription>
-          Four steps to your first send. Each one opens where it&apos;s done.
-        </CardDescription>
-        <CardAction>
-          <Hint label="Hide the setup guide">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="-mt-1 -mr-1 text-muted-foreground"
-              aria-label="Hide the setup guide"
-              onClick={onDismiss}
-            >
-              <XIcon />
-            </Button>
-          </Hint>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex max-w-md items-center gap-3">
-          <Progress
-            value={(count / STEPS.length) * 100}
-            aria-label={`${count} of ${STEPS.length} setup steps done`}
-            className="*:data-[slot=progress-indicator]:bg-muted-foreground"
-          />
-          <span className="shrink-0 text-sm text-muted-foreground tabular-nums">
-            {count}/{STEPS.length} done
-          </span>
-        </div>
-        <ItemGroup className="-mx-2 gap-0 has-data-[size=sm]:gap-0">
-          {STEPS.map((s, i) => {
-            const status = done.has(s.key)
-              ? "done"
-              : s.key === next
-                ? "next"
-                : "todo";
-            return (
-              <Item key={s.key} size="sm" className="px-2">
-                <ItemMedia>
-                  {status === "done" ? (
-                    <CircleCheckIcon
-                      className="size-5 text-muted-foreground"
-                      aria-label="Done"
-                    />
-                  ) : (
-                    <span
-                      className={cn(
-                        "grid size-5 place-items-center rounded-full border text-xs tabular-nums",
-                        status === "next"
-                          ? "border-foreground font-medium text-foreground"
-                          : "text-muted-foreground",
-                      )}
-                      aria-label={status === "next" ? "Next step" : "To do"}
-                    >
-                      {i + 1}
-                    </span>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 pt-2">
+      <div className="flex flex-col gap-1">
+        <h2 className="font-heading text-2xl font-normal tracking-tight">
+          Welcome to {workspace}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Finish these steps to send your first campaign. Your reply, open and
+          click insights will appear here once you do.
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-heading text-base font-medium">
+            Get started
+          </CardTitle>
+          <CardAction>
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {count} / {STEPS.length}
+            </span>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {count}/{STEPS.length} complete
+            </span>
+            <Progress
+              value={(count / STEPS.length) * 100}
+              aria-label={`${count} of ${STEPS.length} steps complete`}
+              className="*:data-[slot=progress-indicator]:bg-brand"
+            />
+          </div>
+
+          <ol className="flex flex-col gap-2.5">
+            {STEPS.map((s, i) => {
+              const done = isDone(s.key);
+              const handTicked = done && !proven.has(s.key);
+              const isActive = s.key === active;
+              return (
+                <li
+                  key={s.key}
+                  className={cn(
+                    "flex items-center gap-3.5 rounded-card border px-3.5 py-3",
+                    isActive && "border-primary bg-primary-subtle",
+                    done ? "opacity-65" : !isActive && "opacity-45",
                   )}
-                </ItemMedia>
-                <ItemContent className="min-w-0">
-                  <ItemTitle
-                    className={cn(
-                      status === "done" && "text-muted-foreground line-through",
-                    )}
+                >
+                  {/* The number is the tick, as in the live app: a data-proven step stays done. */}
+                  <Hint
+                    label={
+                      done && !handTicked
+                        ? undefined
+                        : handTicked
+                          ? "Undo"
+                          : "Mark as done"
+                    }
                   >
-                    {s.title}
-                  </ItemTitle>
-                  {status !== "done" && (
-                    <ItemDescription>{s.description}</ItemDescription>
-                  )}
-                </ItemContent>
-                <ItemActions>
-                  {status === "done" ? (
-                    <span className="text-sm text-muted-foreground">Done</span>
-                  ) : (
                     <Button
-                      variant={status === "next" ? "outline" : "ghost"}
-                      size="sm"
-                      asChild
+                      variant={done ? "default" : "outline"}
+                      size="icon-sm"
+                      className={cn(
+                        "shrink-0 rounded-full tabular-nums",
+                        !done && "border-primary text-primary-soft-foreground",
+                      )}
+                      disabled={done && !handTicked}
+                      aria-label={
+                        handTicked
+                          ? `Undo “${s.label}”`
+                          : done
+                            ? `${s.label}: done`
+                            : `Mark “${s.label}” as done`
+                      }
+                      onClick={() =>
+                        handTicked ? onMark([s.key], false) : setConfirm(s)
+                      }
                     >
-                      <Link href={s.href}>{s.action}</Link>
+                      {done ? <CheckIcon /> : i + 1}
                     </Button>
-                  )}
-                </ItemActions>
-              </Item>
-            );
-          })}
-        </ItemGroup>
-      </CardContent>
-    </Card>
+                  </Hint>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="flex items-center gap-2 font-medium">
+                      {s.label}
+                      {done && <Badge variant="outline">Done</Badge>}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {s.desc}
+                    </span>
+                  </div>
+                  {isActive &&
+                    (s.href ? (
+                      <Button size="sm" asChild>
+                        <Link href={s.href}>{s.cta}</Link>
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={() => openAgent({ prompt: s.prompt })}>
+                        {s.cta}
+                      </Button>
+                    ))}
+                </li>
+              );
+            })}
+          </ol>
+        </CardContent>
+      </Card>
+
+      <AlertDialog
+        open={confirm !== null}
+        onOpenChange={(o) => !o && setConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark “{confirm?.label}” as done?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Saella will treat this step as done and won&apos;t guide you
+              through it.
+              {also && also.length > 0 && ` It also marks: ${also.join(", ")}.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() =>
+                confirm && onMark([confirm.key, ...(confirm.implies ?? [])], true)
+              }
+            >
+              Mark as done
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   );
 }

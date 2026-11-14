@@ -1,39 +1,31 @@
-import type { Contact } from "@/lib/mock/contacts";
+import { type Contact, tagsOf, withAnyTag } from "@/lib/mock/contacts";
 import { KNOWN_TAGS, MERGE_TAGS, detailsFor, splitTags } from "@/lib/mock/templates";
 import type { Sender } from "@/lib/mock/workspace";
-import { type AudienceSummary, BATCH_CAP, LIST_OVERLAP, SUBJECTS } from "@/lib/mock/batches";
+import { type AudienceSummary, SUBJECTS, summarizeAudience } from "@/lib/mock/batches";
 
 // Who a new batch really goes to, person by person (2026-10-29, Competitor.md R1–R3).
-// R1 "Don't send to": lists and contact tags left out on top of the live app's own exclusions (HubSpot "Don't
-//    send to", Mailchimp "Do not send to"). Counts follow summarizeAudience; the people come from the Contacts mock.
+// R1 "Send to" / "Don't send to": contact tags picked and left out (2026-11-10: tags, no named lists; HubSpot
+//    "Don't send to", Mailchimp "Do not send to"), on top of the live app's own exclusions. summarizeAudience
+//    (lib/mock/batches.ts) works person by person over the contact book.
 // R2 per-recipient check: for each merge tag the template really uses, who has no value for it, so a greeting
 //    never goes out as "Hi ," (Clay's lesson: a bad substitution reached the email with no warning).
 // R3 preview values: the merge tag values one recipient gets, with the chosen fallbacks.
 // The live app needs the server to apply exclusions, count overlap and return the recipient rows.
 
-export type Exclusions = { listIds: string[]; tags: string[] };
-
 export type Recipient = {
   id: string;
-  listId: string;
+  tags: string[];
   firstName: string;
   lastName: string;
   email: string;
   company: string;
+  /** A Saella company (registry), not a Self-upload contact: shown by its company name. */
+  isCompany?: boolean;
 };
 
-export type RefinedAudience = AudienceSummary & {
-  /** Left out because they are also in a "Don't send to" list. */
-  excludedByList: number;
-  /** Left out because they carry a "Don't send to" tag. */
-  excludedByTag: number;
-  excluded: number;
-  /** The people the batch goes to, in list order (length = recipients). */
+export type RefinedAudience = Omit<AudienceSummary, "people"> & {
+  /** The people the batch goes to, in book order (length = recipients). */
   people: Recipient[];
-  /** Contacts in the picked lists that can't be reached, for "Review who is left out". */
-  unreachablePeople: Contact[];
-  /** Contacts left out by a "Don't send to" tag. */
-  taggedPeople: Contact[];
 };
 
 function hash(s: string) {
@@ -51,7 +43,7 @@ function toRecipient(c: Contact): Recipient {
   const noName = h % 97 === 0;
   return {
     id: c.id,
-    listId: c.id.split("-")[0],
+    tags: c.tags,
     firstName: noName ? "" : c.firstName,
     lastName: noName ? "" : c.lastName,
     email: noName ? `${SHARED_INBOX[h % SHARED_INBOX.length]}@${domain}` : c.email,
@@ -59,48 +51,23 @@ function toRecipient(c: Contact): Recipient {
   };
 }
 
-/** Applies "Don't send to" on top of summarizeAudience and lists the people who will get the email. */
-export function applyExclusions(
-  base: AudienceSummary,
-  contacts: Record<string, Contact[]>,
-  ex: Exclusions
+/** Who a batch to these tags reaches, minus "Don't send to", with the recipients the per-recipient check reads. */
+export function buildAudience(
+  book: Contact[],
+  tags: string[],
+  excludeTags: string[],
+  templateId: string | undefined,
+  /** Contacts picked one by one; replaces the tag match when given. */
+  ids?: ReadonlySet<string>
 ): RefinedAudience {
-  const picked = base.lists.map((l) => l.id);
-  const exLists = ex.listIds.filter((id) => !picked.includes(id));
-  let excludedByList = 0;
-  for (const p of picked) for (const e of exLists) excludedByList += LIST_OVERLAP[[p, e].sort().join("|")] ?? 0;
-  const inLists = picked.flatMap((id) => contacts[id] ?? []);
-  const reachable = inLists.filter((c) => !c.unreachable);
-  const taggedPeople = ex.tags.length ? reachable.filter((c) => c.tags.some((t) => ex.tags.includes(t))) : [];
-  // Some tagged people were already out (duplicates, already received): count only the share still eligible.
-  const share = reachable.length ? Math.min(1, base.eligible / reachable.length) : 0;
-  const excludedByTag = Math.round(taggedPeople.length * share);
-  const excluded = Math.min(base.eligible, excludedByList + excludedByTag);
-  const eligible = base.eligible - excluded;
-  const recipients = Math.min(eligible, BATCH_CAP);
-  const out = new Set(taggedPeople.map((c) => c.id));
-  return {
-    ...base,
-    eligible,
-    recipients,
-    truncated: eligible - recipients,
-    excludedByList,
-    excludedByTag,
-    excluded,
-    people: reachable
-      .filter((c) => !out.has(c.id))
-      .slice(0, recipients)
-      .map(toRecipient),
-    unreachablePeople: inLists.filter((c) => !!c.unreachable),
-    taggedPeople,
-  };
+  const base = summarizeAudience(book, tags, excludeTags, templateId, ids);
+  return { ...base, people: base.people.map(toRecipient) };
 }
 
-/** Contact tags found in these lists, for the "Don't send to" tag picker. */
-export function tagsIn(contacts: Record<string, Contact[]>, listIds: string[]) {
-  const tags = new Set<string>();
-  for (const id of listIds) for (const c of contacts[id] ?? []) c.tags.forEach((t) => tags.add(t));
-  return [...tags].sort();
+/** Other tags the picked people carry, for the "Don't send to" picker. */
+export function tagsIn(book: Contact[], tags: string[]) {
+  const picked = new Set(tags.map((t) => t.toLowerCase()));
+  return tagsOf(withAnyTag(book, tags)).filter((t) => !picked.has(t.toLowerCase()));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -194,3 +161,5 @@ export function gapsOf(r: Recipient, issues: DataIssue[]) {
 }
 
 export const displayName = (r: Recipient) => `${r.firstName} ${r.lastName}`.trim();
+/** How a recipient is named in pickers and lists: the company for Saella companies, else the person. */
+export const recipientLabel = (r: Recipient) => (r.isCompany ? r.company : displayName(r) || r.email);

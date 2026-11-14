@@ -13,10 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { type RecipientEvent, type ReportBatch, domainStats, linkStats, recipientRows } from "@/lib/mock/batches";
+import { WORKSPACE_TZ_LABEL } from "@/lib/time";
+import { type DomainStat, type RecipientEvent, type ReportBatch, domainStats, linkStats, recipientRows } from "@/lib/mock/batches";
 import { exportToast } from "./export";
 import { INTENTS, type ReplyIntent, type ReplyRow, withReplies } from "@/lib/mock/replies";
 
@@ -25,13 +27,32 @@ const n = (x: number) => x.toLocaleString("en-US");
 // ---------------------------------------------------------------------------------------------------------------
 // Deliverability: results by recipient domain (AC-EC-O-06).
 
+// Table cells split by thin vertical lines, the last column none (Leads / Studio Admin, PATTERNS 9.16).
+const divider = "border-r border-border/50 last:border-r-0";
+
+// Sortable by every number (AC-EC-O-06; live app DeliverabilityTab sorts each column, rates by rate).
+type DomainSort = "sends" | "delivery" | "bounce" | "open" | "click" | "unsub";
+const DOMAIN_SORT: Record<DomainSort, (d: DomainStat) => number> = {
+  sends: (d) => d.sends,
+  delivery: (d) => (d.sends ? d.delivered / d.sends : 0),
+  bounce: (d) => (d.sends ? d.bounced / d.sends : 0),
+  open: (d) => (d.delivered ? d.opened / d.delivered : 0),
+  click: (d) => (d.delivered ? d.clicked / d.delivered : 0),
+  unsub: (d) => (d.delivered ? d.unsubscribed / d.delivered : 0),
+};
+
 export function DeliverabilityTab({ batch }: { batch: ReportBatch }) {
   const rows = useMemo(() => recipientRows(batch), [batch]);
   const domains = useMemo(() => domainStats(rows), [rows]);
   const [all, setAll] = useState(false);
+  const [sort, setSort] = useState<DomainSort>("sends");
   const met = batch.metrics!;
   const complaint = rate(met.complaints, met.delivered);
-  const shown = all ? domains : domains.slice(0, 12);
+  const sorted = [...domains].sort((a, b) => DOMAIN_SORT[sort](b) - DOMAIN_SORT[sort](a));
+  const shown = all ? sorted : sorted.slice(0, 12);
+  const head = (key: DomainSort, label: string) => (
+    <SortHead label={label} active={sort === key} onClick={() => setSort(key)} className={divider} />
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,34 +63,30 @@ export function DeliverabilityTab({ batch }: { batch: ReportBatch }) {
         <KpiStripItem label="Spam complaints" value={complaint?.text} muted={complaint?.lowSample} note={`${n(met.complaints)} · pauses at 0.3%`} />
         <KpiStripItem label="Recipient domains" value={n(domains.length)} note={domains[0] ? `Most: ${domains[0].domain}` : undefined} />
       </KpiStrip>
-      <p className="-mt-3 text-sm text-subtle-foreground">
-        Bounced and unsubscribed addresses are suppressed automatically and won&apos;t be emailed again. A domain with a
-        high bounce rate usually means old addresses at that company.
-      </p>
 
       <div className="overflow-hidden rounded-card border">
         <Table aria-label="Results by recipient domain">
           <TableHeader>
             <TableRow>
-              <TableHead>Domain</TableHead>
-              <TableHead className="text-right">Sent</TableHead>
-              <TableHead className="text-right">Delivered</TableHead>
-              <TableHead className="text-right">Bounced</TableHead>
-              <TableHead className="text-right">Opened</TableHead>
-              <TableHead className="text-right">Clicked</TableHead>
-              <TableHead className="text-right">Unsubscribed</TableHead>
+              <TableHead className={divider}>Domain</TableHead>
+              {head("sends", "Sent")}
+              {head("delivery", "Delivered")}
+              {head("bounce", "Bounced")}
+              {head("open", "Opened")}
+              {head("click", "Clicked")}
+              {head("unsub", "Unsubscribed")}
             </TableRow>
           </TableHeader>
           <TableBody>
             {shown.map((d) => (
               <TableRow key={d.domain}>
-                <TableCell className="font-medium">{d.domain}</TableCell>
-                <TableCell className="text-right tabular-nums">{n(d.sends)}</TableCell>
-                <RateCell kind="delivery" part={d.delivered} whole={d.sends} />
-                <RateCell kind="bounce" part={d.bounced} whole={d.sends} />
-                <RateCell kind="open" part={d.opened} whole={d.delivered} />
-                <RateCell kind="click" part={d.clicked} whole={d.delivered} />
-                <RateCell kind="unsub" part={d.unsubscribed} whole={d.delivered} />
+                <TableCell className={cn(divider, "font-medium")}>{d.domain}</TableCell>
+                <TableCell className={cn(divider, "tabular-nums")}>{n(d.sends)}</TableCell>
+                <RateCell className={divider} kind="delivery" part={d.delivered} whole={d.sends} />
+                <RateCell className={divider} kind="bounce" part={d.bounced} whole={d.sends} />
+                <RateCell className={divider} kind="open" part={d.opened} whole={d.delivered} />
+                <RateCell className={divider} kind="click" part={d.clicked} whole={d.delivered} />
+                <RateCell className={divider} kind="unsub" part={d.unsubscribed} whole={d.delivered} />
               </TableRow>
             ))}
           </TableBody>
@@ -103,7 +120,6 @@ export function ClicksTab({ batch, fileBase }: { batch: ReportBatch; fileBase: s
       <KpiStrip>
         <KpiStripItem label="Click rate" value={click?.text} muted={click?.lowSample} note={`${n(met.clicks)} people clicked`} />
         <KpiStripItem label="Total clicks" value={n(met.totalClicks)} />
-        <KpiStripItem label="Unique clicks" value={n(met.clicks)} />
         <KpiStripItem label="Links in this email" value={n(links.length)} />
       </KpiStrip>
 
@@ -139,10 +155,10 @@ export function ClicksTab({ batch, fileBase }: { batch: ReportBatch; fileBase: s
           <Table aria-label="Link performance">
             <TableHeader>
               <TableRow>
-                <TableHead>Link</TableHead>
-                <SortHead label="Unique clicks" active={sort === "uniqueClicks"} onClick={() => setSort("uniqueClicks")} />
-                <SortHead label="Total clicks" active={sort === "totalClicks"} onClick={() => setSort("totalClicks")} />
-                <TableHead className="w-48">Share of clicks</TableHead>
+                <TableHead className={divider}>Link</TableHead>
+                <SortHead label="Unique clicks" active={sort === "uniqueClicks"} onClick={() => setSort("uniqueClicks")} className={cn(divider, "w-36")} />
+                <SortHead label="Total clicks" active={sort === "totalClicks"} onClick={() => setSort("totalClicks")} className={cn(divider, "w-36")} />
+                <TableHead className={cn(divider, "w-48")}>Share of clicks</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -150,12 +166,12 @@ export function ClicksTab({ batch, fileBase }: { batch: ReportBatch; fileBase: s
                 const share = met.totalClicks ? l.totalClicks / met.totalClicks : 0;
                 return (
                   <TableRow key={l.url}>
-                    <TableCell className="max-w-0 truncate" title={l.url}>
+                    <TableCell className={cn(divider, "w-full max-w-0 truncate")} title={l.url}>
                       {l.url}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{n(l.uniqueClicks)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{n(l.totalClicks)}</TableCell>
-                    <TableCell>
+                    <TableCell className={cn(divider, "tabular-nums")}>{n(l.uniqueClicks)}</TableCell>
+                    <TableCell className={cn(divider, "tabular-nums")}>{n(l.totalClicks)}</TableCell>
+                    <TableCell className={divider}>
                       <div className="flex items-center gap-3">
                         <Progress
                           value={share * 100}
@@ -176,10 +192,10 @@ export function ClicksTab({ batch, fileBase }: { batch: ReportBatch; fileBase: s
   );
 }
 
-function SortHead({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function SortHead({ label, active, onClick, className }: { label: string; active: boolean; onClick: () => void; className?: string }) {
   return (
-    <TableHead className="text-right" aria-sort={active ? "descending" : "none"}>
-      <Button variant="ghost" size="sm" className={cn("-mr-2", !active && "text-muted-foreground")} onClick={onClick}>
+    <TableHead className={className} aria-sort={active ? "descending" : "none"}>
+      <Button variant="ghost" size="sm" className={cn("-ml-2", !active && "text-muted-foreground")} onClick={onClick}>
         {label}
         {active && <span aria-hidden>↓</span>}
       </Button>
@@ -205,14 +221,22 @@ const FILTERS: { value: EventFilter; label: string; test: (r: ReplyRow) => boole
   { value: "complained", label: "Marked as spam", test: (r) => r.complained },
 ];
 
-const STATUS_BADGE: Record<RecipientEvent, { label: string; variant: "secondary" | "info" | "success" | "destructive" | "warning" | "outline" }> = {
-  pending: { label: "Queued", variant: "outline" },
-  delivered: { label: "Delivered", variant: "secondary" },
-  opened: { label: "Opened", variant: "info" },
-  clicked: { label: "Clicked", variant: "success" },
-  bounced: { label: "Bounced", variant: "destructive" },
-  unsubscribed: { label: "Unsubscribed", variant: "warning" },
-  complained: { label: "Marked as spam", variant: "destructive" },
+// Outlined tinted pill with a dot, as the Leads tables (Studio Admin users StatusBadge, 2026-11-10).
+const TONE = {
+  neutral: { pill: "border-border bg-muted text-muted-foreground", dot: "bg-muted-foreground" },
+  info: { pill: "border-info/20 bg-info-soft text-info-soft-foreground", dot: "bg-info" },
+  success: { pill: "border-success/20 bg-success-soft text-success-soft-foreground", dot: "bg-success" },
+  warning: { pill: "border-warning/20 bg-warning-soft text-warning-soft-foreground", dot: "bg-warning" },
+  danger: { pill: "border-destructive/20 bg-destructive-soft text-destructive-soft-foreground", dot: "bg-destructive" },
+};
+const STATUS_BADGE: Record<RecipientEvent, { label: string; tone: keyof typeof TONE }> = {
+  pending: { label: "Queued", tone: "neutral" },
+  delivered: { label: "Delivered", tone: "neutral" },
+  opened: { label: "Opened", tone: "info" },
+  clicked: { label: "Clicked", tone: "success" },
+  bounced: { label: "Bounced", tone: "danger" },
+  unsubscribed: { label: "Unsubscribed", tone: "warning" },
+  complained: { label: "Marked as spam", tone: "danger" },
 };
 
 const PAGE = 50;
@@ -260,7 +284,8 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <InputGroup className="w-80">
+          {/* One toolbar height, h-7 as the Leads tables: search, event select and Export (2026-11-12). */}
+          <InputGroup className="h-7 w-80">
             <InputGroupAddon>
               <SearchIcon />
             </InputGroupAddon>
@@ -275,34 +300,28 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
               }}
             />
           </InputGroup>
-          <span className="text-sm text-muted-foreground tabular-nums">
-            {n(matched.length)} {matched.length === 1 ? "person" : "people"}
-          </span>
+          {/* One event dropdown with counts, not a row of chips (PATTERNS 9.7, 2026-11-12; same as the template
+              detail "All recipients"). */}
+          <Select value={filter} onValueChange={(v) => setFilter(v)}>
+            <SelectTrigger size="sm" className="w-44" aria-label="Filter by event">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FILTERS.filter((f) => f.value !== "pending" || counts.pending > 0).map((f) => (
+                <SelectItem key={f.value} value={f.value}>
+                  <span>
+                    {f.label} <span className="text-muted-foreground tabular-nums">· {n(counts[f.value])}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Button variant="outline" disabled={matched.length === 0} onClick={() => exportToast(`${n(matched.length)} recipients`, `${fileBase}-recipients-${intent ?? filter}`)}>
+        <Button variant="outline" size="sm" disabled={matched.length === 0} onClick={() => exportToast(`${n(matched.length)} recipients`, `${fileBase}-recipients-${intent ?? filter}`)}>
           <FileSpreadsheetIcon data-icon="inline-start" />
           Export recipients
         </Button>
       </div>
-
-      {/* Event chips with counts replace the dropdown (2026-10-29, learned from Apollo/Unify): every count is
-          visible at once and one click filters. Radix lets a single group deselect; that falls back to Everyone. */}
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        aria-label="Filter by event"
-        className="flex-wrap"
-        value={filter}
-        onValueChange={(v) => setFilter(v || "all")}
-      >
-        {FILTERS.filter((f) => f.value !== "pending" || counts.pending > 0).map((f) => (
-          <ToggleGroupItem key={f.value} value={f.value} aria-label={`${f.label}, ${n(counts[f.value])}`}>
-            {f.label}
-            <span className="text-muted-foreground tabular-nums">{n(counts[f.value])}</span>
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
 
       {/* Replied opens a second row of chips by intent (ĐX R6, 2026-10-29, Apollo "Recent replies" / Unify): who
           wants a meeting is the first follow-up. Hidden at 0 replies; the empty state below explains instead. */}
@@ -366,13 +385,14 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
           <Table aria-label="Recipient activity" className="text-dense">
             <TableHeader>
               <TableRow>
-                <TableHead>Recipient</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Reply</TableHead>
-                <TableHead className="text-right">Opens</TableHead>
-                <TableHead className="text-right">Clicks</TableHead>
-                <TableHead>Last activity</TableHead>
+                <TableHead className={divider}>Recipient</TableHead>
+                <TableHead className={divider}>Company</TableHead>
+                <TableHead className={divider}>Status</TableHead>
+                <TableHead className={divider}>Reply</TableHead>
+                <TableHead className={divider}>Opens</TableHead>
+                <TableHead className={divider}>Clicks</TableHead>
+                {/* Dense time column: the zone once, in the header (PATTERNS 9.8). */}
+                <TableHead className={divider}>Last activity ({WORKSPACE_TZ_LABEL})</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -383,17 +403,20 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
                 const last = r.reply && (!r.lastActivity || r.reply.at > r.lastActivity) ? r.reply.at : r.lastActivity;
                 return (
                   <TableRow key={r.id}>
-                    <TableCell>
+                    <TableCell className={divider}>
                       <div className="flex flex-col">
                         <span className="font-medium">{r.name}</span>
                         <span className="text-muted-foreground">{r.email}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{r.company}</TableCell>
-                    <TableCell>
-                      <Badge variant={s.variant}>{s.label}</Badge>
+                    <TableCell className={cn(divider, "text-muted-foreground")}>{r.company}</TableCell>
+                    <TableCell className={divider}>
+                      <Badge variant="outline" className={cn("gap-1.5 px-2", TONE[s.tone].pill)}>
+                        <span aria-hidden className={cn("size-1.5 rounded-full", TONE[s.tone].dot)} />
+                        {s.label}
+                      </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className={divider}>
                       {reply && (
                         <div className="flex flex-col items-start gap-0.5">
                           <Badge variant={reply.variant}>{reply.label}</Badge>
@@ -401,22 +424,26 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{r.opens || ""}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.clicks || ""}</TableCell>
-                    <TableCell className="text-muted-foreground">{last ? formatDateTime(last) : ""}</TableCell>
+                    <TableCell className={cn(divider, "tabular-nums")}>{r.opens || ""}</TableCell>
+                    <TableCell className={cn(divider, "tabular-nums")}>{r.clicks || ""}</TableCell>
+                    <TableCell className={cn(divider, "text-muted-foreground")}>{last ? formatDateTime(last) : ""}</TableCell>
                   </TableRow>
                 );
               })}
             </TableBody>
           </Table>
-          {matched.length > shown.length && (
-            <div className="flex items-center justify-between border-t px-4 py-2 text-sm text-muted-foreground">
+          {/* The count lives here (designer 2026-11-14: no "N people" beside the select). A search shows the count of
+              what it found even when it fits one page. */}
+          {(matched.length > shown.length || q !== "") && (
+            <div className="flex min-h-12 items-center justify-between border-t px-4 py-2 text-sm text-muted-foreground">
               <span className="tabular-nums">
                 Showing {n(shown.length)} of {n(matched.length)}
               </span>
-              <Button variant="ghost" size="sm" onClick={() => setLimit((l) => l + PAGE)}>
-                Show {Math.min(PAGE, matched.length - shown.length)} more
-              </Button>
+              {matched.length > shown.length && (
+                <Button variant="ghost" size="sm" onClick={() => setLimit((l) => l + PAGE)}>
+                  Show {Math.min(PAGE, matched.length - shown.length)} more
+                </Button>
+              )}
             </div>
           )}
         </div>

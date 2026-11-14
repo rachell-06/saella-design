@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -40,8 +39,8 @@ import type { CheckStatus, Handling } from "./recipient-checks";
 import {
   type DataIssue,
   type Recipient,
-  displayName,
   gapsOf,
+  recipientLabel,
   valuesFor,
 } from "./recipient-check";
 
@@ -96,13 +95,12 @@ export function RecipientPreview({
   const flaggedPeople = people.filter((p) => flagged.has(p.id)).slice(0, PICKER);
   const others = people.filter((p) => !flagged.has(p.id)).slice(0, PICKER);
   const offered = new Set([...flaggedPeople, ...others].map((p) => p.id));
-  const label = (p: Recipient) => displayName(p) || p.email;
+  const label = recipientLabel;
 
   return (
     <Card className="lg:sticky lg:top-4">
       <CardHeader>
         <CardTitle>Preview</CardTitle>
-        <CardDescription>The email one recipient will get.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {status === "checking" ? (
@@ -149,7 +147,9 @@ export function RecipientPreview({
                   aria-label="Preview as"
                   className="w-full min-w-0 flex-1"
                 >
-                  <SelectValue />
+                  {/* The label is given directly: Radix fills SelectValue only once the list has mounted, so the
+                      closed trigger was empty on first render. */}
+                  <SelectValue>{label(person)}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {!offered.has(person.id) && (
@@ -234,6 +234,7 @@ export function RecipientPreview({
             >
               <EmailBody
                 blocks={details.blocks}
+                html={details.html}
                 kind={details.kind}
                 mode="preview"
                 values={values}

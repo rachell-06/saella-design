@@ -3,11 +3,15 @@
 import * as React from "react"
 import { cn } from "cn"
 
+// Rule (designer 2026-11-14, PATTERNS.md §9.1): no table shows its whole list on the page. Every table sits in a
+// bounded area (at most the viewport minus the page frame, never under 20rem) and its rows scroll inside it, under
+// a sticky header. Short tables look as before. A table that fills a flex column (Leads) sets
+// `*:data-[slot=table-container]:min-h-0 flex-1` on its parent; `max-h-none` there opts out of the cap.
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className="relative max-h-[max(20rem,calc(100svh-14rem))] w-full overflow-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
     >
       <table
         data-slot="table"
@@ -22,7 +26,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b [&_tr]:hover:bg-transparent", className)}
+      className={cn("bg-table-head [&_tr]:border-b [&_tr]:hover:bg-transparent", className)}
       {...props}
     />
   )

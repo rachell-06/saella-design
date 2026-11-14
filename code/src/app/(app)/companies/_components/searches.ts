@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { FOUNDED, STATUSES, countryLabel, isicLabel } from "./data";
+import { FOUNDED, STATUSES, countryLabel, isicLabel } from "@/lib/mock/companies";
 
 // Filter model + saved searches for Companies (2026-10-29, Competitor.md R11/R12, Apollo A1). A saved search keeps
 // the filters, not the rows, so reopening it picks up companies added to the registry since (A-P3).
@@ -52,10 +52,8 @@ const norm = ({ query, filters: f }: Search) =>
   JSON.stringify([query.trim().toLowerCase(), f.country ?? "", [...f.isic].sort(), f.status ?? "", f.founded ?? "", [...f.quality].sort()]);
 export const sameSearch = (a: Search, b: Search) => norm(a) === norm(b);
 
-/** The agent page reads ?prompt= and starts a new thread with it (agent screen, see report 2026-10-29). */
-export const agentHref = (prompt: string) => `/agent?prompt=${encodeURIComponent(prompt)}`;
 export const workSearchPrompt = (s: SavedSearch) =>
-  `Work my saved search “${s.name}” (${describeSearch(s)}): find the companies that aren't in my lists yet and suggest who to contact first.`;
+  `Work my saved search “${s.name}” (${describeSearch(s)}): find the companies that aren't in my contacts yet and suggest who to contact first.`;
 
 // ---------------------------------------------------------------------------------------------------------
 // Store

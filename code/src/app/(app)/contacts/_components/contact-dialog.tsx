@@ -82,8 +82,9 @@ function ContactForm({
     >
       <DialogHeader>
         <DialogTitle>{contact ? "Edit contact" : "Add contact"}</DialogTitle>
-        <DialogDescription>
-          {contact ? "Changes apply to this list only." : "If this email is already in the list for the same company, it is updated instead."}
+        {/* AC-CON-M-02 told where it happens: adding an email already saved for the same company updates it. */}
+        <DialogDescription className={contact ? "sr-only" : undefined}>
+          {contact ? "Change any field of this contact." : "If this email is already saved for the same company, it is updated instead."}
         </DialogDescription>
       </DialogHeader>
       <FieldGroup>

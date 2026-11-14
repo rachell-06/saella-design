@@ -23,7 +23,7 @@ export function SubjectChecklist({ checks }: { checks: SubjectCheck[] }) {
   const failing = checks.filter((c) => c.state !== "ok");
   return (
     <Collapsible asChild>
-      <section aria-labelledby="ed-subject-check" className="flex flex-col gap-2 border-t pt-4 sm:col-span-2">
+      <section aria-labelledby="ed-subject-check" className="flex flex-col gap-2 border-t pt-2 sm:col-span-2">
         <div className="flex flex-wrap items-center gap-x-2">
           <h3 id="ed-subject-check" className="text-sm font-medium">
             Subject check

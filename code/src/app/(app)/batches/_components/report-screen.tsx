@@ -3,8 +3,12 @@
 // Batch report: /batches/[id]/report?tab=overview|deliverability|clicks|recipients (PRD-02 AC-EC-O-01..07, live
 // app batches/[id]/report/*). Header = what was sent, to whom, from whom (operator + send-as, BR-RULE-EC-44);
 // then status (progress while sending, reason when failed or paused), then four tabs. Overview is the default
-// tab (AC-EC-O-07). Rates follow the live app: open/click/unsub over delivered, bounce over recipients, machine
+// tab (AC-EC-O-07). Rates follow the live app: open/click/reply/unsub over delivered, bounce over sent, machine
 // traffic excluded (AC-EC-K-07), grey below 20 sends (BR-RULE-EC-21).
+// 2026-11-10 (PRD + live app review): Reply joins the headline rates (live app OverviewTab "Performance"); "View
+// email" shows the email as sent (AC-EC-O-03, live app preview beside Top links); "Other batches of this template"
+// stands in for the live app's cross-batch comparison (AC-EC-O-03). Not built: industry benchmark and top
+// locations (AC-EC-O-03), which have no data in the mock or, for locations, in the live app yet.
 // Preview states (?state=): loading, error, paused (shows b2 as paused by the workspace auto-pause).
 
 import { useEffect, useMemo, useState } from "react";
@@ -17,19 +21,33 @@ import {
   CirclePauseIcon,
   FileSpreadsheetIcon,
   InboxIcon,
+  MailIcon,
   RotateCwIcon,
   SearchXIcon,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { formatDate, formatDateTime, rate } from "@/lib/mock/campaigns";
+import { contactsHref } from "@/lib/mock/contacts";
+import { WORKSPACE_TZ_LABEL } from "@/lib/time";
+import { detailsFor } from "@/lib/mock/templates";
+import { EmailBody, TagText } from "@/components/features/email-body";
 import { PageHeader } from "@/components/layout/page-header";
 import { KpiStrip, KpiStripItem } from "@/components/saella/kpi-strip";
-import { rateKpi } from "@/components/saella/rate-meter";
+import { RateCell, rateKpi } from "@/components/saella/rate-meter";
 import { StatusBadge } from "@/components/saella/status-badge";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   type ChartConfig,
   ChartContainer,
@@ -47,13 +65,13 @@ import {
   type ReportBatch,
   SEND_PER_HOUR,
   SUBJECTS,
+  allBatches,
   batchCode,
   batchTitle,
   findTemplate,
   getBatch,
   hourlySnapshot,
   linkStats,
-  listById,
   memberById,
   senderById,
   updateCreatedBatch,
@@ -131,7 +149,7 @@ export function ReportScreen({ id }: { id: string }) {
   if (state === "error") {
     return (
       <>
-        <PageHeader title="Batch report" breadcrumbs={[{ label: "Overview", href: "/overview" }]} />
+        <PageHeader title="Batch report" description="How this batch performed, recipient by recipient." breadcrumbs={[{ label: "Overview", href: "/overview" }]} />
         <Alert variant="destructive">
           <CircleAlertIcon />
           <AlertTitle>Couldn&apos;t load this report</AlertTitle>
@@ -150,7 +168,7 @@ export function ReportScreen({ id }: { id: string }) {
   if (!batch) {
     return (
       <>
-        <PageHeader title="Batch report" breadcrumbs={[{ label: "Overview", href: "/overview" }]} />
+        <PageHeader title="Batch report" description="How this batch performed, recipient by recipient." breadcrumbs={[{ label: "Overview", href: "/overview" }]} />
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -176,10 +194,10 @@ export function ReportScreen({ id }: { id: string }) {
   const fileBase = `batch-${batchCode(batch).slice(1)}`;
   const when =
     batch.status === "scheduled" && batch.scheduledFor
-      ? `Scheduled for ${formatDateTime(batch.scheduledFor)}`
+      ? `Scheduled for ${formatDateTime(batch.scheduledFor)} ${WORKSPACE_TZ_LABEL}`
       : batch.sentAt
         ? // Still going out (or held by a pause): it started then, it isn't "sent" yet.
-          `${batch.status === "sending" || batch.status === "paused" ? "Started" : "Sent"} ${formatDateTime(batch.sentAt)}`
+          `${batch.status === "sending" || batch.status === "paused" ? "Started" : "Sent"} ${formatDateTime(batch.sentAt)} ${WORKSPACE_TZ_LABEL}`
         : `Created ${formatDate(batch.createdOn, true)}`;
 
   return (
@@ -193,12 +211,15 @@ export function ReportScreen({ id }: { id: string }) {
         // "Export report" vs the tabs' "Export links"/"Export recipients" (2026-10-28): three buttons all read
         // "Export to Excel" on Clicks and Recipients, with no hint which data each one exported.
         actions={
-          hasResults && (
-            <Button size="sm" variant="outline" onClick={() => exportToast("this report", fileBase)}>
-              <FileSpreadsheetIcon data-icon="inline-start" />
-              Export report
-            </Button>
-          )
+          <>
+            <SentEmailDialog batch={batch} />
+            {hasResults && (
+              <Button size="sm" variant="outline" onClick={() => exportToast("this report", fileBase)}>
+                <FileSpreadsheetIcon data-icon="inline-start" />
+                Export report
+              </Button>
+            )}
+          </>
         }
       >
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -209,19 +230,19 @@ export function ReportScreen({ id }: { id: string }) {
 
       {/* What was sent, to whom and from whom. Columns sized to their content (2026-10-28): equal columns cut the
           subject and the send-as address short while "Sent by" sat half empty. When the row is full, short items keep
-          their width and only the long ones truncate (grid shares the rest equally up to each item's max-content). */}
-      <dl className="grid grid-cols-[repeat(5,minmax(0,max-content))] justify-between gap-x-8 text-sm">
+          their width and only the long ones truncate (grid shares the rest equally up to each item's max-content).
+          Items split by thin vertical lines, the same padding each side, first item flush left (designer 2026-11-14); the
+          row never wraps, so no line can start a row: long values truncate with a tooltip instead. */}
+      <dl className="grid grid-cols-[repeat(6,minmax(0,max-content))] divide-x divide-border text-sm">
         <Meta label="Template" value={tpl?.template.name ?? "Deleted template"} href={tpl ? `/templates/${tpl.template.id}` : undefined} />
         <Meta label="Subject" value={SUBJECTS[batch.templateId] ?? "–"}>
           <SubjectText subject={SUBJECTS[batch.templateId] ?? "–"} />
         </Meta>
         <Meta label="Sent as" value={sender ? `${sender.name} <${sender.email}>` : "–"} />
         <Meta label="Sent by" value={operator?.name ?? "–"} />
-        <Meta
-          label="Lists"
-          value={batch.listIds.map((l) => listById(l)?.name ?? l).join(", ")}
-          href={batch.listIds.length === 1 ? `/contacts/${batch.listIds[0]}` : undefined}
-        />
+        {/* A batch to Saella companies has no contact tags (2026-11-12). */}
+        <Meta label="Sent to" value={batch.tags.length ? batch.tags.join(", ") : "Saella companies"} href={batch.tags.length ? contactsHref(batch.tags) : undefined} />
+        <Meta label="Recipients" value={n(batch.recipients)} href={hasResults ? `${pathname}?tab=recipients` : undefined} />
       </dl>
 
       <StatusPanel batch={batch} />
@@ -260,7 +281,7 @@ export function ReportScreen({ id }: { id: string }) {
 // The full value in a tooltip, since long ones truncate (shadcn Tooltip, not a native title).
 function Meta({ label, value, href, children }: { label: string; value: string; href?: string; children?: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
+    <div className="flex min-w-0 flex-col gap-0.5 px-6 first:pl-0 last:pr-0">
       <dt className="text-muted-foreground">{label}</dt>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -297,9 +318,6 @@ function StatusPanel({ batch }: { batch: ReportBatch }) {
           </p>
         </div>
         <Progress value={pct} aria-label={`${pct}% sent`} className="h-1.5 *:data-[slot=progress-indicator]:bg-brand" />
-        <p className="text-sm text-muted-foreground">
-          Saella sends gradually to protect your reputation. Rates fill in as emails are delivered and opened.
-        </p>
       </div>
     );
   }
@@ -334,7 +352,7 @@ function StatusPanel({ batch }: { batch: ReportBatch }) {
     return (
       <Alert variant="info">
         <CalendarClockIcon />
-        <AlertTitle>Goes out {batch.scheduledFor ? formatDateTime(batch.scheduledFor) : "later"}</AlertTitle>
+        <AlertTitle>Goes out {batch.scheduledFor ? `${formatDateTime(batch.scheduledFor)} ${WORKSPACE_TZ_LABEL}` : "later"}</AlertTitle>
         <AlertDescription>
           {n(batch.recipients)} recipients. People who unsubscribe or bounce before then are skipped.
         </AlertDescription>
@@ -404,15 +422,9 @@ function OverviewTab({
   return (
     <div className="flex flex-col gap-6">
       {/* Headline rates (AC-EC-O-01) plus delivery (AC-EC-O-02). */}
+      {/* Same six rates, pattern and wording as Overview and Campaigns (rateKpi, 2026-11-05). Recipients moved to the
+          header line; Reply added (live app OverviewTab "Performance": delivery, open, click, reply). */}
       <KpiStrip>
-        <KpiStripItem
-          label="Recipients"
-          value={n(batch.recipients)}
-          note={batch.status === "sending" ? `${n(sent)} sent so far` : `${n(sent)} sent`}
-          href={peopleHref()}
-          hrefLabel="See all recipients"
-        />
-        {/* Same pattern and wording as Overview and Campaigns (rateKpi, 2026-11-05). */}
         <KpiStripItem
           label="Delivery rate"
           {...rateKpi("delivery", met.delivered, sent)}
@@ -430,6 +442,12 @@ function OverviewTab({
           {...rateKpi("click", met.clicks, met.delivered)}
           href={peopleHref("clicked")}
           hrefLabel="See who clicked"
+        />
+        <KpiStripItem
+          label="Reply rate"
+          {...rateKpi("reply", met.replies, met.delivered)}
+          href={peopleHref("replied")}
+          hrefLabel="See who replied"
         />
         <KpiStripItem
           label="Bounce rate"
@@ -507,6 +525,8 @@ function OverviewTab({
         </Card>
       </div>
 
+      <OtherBatches batch={batch} />
+
       {/* Secondary numbers (AC-EC-O-02). */}
       <section aria-labelledby="more-details" className="flex flex-col gap-3">
         <h2 id="more-details" className="font-heading text-base font-medium">
@@ -524,6 +544,103 @@ function OverviewTab({
         </dl>
       </section>
     </div>
+  );
+}
+
+// The email as sent (AC-EC-O-03, B-07 snapshot; live app preview beside Top links). Merge tags stay as chips:
+// each recipient got their own values.
+function SentEmailDialog({ batch }: { batch: ReportBatch }) {
+  const details = detailsFor(batch.templateId);
+  const subject = SUBJECTS[batch.templateId] ?? details.subject;
+  const sender = senderById(batch.senderId);
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <MailIcon data-icon="inline-start" />
+          View email
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Email as sent</DialogTitle>
+          <DialogDescription>Merge tags were filled in for each recipient.</DialogDescription>
+        </DialogHeader>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm">
+          <dt className="text-muted-foreground">From</dt>
+          <dd className="truncate">{sender ? `${sender.name} <${sender.email}>` : "–"}</dd>
+          <dt className="text-muted-foreground">Subject</dt>
+          <dd className="font-medium">
+            <TagText text={subject} mode="edit" />
+          </dd>
+        </dl>
+        <div className="email-canvas max-h-112 overflow-y-auto rounded-lg border p-6">
+          <EmailBody blocks={details.blocks} html={details.html} kind={details.kind} mode="edit" />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// This batch against the latest other sends of the same template (live app OverviewTab "Benchmarking": other
+// batches of the template, AC-EC-O-03). One rate per column, numbers only (DESIGN.md §2). Hidden with no other
+// batch to compare (PATTERNS 9.15: no one-row block).
+function OtherBatches({ batch }: { batch: ReportBatch }) {
+  const others = allBatches()
+    .filter((b) => b.id !== batch.id && b.templateId === batch.templateId && b.metrics && b.sent > 0 && b.status !== "sending")
+    .sort((a, b) => (b.sentAt ?? "").localeCompare(a.sentAt ?? ""))
+    .slice(0, 3);
+  if (others.length === 0) return null;
+  const rows = [batch, ...others];
+  const divider = "border-r border-border/50 last:border-r-0";
+  return (
+    <section aria-labelledby="other-batches" className="flex flex-col gap-3">
+      <h2 id="other-batches" className="font-heading text-base font-medium">
+        Other batches of this template
+      </h2>
+      <div className="overflow-hidden rounded-card border">
+        <Table aria-label="This batch and other batches of the same template">
+          <TableHeader>
+            <TableRow>
+              <TableHead className={divider}>Batch</TableHead>
+              <TableHead className={divider}>Date</TableHead>
+              <TableHead className={divider}>Sent</TableHead>
+              <TableHead className={divider}>Delivery</TableHead>
+              <TableHead className={divider}>Open</TableHead>
+              <TableHead className={divider}>Click</TableHead>
+              <TableHead className={divider}>Reply</TableHead>
+              <TableHead className={divider}>Bounce</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((b) => {
+              const met = b.metrics!;
+              const current = b.id === batch.id;
+              return (
+                <TableRow key={b.id}>
+                  <TableCell className={`${divider} max-w-64`}>
+                    {current ? (
+                      <span className="font-medium">This batch</span>
+                    ) : (
+                      <Link href={`/batches/${b.id}/report`} className="truncate text-primary underline-offset-4 hover:underline">
+                        {batchTitle(b)}
+                      </Link>
+                    )}
+                  </TableCell>
+                  <TableCell className={`${divider} text-muted-foreground`}>{b.sentAt ? formatDate(b.sentAt.slice(0, 10), true) : ""}</TableCell>
+                  <TableCell className={`${divider} tabular-nums`}>{n(b.sent)}</TableCell>
+                  <RateCell className={divider} kind="delivery" part={met.delivered} whole={b.sent} strong={current} />
+                  <RateCell className={divider} kind="open" part={met.opens} whole={met.delivered} strong={current} />
+                  <RateCell className={divider} kind="click" part={met.clicks} whole={met.delivered} strong={current} />
+                  <RateCell className={divider} kind="reply" part={met.replies} whole={met.delivered} strong={current} />
+                  <RateCell className={divider} kind="bounce" part={met.bounces} whole={b.sent} strong={current} />
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </section>
   );
 }
 

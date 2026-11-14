@@ -14,19 +14,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldSet, FieldLegend } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { createList, fmt, normalizeTags, upsertContacts, useContactsStore } from "@/lib/mock/contacts";
+import { fmt, normalizeTags, tagsOf, upsertContacts, useContactsStore } from "@/lib/mock/contacts";
 import {
-  type DuplicateMode,
   FIELDS,
   type FieldKey,
-  ISSUE_LABEL,
   MAX_FILE_BYTES,
   MAX_ROWS,
   type Preview,
@@ -42,48 +38,46 @@ import {
 // Upload contacts: choose file → match columns → review → import (2026-10-28). Nothing is written until the
 // review is confirmed (PRD Contacts AC-CON-I-02, BR-RULE-CON-06). Tags apply to the whole upload and are never a
 // column in the file, so an existing sheet imports unchanged (live app: lib/email/contact-tags.ts).
-// R9 (2026-10-29, HubSpot H5, Apollo A7, Mailchimp F6): the review opens with a check line ("No errors in 14 rows"
-// or the failing rows with their reason), asks what to do with people already in the list (update or skip), and
-// the import ends on a result screen New / Updated / Skipped / Errors with the error rows as a CSV.
+// Review (refined 2026-11-12, PATTERNS 9.15): one summary in the description (new + updated), one warning with the
+// error count + error file, then the rows with problems first. People already in the contact book are always
+// updated, matched by email + company across the whole book (AC-CON-I-04, BR-RULE-CON-05; live app upserts the
+// same way, there is no "skip" choice). Repeats inside the file are merged (EC-CON-05) and marked in the table only.
+// The import ends on a result screen New / Updated / Skipped / Errors with the error rows as a CSV.
 // Preview: ?import=review | done opens the dialog on that step with the sample file.
 type Step = "file" | "map" | "review" | "done";
 
 export type ImportResult = { added: number; updated: number; skipped: number; errors: number };
 
-const VERDICT: Record<RowVerdict, { label: string; variant: "success" | "info" | "destructive" | "secondary" }> = {
-  new: { label: "New", variant: "success" },
-  update: { label: "Updates existing", variant: "info" },
+// Result column: a badge only when the row differs from the normal case ("new" shows nothing, DESIGN.md §2 Bảng).
+const VERDICT: Partial<Record<RowVerdict, { label: string; variant: "info" | "destructive" | "outline" }>> = {
+  update: { label: "Updates saved contact", variant: "info" },
   invalid: { label: "Invalid email", variant: "destructive" },
-  repeat: { label: "Repeat in file", variant: "secondary" },
-  blank: { label: "Blank", variant: "secondary" },
+  repeat: { label: "Repeat, merged", variant: "outline" },
 };
 
 export function ImportDialog({
   open,
   onOpenChange,
-  listId: fixedListId,
   preview: openOn,
   onImported,
-  onViewList,
+  onViewContacts,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Upload into this list (list screen). Without it the user picks a list or names a new one. */
-  listId?: string;
   /** Called once the contacts are written; the dialog then shows the result screen. */
-  onImported: (listId: string, result: ImportResult) => void;
-  /** "View list" on the result screen (Contacts home). Without it the button reads "Done". */
-  onViewList?: (listId: string) => void;
+  onImported: (result: ImportResult) => void;
+  /** "View contacts" on the result screen, with the upload's tags. Without it the button reads "Done". */
+  onViewContacts?: (tags: string[]) => void;
   /** Preview only: start on this step with the sample file loaded. */
   preview?: "review" | "done";
 }) {
-  const { lists, contacts } = useContactsStore();
+  const { contacts } = useContactsStore();
   const fileRef = useRef<HTMLInputElement>(null);
-  // Preview start (?import=…): the sample file, columns guessed, a new list named after it.
+  // Preview start (?import=…): the sample file, columns guessed.
   const [sample] = useState(() => {
     if (!openOn) return undefined;
     const parsed = parseCsv(SAMPLE_FILE.text);
-    return { rows: parsed, mapping: parsed[0].map(guessField), name: SAMPLE_FILE.name.replace(/\.csv$/i, "").replace(/[-_]+/g, " ") };
+    return { rows: parsed, mapping: parsed[0].map(guessField) };
   });
   const [step, setStep] = useState<Step>(openOn ?? "file");
   const [fileName, setFileName] = useState<string | undefined>(sample && SAMPLE_FILE.name);
@@ -91,27 +85,25 @@ export function ImportDialog({
   const [excelNote, setExcelNote] = useState(false);
   const [rows, setRows] = useState<string[][]>(sample?.rows ?? []);
   const [mapping, setMapping] = useState<FieldKey[]>(sample?.mapping ?? []);
-  const [target, setTarget] = useState<"new" | "existing">(fixedListId ? "existing" : "new");
-  const [existingId, setExistingId] = useState<string>(fixedListId ?? "");
-  const [newName, setNewName] = useState(sample?.name ?? "");
   const [tags, setTags] = useState<string[]>([]);
-  const [dupMode, setDupMode] = useState<DuplicateMode>("update");
   const [showErrors, setShowErrors] = useState(false);
   const [importing, setImporting] = useState(false);
   // Result screen. The "done" preview shows what the sample would give, without writing anything.
-  const [result, setResult] = useState<(ImportResult & { listId: string; errorFile: string }) | undefined>(() => {
+  const [result, setResult] = useState<(ImportResult & { tags: string[]; errorFile: string }) | undefined>(() => {
     if (openOn !== "done" || !sample) return undefined;
-    const p = buildPreview(sample.rows, sample.mapping, fixedListId, []);
-    return { listId: fixedListId ?? "", ...resultOf(p, "update"), errorFile: errorCsv(sample.rows, p) };
+    const p = buildPreview(sample.rows, sample.mapping, []);
+    return { tags: [], ...resultOf(p), errorFile: errorCsv(sample.rows, p) };
   });
 
-  const allTags = [...new Set(lists.flatMap((l) => l.tags))].sort((a, b) => a.localeCompare(b));
-  const targetId = target === "existing" ? existingId : undefined;
+  const allTags = tagsOf(contacts);
   const emailMapped = mapping.includes("email");
-  const preview: Preview | undefined = step === "review" ? buildPreview(rows, mapping, targetId, normalizeTags(tags)) : undefined;
-  const errorRows = preview?.rows.filter((r) => r.issue) ?? [];
-  const checkedRows = preview ? preview.rows.length - preview.counts.blank : 0;
-  const toImport = preview ? preview.counts.new + (dupMode === "update" ? preview.counts.update : 0) : 0;
+  const preview: Preview | undefined = step === "review" ? buildPreview(rows, mapping, normalizeTags(tags)) : undefined;
+  const errorCount = preview?.counts.invalid ?? 0;
+  const toImport = preview ? preview.counts.new + preview.counts.update : 0;
+  // Rows with an error first, then file order; blank and sample rows are not listed.
+  const reviewRows = preview
+    ? preview.rows.filter((r) => r.verdict !== "blank").sort((a, b) => Number(Boolean(b.issue)) - Number(Boolean(a.issue)) || a.line - b.line)
+    : [];
 
   function reset() {
     setStep("file");
@@ -120,11 +112,7 @@ export function ImportDialog({
     setExcelNote(false);
     setRows([]);
     setMapping([]);
-    setTarget(fixedListId ? "existing" : "new");
-    setExistingId(fixedListId ?? "");
-    setNewName("");
     setTags([]);
-    setDupMode("update");
     setShowErrors(false);
     setImporting(false);
     setResult(undefined);
@@ -140,7 +128,6 @@ export function ImportDialog({
     setFileError(undefined);
     setRows(parsed);
     setMapping(parsed[0].map(guessField));
-    if (!newName) setNewName(name.replace(/\.(csv|xlsx?|txt)$/i, "").replace(/[-_]+/g, " "));
   }
 
   function pickFile(file: File) {
@@ -169,11 +156,9 @@ export function ImportDialog({
   }
   const downloadTemplate = () => download("saella-contacts-template.csv", templateCsv());
 
-  const targetOk = target === "existing" ? Boolean(existingId) : Boolean(newName.trim());
-
   function next() {
     if (step === "file") {
-      if (!fileName || !targetOk) return setShowErrors(true);
+      if (!fileName) return setShowErrors(true);
       setShowErrors(false);
       setStep("map");
     } else if (step === "map") {
@@ -187,25 +172,22 @@ export function ImportDialog({
     if (!preview) return;
     setImporting(true);
     const toWrite = preview.rows
-      .filter((r) => r.verdict === "new" || (r.verdict === "update" && dupMode === "update"))
+      .filter((r) => r.verdict === "new" || r.verdict === "update")
       .map((r) => r.contact);
     const errorFile = errorCsv(rows, preview);
-    const counts = resultOf(preview, dupMode);
+    const counts = resultOf(preview);
     // Short pause so the button shows its working state, like a real request.
     setTimeout(() => {
-      const id = targetId ?? createList({ name: newName.trim(), source: "upload", tags: normalizeTags(tags) });
-      const written = upsertContacts(id, toWrite);
+      const written = upsertContacts(toWrite);
       const r = { ...counts, ...written };
-      setResult({ listId: id, ...r, errorFile });
+      setResult({ tags: normalizeTags(tags), ...r, errorFile });
       setImporting(false);
       setStep("done");
-      onImported(id, r);
+      onImported(r);
     }, 700);
   }
 
   const stepIndex = step === "file" ? 1 : step === "map" ? 2 : 3;
-  const fixedList = lists.find((l) => l.id === fixedListId);
-  const resultList = lists.find((l) => l.id === result?.listId) ?? fixedList;
   const errorFileName = `${(fileName ?? "contacts").replace(/\.(csv|xlsx?|txt)$/i, "")}-errors.csv`;
 
   return (
@@ -223,16 +205,14 @@ export function ImportDialog({
           <DialogTitle>
             {step === "file" ? "Upload contacts" : step === "map" ? "Match your columns" : step === "review" ? "Review before importing" : "Import finished"}
           </DialogTitle>
-          <DialogDescription>
-            {step === "done"
-              ? `“${fileName ?? "Your file"}” into ${resultList ? `“${resultList.name}”` : "a new list"}.`
+          <DialogDescription className={cn(step === "review" && "tabular-nums")}>
+            {step === "review" && preview
+              ? reviewSummary(preview.counts.new, preview.counts.update)
+              : step === "done"
+              ? `“${fileName ?? "Your file"}” into your contacts${result?.tags.length ? `, tagged ${result.tags.map((t) => `“${t}”`).join(", ")}` : ""}.`
               : step === "file"
-              ? fixedList
-                ? `Add people to “${fixedList.name}” from a CSV or Excel file.`
-                : "Bring in your own list from a CSV or Excel file."
-              : step === "map"
-                ? "Tell us what each column holds. Columns you don't need are left out."
-                : "Nothing is saved until you import."}
+                ? "Bring in people you know from a CSV or Excel file."
+              : "Tell us what each column holds. Columns you don't need are left out."}
           </DialogDescription>
         </DialogHeader>
 
@@ -277,11 +257,6 @@ export function ImportDialog({
                     <UploadIcon data-icon="inline-start" />
                     {fileName ? "Choose another file" : "Choose file"}
                   </Button>
-                  {!fileName && (
-                    <Button type="button" variant="ghost" onClick={() => load(SAMPLE_FILE.name, SAMPLE_FILE.text)}>
-                      Try a sample file
-                    </Button>
-                  )}
                 </div>
               </div>
               {fileError ? (
@@ -304,52 +279,9 @@ export function ImportDialog({
               )}
             </Field>
 
-            {!fixedListId && (
-              <FieldSet>
-                <FieldLegend variant="label">Add to</FieldLegend>
-                <RadioGroup value={target} onValueChange={(v) => setTarget(v as "new" | "existing")} className="flex flex-col gap-3">
-                  <Field orientation="horizontal">
-                    <RadioGroupItem value="new" id="imp-t-new" />
-                    <FieldLabel htmlFor="imp-t-new" className="font-normal">A new list</FieldLabel>
-                  </Field>
-                  {target === "new" && (
-                    <Field data-invalid={(showErrors && !newName.trim()) || undefined} className="pl-7">
-                      <FieldLabel htmlFor="imp-name" className="sr-only">List name</FieldLabel>
-                      <Input id="imp-name" placeholder="List name, e.g. Bangkok fair leads" value={newName} onChange={(e) => setNewName(e.target.value)} aria-invalid={(showErrors && !newName.trim()) || undefined} />
-                      {showErrors && !newName.trim() && <FieldError>Name the new list</FieldError>}
-                    </Field>
-                  )}
-                  <Field orientation="horizontal">
-                    <RadioGroupItem value="existing" id="imp-t-existing" />
-                    <FieldLabel htmlFor="imp-t-existing" className="font-normal">An existing list</FieldLabel>
-                  </Field>
-                  {target === "existing" && (
-                    <Field data-invalid={(showErrors && !existingId) || undefined} className="pl-7">
-                      <Select value={existingId} onValueChange={setExistingId}>
-                        <SelectTrigger aria-label="Existing list" className="w-full" aria-invalid={(showErrors && !existingId) || undefined}>
-                          <SelectValue placeholder="Choose a list" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            {lists.map((l) => (
-                              <SelectItem key={l.id} value={l.id}>
-                                {l.name} · {fmt(contacts[l.id]?.length ?? 0)}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-                      {showErrors && !existingId && <FieldError>Choose a list</FieldError>}
-                    </Field>
-                  )}
-                </RadioGroup>
-              </FieldSet>
-            )}
-
             <Field>
               <FieldLabel htmlFor="imp-tags">Tags for everyone in this upload (optional)</FieldLabel>
               <TagInput id="imp-tags" value={tags} onChange={(t) => setTags(normalizeTags(t))} suggestions={allTags} />
-              <FieldDescription>Tags help you find this group later and filter it when you send.</FieldDescription>
             </Field>
           </FieldGroup>
         )}
@@ -411,28 +343,14 @@ export function ImportDialog({
 
         {step === "review" && preview && (
           <div className="flex flex-col gap-4">
-            {/* Check line (HubSpot "0 errors found, of 3 rows scanned"): the answer first, then the rows to fix. */}
-            {errorRows.length === 0 ? (
-              <p className="flex items-center gap-2 text-sm tabular-nums">
-                <CircleCheckIcon className="size-4 text-success" aria-hidden />
-                No errors in {fmt(checkedRows)} rows
-              </p>
-            ) : (
+            {/* Errors: the count and the file to fix them; each row's reason is in the table below. */}
+            {errorCount > 0 && (
               <Alert variant="warning">
                 <TriangleAlertIcon />
                 <AlertTitle className="tabular-nums">
-                  {fmt(errorRows.length)} {errorRows.length === 1 ? "error" : "errors"} in {fmt(checkedRows)} rows. These rows are skipped.
+                  {fmt(errorCount)} {errorCount === 1 ? "row has an error and is" : "rows have errors and are"} skipped
                 </AlertTitle>
                 <AlertDescription>
-                  <ul className="flex flex-col gap-0.5 tabular-nums">
-                    {errorRows.slice(0, 5).map((r) => (
-                      <li key={r.line}>
-                        Row {r.line}: {r.issue && ISSUE_LABEL[r.issue]}
-                        {r.contact.email && ` (${r.contact.email})`}
-                      </li>
-                    ))}
-                    {errorRows.length > 5 && <li>And {fmt(errorRows.length - 5)} more in the error file</li>}
-                  </ul>
                   <Button variant="link" className="h-auto p-0" onClick={() => download(errorFileName, errorCsv(rows, preview))}>
                     <DownloadIcon data-icon="inline-start" />
                     Download rows with errors
@@ -440,42 +358,6 @@ export function ImportDialog({
                 </AlertDescription>
               </Alert>
             )}
-            {targetId && (
-              <FieldSet>
-                <FieldLegend variant="label">If someone is already in this list</FieldLegend>
-                <FieldDescription className="tabular-nums">
-                  {preview.counts.update > 0
-                    ? `${fmt(preview.counts.update)} ${preview.counts.update === 1 ? "row matches" : "rows match"} a contact by email and company.`
-                    : "No one in this file is in the list yet."}
-                </FieldDescription>
-                <RadioGroup value={dupMode} onValueChange={(v) => setDupMode(v as DuplicateMode)} className="flex flex-col gap-3">
-                  <Field orientation="horizontal">
-                    <RadioGroupItem value="update" id="imp-dup-update" />
-                    <FieldLabel htmlFor="imp-dup-update" className="font-normal">
-                      Update their details
-                      <span className="text-muted-foreground">Empty cells keep what&apos;s there; tags are added.</span>
-                    </FieldLabel>
-                  </Field>
-                  <Field orientation="horizontal">
-                    <RadioGroupItem value="skip" id="imp-dup-skip" />
-                    <FieldLabel htmlFor="imp-dup-skip" className="font-normal">
-                      Skip them
-                      <span className="text-muted-foreground">The list stays as it is for these people.</span>
-                    </FieldLabel>
-                  </Field>
-                </RadioGroup>
-              </FieldSet>
-            )}
-            <dl className="grid grid-cols-2 divide-x overflow-hidden rounded-lg border sm:grid-cols-4">
-              <Count label="New contacts" value={preview.counts.new} />
-              <Count
-                label={dupMode === "update" ? "Already in list, updated" : "Already in list, skipped"}
-                value={preview.counts.update}
-                muted={dupMode === "skip"}
-              />
-              <Count label="Repeats in file, merged" value={preview.counts.repeat} muted />
-              <Count label="Errors, skipped" value={preview.counts.invalid} tone={preview.counts.invalid > 0 ? "destructive" : undefined} />
-            </dl>
             {preview.truncated && (
               <Alert variant="warning">
                 <TriangleAlertIcon />
@@ -485,11 +367,13 @@ export function ImportDialog({
                 </AlertDescription>
               </Alert>
             )}
-            <div className="max-h-72 overflow-auto rounded-lg border">
-              <Table aria-label="Rows to import" className="text-dense">
-                <TableHeader>
+            {/* The table's own container scrolls, so the header can stick to it while the rows scroll. Separate borders keep
+                the header line while it sticks. */}
+            <div className="overflow-hidden rounded-lg border [&>[data-slot=table-container]]:max-h-72 [&>[data-slot=table-container]]:overflow-auto">
+              <Table aria-label="Rows to import" className="border-separate border-spacing-0 text-dense [&_tbody_td]:border-b [&_tbody_tr:last-child_td]:border-b-0">
+                <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:border-b [&_th]:bg-background [&_tr]:border-b-0">
                   <TableRow>
-                    <TableHead className="w-12 text-right">Row</TableHead>
+                    <TableHead className="w-12">Row</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Company</TableHead>
@@ -497,33 +381,21 @@ export function ImportDialog({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {preview.rows
-                    .filter((r) => r.verdict !== "blank")
-                    .slice(0, 50)
-                    .map((r) => (
+                  {reviewRows.slice(0, 50).map((r) => {
+                    const verdict = r.issue === "missing_email" ? { label: "No email", variant: "destructive" as const } : VERDICT[r.verdict];
+                    return (
                       <TableRow key={r.line}>
-                        <TableCell className="text-right text-muted-foreground tabular-nums">{r.line}</TableCell>
+                        <TableCell className="text-muted-foreground tabular-nums">{r.line}</TableCell>
                         <TableCell>{`${r.contact.firstName} ${r.contact.lastName}`.trim()}</TableCell>
-                        <TableCell className={cn(r.verdict === "invalid" && "text-destructive-soft-foreground")}>{r.contact.email || "–"}</TableCell>
+                        <TableCell className={cn(r.verdict === "invalid" && "text-destructive-soft-foreground")}>{r.contact.email}</TableCell>
                         <TableCell className="text-muted-foreground">{r.contact.company}</TableCell>
-                        <TableCell>
-                          {r.verdict === "update" && dupMode === "skip" ? (
-                            <Badge variant="secondary">Skipped, in list</Badge>
-                          ) : r.issue === "missing_email" ? (
-                            <Badge variant="destructive">No email</Badge>
-                          ) : (
-                            <Badge variant={VERDICT[r.verdict].variant}>{VERDICT[r.verdict].label}</Badge>
-                          )}
-                        </TableCell>
+                        <TableCell>{verdict && <Badge variant={verdict.variant}>{verdict.label}</Badge>}</TableCell>
                       </TableRow>
-                    ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
-            <p className="text-sm text-muted-foreground">
-              {preview.counts.blank > 0 && `${fmt(preview.counts.blank)} blank or sample rows are skipped. `}
-              Columns set to “Don&apos;t import” are left out.
-            </p>
           </div>
         )}
 
@@ -555,11 +427,6 @@ export function ImportDialog({
                 Import completed with no errors
               </p>
             )}
-            {result.skipped > 0 && (
-              <p className="text-sm text-muted-foreground">
-                Skipped: repeats inside the file{dupMode === "skip" ? " and people already in the list" : ""}. Nothing in the list was changed for them.
-              </p>
-            )}
           </div>
         )}
 
@@ -573,24 +440,25 @@ export function ImportDialog({
               <Button
                 onClick={() => {
                   onOpenChange(false);
-                  if (onViewList && result?.listId) onViewList(result.listId);
+                  if (onViewContacts && result) onViewContacts(result.tags);
                   reset();
                 }}
               >
-                {onViewList ? "View list" : "Done"}
+                {onViewContacts ? "View contacts" : "Done"}
               </Button>
             </>
           ) : (
             <>
+              {/* Three buttons: Cancel alone on the far left, Back next to the main action (PATTERNS 9.10). */}
+              <Button variant="outline" className={cn(step !== "file" && "sm:mr-auto")} onClick={() => onOpenChange(false)} disabled={importing}>
+                Cancel
+              </Button>
               {step !== "file" && (
-                <Button variant="ghost" className="mr-auto" onClick={() => setStep(step === "review" ? "map" : "file")} disabled={importing}>
+                <Button variant="outline" onClick={() => setStep(step === "review" ? "map" : "file")} disabled={importing}>
                   <ArrowLeftIcon data-icon="inline-start" />
                   Back
                 </Button>
               )}
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={importing}>
-                Cancel
-              </Button>
               {step === "review" ? (
                 <Button onClick={confirm} disabled={importing || !preview || toImport === 0}>
                   {importing && <Spinner data-icon="inline-start" />}
@@ -624,12 +492,16 @@ function Count({ label, value, muted, tone }: { label: string; value: number; mu
   );
 }
 
-/** Result counts for a preview under a duplicate rule. Blank and sample rows are not counted anywhere. */
-function resultOf(p: Preview, mode: DuplicateMode): ImportResult {
-  return {
-    added: p.counts.new,
-    updated: mode === "update" ? p.counts.update : 0,
-    skipped: p.counts.repeat + (mode === "skip" ? p.counts.update : 0),
-    errors: p.counts.invalid,
-  };
+/** Result counts for a preview. Saved contacts are always updated; blank and sample rows are not counted anywhere. */
+function resultOf(p: Preview): ImportResult {
+  return { added: p.counts.new, updated: p.counts.update, skipped: p.counts.repeat, errors: p.counts.invalid };
+}
+
+/** The review's one summary line: what the import will do. */
+function reviewSummary(added: number, updated: number) {
+  const n = (v: number, one: string, many: string) => `${fmt(v)} ${v === 1 ? one : many}`;
+  if (added + updated === 0) return "No rows can be imported. Fix the file and upload it again.";
+  const saved = updated > 0 ? `${n(updated, "is", "are")} already in your contacts and will be updated.` : "";
+  if (added === 0) return `${fmt(updated)} ${updated === 1 ? "contact is" : "contacts are"} already in your contacts and will be updated.`;
+  return `${n(added, "new contact", "new contacts")}.${saved ? ` ${saved}` : ""}`;
 }

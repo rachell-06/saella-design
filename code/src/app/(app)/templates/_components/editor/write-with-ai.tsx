@@ -1,252 +1,470 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CircleAlertIcon, RotateCwIcon, SparklesIcon, SquareIcon } from "lucide-react";
+import { CircleAlertIcon, ImageIcon, MailIcon, SparklesIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { AttachmentGroup } from "@/components/ui/attachment";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupText,
+  InputGroupTextarea,
+} from "@/components/ui/input-group";
+import { FileAttachment } from "@/components/features/agent-chat/file-attachment";
+import type { SentFile } from "@/components/features/agent-chat/data";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { type Block, type TemplateKind, newBlockId } from "@/lib/mock/templates";
+import { Hint } from "@/components/saella/hint";
 import { EmailBody } from "@/components/features/email-body";
-import { type SubjectPreview, WriteSubject } from "./write-subject";
+import { type Block, SAMPLE_VALUES, type TemplateKind, newBlockId, resolveTags } from "@/lib/mock/templates";
 
-// "Write with AI" (PRD-02 AC-EC-G-01..06, live app EmailTemplateEditor runAiGenerate). The draft streams in
-// block by block (G-01) into this panel, never straight into the email (PATTERNS.md §9.3): the user picks
-// "Use this draft" or "Try again". A fresh letter/design gets the business signature (G-05); refine and
-// single block don't. Using a draft only changes the editor; nothing is saved until Save.
-// The subject line has its own tab: 3 options to pick from (write-subject.tsx, R4 2026-10-29). Both tabs stay
-// mounted, so switching doesn't lose a draft.
-// Mock: the text is canned, built from the prompt. ?state=ai-error makes the generator fail midway.
-// ?ai=subject opens the Subject tab with options ready; ?ai=subject-writing freezes it while writing.
+// "Write with Saella" (PRD-02 AC-EC-G-01..06), as the live app's Agent modal (EmailTemplateEditor "Write with AI"):
+// a button on the editor toolbar opens a dialog; the brief on the left, the draft on the right; nothing reaches the
+// editor until "Use this draft", and nothing is saved until Save (designer 2026-11-14, replacing the box at the top).
+// - Empty/new email: write a fresh one (subject, preheader and email; the name too while it's "Untitled …").
+// - Email with text: change it ("Make it shorter"…), keeping the subject, or write a new one.
+// - Once a draft is shown: Try again (from the brief), change one thing (refine the draft), Use this draft, Discard.
+// A fresh letter/design gets the business signature (G-05). An optional style reference image goes with the brief
+// (G-03; live app: png/jpeg/gif/webp, 4 MB). A website in the brief brings the company logo into a design (G-04).
+// Saella never invents a photo: images it can't supply are empty placeholders to upload (EC-EC-29).
+// Mock: canned text built from the prompt, after a short wait (the live app streams it, G-01); ?state=ai-error fails.
 
-export type AiMode = "new" | "refine" | "block";
+/** One-click changes: to the email as it is, or to the draft on screen. */
+const REFINES = ["Make it shorter", "Make it friendlier", "Make it more formal", "End with a clear question"];
+/** Starting points for an empty email: they fill the brief, for the user to finish. */
+const STARTERS = [
+  "Introduce our products to purchasing managers",
+  "Offer free samples, no strings attached",
+  "Invite them to our trade fair booth",
+];
 
-type Phase = "idle" | "streaming" | "done" | "error";
-type Target = "body" | "subject";
+const REFERENCE_MAX = 4 * 1024 * 1024;
+const REFERENCE_TYPES = "image/png,image/jpeg,image/gif,image/webp";
+const mentionsWebsite = (prompt: string) => /(https?:\/\/|www\.)\S+|\b[\w-]+\.(com|vn|net|org|io|co)\b/i.test(prompt);
 
-export function WriteWithAi({
-  subject,
-  onUseSubject,
-  preview,
-  ...body
-}: React.ComponentProps<typeof BodyWriter> & {
-  subject: string;
-  onUseSubject: (subject: string) => void;
-  /** Value of ?ai= (screenshot states). */
-  preview?: string | null;
-}) {
-  const subjectPreview: SubjectPreview | null = preview === "subject" || preview === "subject-writing" ? preview : null;
-  const [target, setTarget] = useState<Target>(subjectPreview ? "subject" : "body");
-  const hasBody = body.blocks.some((b) => b.type !== "divider" && b.type !== "image");
+const hasText = (blocks: Block[]) => blocks.some((b) => b.type === "paragraph" || b.type === "heading");
 
+/** `name` is only a suggestion: the editor uses it when the template has no name of its own yet. */
+export type Draft = { name?: string; subject?: string; preheader?: string; blocks: Block[] };
+
+/** A short template name from the brief: its first words, capitalised. Real naming comes from the generator. */
+function nameFrom(prompt: string) {
+  const words = prompt.trim().replace(/[.,!?]+$/, "").split(/\s+/).slice(0, 6).join(" ");
+  return words ? words[0].toUpperCase() + words.slice(1) : "New email";
+}
+
+/** ✨ beside a field Saella filled, until it's edited or undone. */
+export function AiMark() {
   return (
-    <div className="flex flex-col gap-4">
-      <Field>
-        <FieldLabel id="ai-target-label">Write the</FieldLabel>
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          spacing={0}
-          value={target}
-          onValueChange={(v) => v && setTarget(v as Target)}
-          disabled={body.disabled}
-          aria-labelledby="ai-target-label"
-          className="w-full *:flex-1"
-        >
-          <ToggleGroupItem value="body">Email body</ToggleGroupItem>
-          <ToggleGroupItem value="subject">Subject line</ToggleGroupItem>
-        </ToggleGroup>
-      </Field>
-      <div hidden={target !== "body"}>
-        <BodyWriter {...body} />
-      </div>
-      <div hidden={target !== "subject"}>
-        <WriteSubject
-          kind={body.kind}
-          subject={subject}
-          hasBody={hasBody}
-          disabled={body.disabled}
-          failMidway={body.failMidway}
-          preview={subjectPreview}
-          onUse={onUseSubject}
-        />
-      </div>
-    </div>
+    <Hint label="Written by Saella. Check it before you save.">
+      <span tabIndex={0} className="inline-flex text-brand">
+        <SparklesIcon className="size-3.5" aria-label="Written by Saella" />
+      </span>
+    </Hint>
   );
 }
 
-function BodyWriter({
+export function WriteWithSaellaDialog({
+  open,
+  onOpenChange,
   kind,
-  blocks,
-  selectedId,
-  disabled,
+  current,
+  fresh,
   failMidway,
   onUse,
 }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   kind: TemplateKind;
-  blocks: Block[];
-  selectedId: string | null;
-  disabled: boolean;
+  /** The email as it is in the editor. With text, the dialog changes it instead of writing anew. */
+  current: Block[];
+  /** A new template whose body is still the starter: write a new email, don't change the starter. */
+  fresh?: boolean;
   failMidway?: boolean;
-  /** Replace the body (new, refine) or insert one block after the selection (block). */
-  onUse: (mode: AiMode, result: Block[]) => void;
+  onUse: (draft: Draft) => void;
 }) {
-  const [mode, setMode] = useState<AiMode>(blocks.length > 0 ? "refine" : "new");
+  const editing = !fresh && hasText(current);
   const [prompt, setPrompt] = useState("");
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [shown, setShown] = useState<Block[]>([]);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const [change, setChange] = useState("");
+  const [phase, setPhase] = useState<"idle" | "writing" | "error">("idle");
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [reference, setReference] = useState<SentFile | null>(null);
+  /** The brief box is open over a draft (Edit) or instead of changing the email ("Write a new email instead"). */
+  const [briefOpen, setBriefOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    []
+  );
+  const writing = phase === "writing";
 
-  const stop = () => {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-  };
-  useEffect(() => stop, []);
-
-  function generate() {
-    stop();
-    const full = draftFor(mode, kind, prompt, blocks);
-    setShown([]);
-    setPhase("streaming");
-    full.forEach((b, i) => {
-      timers.current.push(
-        setTimeout(() => {
-          if (failMidway && i === 1) {
-            stop();
-            setPhase("error");
-            return;
-          }
-          setShown((s) => [...s, b]);
-          if (i === full.length - 1) setPhase("done");
-        }, 450 * (i + 1))
-      );
-    });
+  /** fresh: a new email from the brief. Otherwise a change to the draft on screen, or to the email as it is. */
+  function write(fresh: boolean) {
+    setPhase("writing");
+    timer.current = setTimeout(() => {
+      if (failMidway) return setPhase("error");
+      setPhase("idle");
+      setChange("");
+      setBriefOpen(false);
+      if (fresh)
+        setDraft({ name: nameFrom(prompt), subject: SUBJECT_FOR[kind], preheader: PREHEADER_FOR[kind], blocks: newEmail(kind, prompt) });
+      else setDraft((d) => (d ? { ...d, blocks: refine(d.blocks) } : { blocks: refine(current) }));
+    }, 1400);
   }
 
-  const placeholder =
-    mode === "new"
-      ? kind === "design"
-        ? "e.g. A poster for our new celadon tile range, aimed at hotel designers"
-        : "e.g. Introduce our hotel tableware to purchasing managers in Vietnam, friendly and short"
-      : mode === "refine"
-        ? "e.g. Make it shorter and warmer, and end with a question"
-        : "e.g. A paragraph about our 3-week lead time";
+  function close(next: boolean) {
+    if (writing) return;
+    onOpenChange(next);
+    if (!next) {
+      setDraft(null);
+      setPhase("idle");
+      setChange("");
+      setBriefOpen(false);
+    }
+  }
+
+  // One box at a time (designer 2026-11-14). "brief" = live app aiPrompt: writes a fresh draft. "change" = live app
+  // "Refine — describe one change" (aiRefinePrompt): edits the draft on screen, or the email as it is when the
+  // template already has text. With a draft, the brief folds to one line with Edit.
+  const box: "brief" | "change" = briefOpen || (!draft && !editing) ? "brief" : "change";
 
   return (
-    <div className="flex flex-col gap-4">
-      <FieldGroup className="gap-4">
-        <Field>
-          <FieldLabel id="ai-mode-label">What to write</FieldLabel>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            spacing={0}
-            value={mode}
-            onValueChange={(v) => v && setMode(v as AiMode)}
-            disabled={disabled || phase === "streaming"}
-            aria-labelledby="ai-mode-label"
-            className="w-full *:flex-1"
-          >
-            <ToggleGroupItem value="new">New {kind === "design" ? "design" : "letter"}</ToggleGroupItem>
-            <ToggleGroupItem value="refine" disabled={blocks.length === 0}>
-              Refine
-            </ToggleGroupItem>
-            <ToggleGroupItem value="block">One block</ToggleGroupItem>
-          </ToggleGroup>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="ai-prompt">Tell the agent</FieldLabel>
-          <Textarea
-            id="ai-prompt"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder={placeholder}
-            className="min-h-24"
-            disabled={disabled || phase === "streaming"}
-          />
-          <FieldDescription>
-            {mode === "new"
-              ? "Replaces the body. Your signature is added at the end."
-              : mode === "refine"
-                ? "Rewrites the current body; merge tags are kept."
-                : selectedId
-                  ? "Inserted below the selected block."
-                  : "Added at the end of the email."}
-          </FieldDescription>
-        </Field>
-      </FieldGroup>
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent className="sm:max-w-5xl" showCloseButton={!writing}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <SparklesIcon className="size-4 text-brand" aria-hidden />
+            Write with Saella · {kind === "design" ? "Design" : "Letter"}
+          </DialogTitle>
+          <DialogDescription>
+            {box === "change"
+              ? draft
+                ? "Change one thing at a time, or use the draft as it is."
+                : "Say what to change, or pick a quick fix. Your subject stays as it is."
+              : "Say who it's for and what you offer. Saella writes the subject and the email; you check it before it goes in."}
+          </DialogDescription>
+        </DialogHeader>
 
-      {phase === "streaming" ? (
-        <Button variant="outline" onClick={() => { stop(); setPhase(shown.length ? "done" : "idle"); }}>
-          <SquareIcon data-icon="inline-start" />
-          Stop
-        </Button>
-      ) : (
-        <Button variant="secondary" onClick={generate} disabled={disabled || !prompt.trim()}>
-          <SparklesIcon data-icon="inline-start" />
-          {phase === "done" || phase === "error" ? "Generate again" : "Generate"}
-        </Button>
-      )}
-
-      {phase === "error" && (
-        <Alert variant="destructive">
-          <CircleAlertIcon />
-          <AlertTitle>The agent stopped before finishing</AlertTitle>
-          <AlertDescription>Nothing in your email changed. Try again in a moment.</AlertDescription>
-        </Alert>
-      )}
-
-      {(phase === "streaming" || phase === "done") && (
-        <section aria-label="Generated draft" aria-live="polite" className="flex flex-col gap-3 rounded-lg border p-3">
-          <p className="flex items-center gap-2 text-sm text-muted-foreground">
-            {phase === "streaming" ? (
+        <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+          {/* Left: one box at a time */}
+          <div className="flex min-w-0 flex-col gap-4">
+            {box === "brief" ? (
               <>
-                <Spinner className="size-4" />
-                Writing…
+                <Composer
+                  id="ws-brief"
+                  label="What should the email say?"
+                  value={prompt}
+                  onChange={setPrompt}
+                  placeholder={
+                    kind === "design"
+                      ? "e.g. A poster for our new celadon tile range, aimed at hotel designers"
+                      : "e.g. Introduce our hotel tableware to purchasing managers in Vietnam, friendly and short"
+                  }
+                  disabled={writing}
+                  reference={reference}
+                  onReference={setReference}
+                />
+                <div className="flex flex-wrap gap-1.5" aria-label="Suggestions">
+                  {STARTERS.map((s) => (
+                    <Button key={s} type="button" size="xs" variant="outline" disabled={writing} onClick={() => setPrompt(s)}>
+                      {s}
+                    </Button>
+                  ))}
+                </div>
               </>
             ) : (
-              "Draft ready. Review it before you use it."
+              <>
+                {/* The brief behind the draft, folded to one line. */}
+                {draft && prompt.trim() && (
+                  <p className="flex min-w-0 items-center gap-1.5 text-sm">
+                    <span className="shrink-0 text-muted-foreground">Brief:</span>
+                    <span className="min-w-0 truncate" title={prompt.trim()}>
+                      {prompt.trim()}
+                    </span>
+                    <span aria-hidden className="text-subtle-foreground">
+                      ·
+                    </span>
+                    <Button variant="link" className="h-auto shrink-0 border-0 p-0" onClick={() => setBriefOpen(true)} disabled={writing}>
+                      Edit
+                    </Button>
+                  </p>
+                )}
+                <Composer
+                  id="ws-change"
+                  label={draft ? "Change one thing" : "What should change?"}
+                  value={change}
+                  onChange={setChange}
+                  placeholder={draft ? "e.g. Shorten the intro, or mention free samples" : "e.g. Shorter and warmer, and mention free samples"}
+                  disabled={writing}
+                  reference={reference}
+                  onReference={setReference}
+                />
+                <div className="flex flex-wrap gap-1.5" aria-label="Quick changes">
+                  {REFINES.map((r) => (
+                    <Button key={r} type="button" size="xs" variant="outline" disabled={writing} onClick={() => write(false)}>
+                      {r}
+                    </Button>
+                  ))}
+                </div>
+              </>
             )}
-          </p>
-          <EmailBody blocks={shown} kind={kind} mode="edit" footer={false} />
-          {phase === "done" && (
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" onClick={() => { onUse(mode, shown); setPhase("idle"); setShown([]); }}>
-                Use this draft
+
+            {phase === "error" && (
+              <Alert variant="destructive">
+                <CircleAlertIcon />
+                <AlertTitle>Saella stopped before finishing</AlertTitle>
+                <AlertDescription>Nothing changed. Try again in a moment.</AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          {/* Right: what Saella wrote, as the recipient sees it */}
+          <div className="flex min-h-80 min-w-0 flex-col gap-3 rounded-card border p-4" aria-live="polite" aria-busy={writing}>
+            {writing ? (
+              <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Spinner className="size-4" />
+                Writing your email…
+              </div>
+            ) : draft ? (
+              <>
+                <div className="flex flex-col gap-1 border-b pb-3">
+                  <p className="truncate text-sm font-medium">{resolveTags(draft.subject ?? "", SAMPLE_VALUES) || "Subject stays as it is"}</p>
+                  {draft.preheader && <p className="truncate text-sm text-muted-foreground">{resolveTags(draft.preheader, SAMPLE_VALUES)}</p>}
+                </div>
+                <div className="email-canvas max-h-[28rem] overflow-y-auto rounded-lg border p-6">
+                  <EmailBody blocks={draft.blocks} kind={kind} mode="preview" values={SAMPLE_VALUES} />
+                </div>
+              </>
+            ) : (
+              <Empty className="flex-1">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <MailIcon />
+                  </EmptyMedia>
+                  <EmptyTitle>Your draft shows here</EmptyTitle>
+                  <EmptyDescription>Nothing goes into the email until you use it.</EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          {box === "brief" ? (
+            <>
+              {/* Back to the box that was there before: the draft's change box, or changing the email as it is. */}
+              {(draft || editing) && (
+                <Button variant="ghost" className="sm:mr-auto" onClick={() => setBriefOpen(false)} disabled={writing}>
+                  {draft ? "Back to the draft" : "Change this email instead"}
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => close(false)} disabled={writing}>
+                Cancel
               </Button>
-              <Button size="sm" variant="ghost" onClick={generate}>
-                <RotateCwIcon data-icon="inline-start" />
-                Try again
+              {/* Solid orange (designer 2026-11-13): an exception to "AI actions are tinted" (button.meta.ts). */}
+              <Button onClick={() => write(true)} disabled={writing || !prompt.trim()}>
+                <SparklesIcon data-icon="inline-start" />
+                {draft ? "Write it again" : "Write the email"}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => { setPhase("idle"); setShown([]); }}>
+            </>
+          ) : draft ? (
+            <>
+              <Button variant="ghost" className="sm:mr-auto" onClick={() => setDraft(null)} disabled={writing}>
                 Discard
               </Button>
-            </div>
+              {prompt.trim() && (
+                <Button variant="outline" onClick={() => write(true)} disabled={writing}>
+                  Try again
+                </Button>
+              )}
+              {change.trim() && (
+                <Button variant="outline" onClick={() => write(false)} disabled={writing}>
+                  Change it
+                </Button>
+              )}
+              <Button
+                onClick={() => {
+                  onUse(draft);
+                  close(false);
+                }}
+                disabled={writing}
+              >
+                Use this draft
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" className="sm:mr-auto" onClick={() => setBriefOpen(true)} disabled={writing}>
+                Write a new email instead
+              </Button>
+              <Button variant="outline" onClick={() => close(false)} disabled={writing}>
+                Cancel
+              </Button>
+              <Button onClick={() => write(false)} disabled={writing || !change.trim()}>
+                <SparklesIcon data-icon="inline-start" />
+                Change the email
+              </Button>
+            </>
           )}
-        </section>
-      )}
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
+/**
+ * The brief / change box, chat-composer style (designer 2026-11-14; same parts as the agent's ChatComposer): the
+ * text on top, the style reference inside the box (pick with the image button, paste ⌘/Ctrl+V, or drop it on the box,
+ * as the live app's "attach or paste an image"), and one reference shared by both boxes.
+ */
+function Composer({
+  id,
+  label,
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  reference,
+  onReference,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  disabled: boolean;
+  reference: SentFile | null;
+  onReference: (f: SentFile | null) => void;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  function take(f: File | undefined) {
+    if (!f || disabled) return;
+    if (!REFERENCE_TYPES.split(",").includes(f.type)) return setError(`${f.name} isn't a PNG, JPEG, GIF or WebP image.`);
+    if (f.size > REFERENCE_MAX) return setError(`${f.name} is over 4 MB. Use a smaller image.`);
+    setError(null);
+    if (reference?.url) URL.revokeObjectURL(reference.url);
+    onReference({ name: f.name, kind: "image", bytes: f.size, url: URL.createObjectURL(f) });
+  }
+
+  return (
+    <Field data-invalid={Boolean(error) || undefined}>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <InputGroup
+        data-dragging={dragging || undefined}
+        className="data-[dragging]:border-ring data-[dragging]:ring-2 data-[dragging]:ring-ring"
+        onDragOver={(e) => {
+          if (disabled || ![...e.dataTransfer.items].some((i) => i.kind === "file")) return;
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+        }}
+        onDrop={(e) => {
+          if (disabled) return;
+          e.preventDefault();
+          setDragging(false);
+          take([...e.dataTransfer.files].find((f) => f.type.startsWith("image/")) ?? e.dataTransfer.files[0]);
+        }}
+      >
+        {/* Hidden file input opened by the image button (DESIGN.md §2 Control). */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept={REFERENCE_TYPES}
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden
+          onChange={(e) => {
+            take(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        {reference && (
+          <InputGroupAddon align="block-start" className="min-w-0">
+            <AttachmentGroup className="max-w-full">
+              <FileAttachment
+                file={reference}
+                className="max-w-72"
+                onRemove={
+                  disabled
+                    ? undefined
+                    : () => {
+                        if (reference.url) URL.revokeObjectURL(reference.url);
+                        onReference(null);
+                      }
+                }
+              />
+            </AttachmentGroup>
+          </InputGroupAddon>
+        )}
+        <InputGroupTextarea
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          disabled={disabled}
+          autoFocus
+          aria-invalid={Boolean(error) || undefined}
+          // A pasted image becomes the style reference, as in the live app and the agent composer.
+          onPaste={(e) => {
+            const img = [...e.clipboardData.files].find((f) => f.type.startsWith("image/"));
+            if (!img) return;
+            e.preventDefault();
+            take(img);
+          }}
+          className="max-h-48 min-h-24"
+        />
+        <InputGroupAddon align="block-end">
+          <Hint label="Add a style reference: Saella matches its look. Or paste or drop an image here.">
+            <InputGroupButton size="icon-sm" aria-label="Add a style reference image" disabled={disabled} onClick={() => fileRef.current?.click()}>
+              <ImageIcon />
+            </InputGroupButton>
+          </Hint>
+          {!reference && <InputGroupText className="text-xs text-subtle-foreground">PNG, JPEG, GIF or WebP, up to 4 MB</InputGroupText>}
+        </InputGroupAddon>
+      </InputGroup>
+      {error && <FieldError>{error}</FieldError>}
+    </Field>
+  );
+}
+
+const SUBJECT_FOR: Record<TemplateKind, string> = {
+  letter: "{{recipient_first_name}}, samples for {{company_name}}?",
+  design: "New celadon tiles for {{company_name}}",
+};
+const PREHEADER_FOR: Record<TemplateKind, string> = {
+  letter: "A few pieces to try, sent free, no follow-up calls",
+  design: "Eight glazes, samples at your door in five days",
+};
+
 // Canned drafts. Real output comes from the generator and honours saved agent instructions (AC-EC-G-06).
-function draftFor(mode: AiMode, kind: TemplateKind, prompt: string, current: Block[]): Block[] {
+function newEmail(kind: TemplateKind, prompt: string): Block[] {
   const topic = prompt.trim().replace(/\.$/, "");
   const p = (text: string): Block => ({ id: newBlockId(), type: "paragraph", text });
   const signature = p("Best regards,\nLinh Tran\nNorthwind Ceramics · northwind-ceramics.com");
-  if (mode === "block") return [p(`A short note on ${topic.toLowerCase()}: we keep it simple, and {{company_name}} gets one contact for every order.`)];
-  if (mode === "refine")
-    return current.map((b) =>
-      b.type === "paragraph" && !b.text.startsWith("Best regards") && !b.text.startsWith("Hi ")
-        ? { ...b, id: newBlockId(), text: shorten(b.text) }
-        : { ...b, id: newBlockId() }
-    );
   if (kind === "design")
     return [
+      // The logo comes from the website named in the brief (G-04); a photo is left for the user to upload (EC-EC-29).
+      ...(mentionsWebsite(prompt) ? [{ id: newBlockId(), type: "image" as const, file: "logo.png", alt: "Northwind Ceramics logo" }] : []),
       { id: newBlockId(), type: "hero", headline: "Made for {{company_name}}", subline: topic || "Hand-glazed in Bat Trang", tone: "soft" },
-      { id: newBlockId(), type: "image", file: "generated-hero.jpg", alt: "Close-up of hand-glazed tiles in soft green" },
+      { id: newBlockId(), type: "image", alt: "Close-up of hand-glazed tiles in soft green" },
       p("Eight glazes, three formats, and samples at your door in five days."),
       { id: newBlockId(), type: "button", label: "See the range", url: "https://northwind-ceramics.com" },
       signature,
@@ -258,6 +476,14 @@ function draftFor(mode: AiMode, kind: TemplateKind, prompt: string, current: Blo
     { id: newBlockId(), type: "button", label: "Pick your samples", url: "https://northwind-ceramics.com/samples" },
     signature,
   ];
+}
+
+function refine(current: Block[]): Block[] {
+  return current.map((b) =>
+    b.type === "paragraph" && !b.text.startsWith("Best regards") && !b.text.startsWith("Hi ")
+      ? { ...b, id: newBlockId(), text: shorten(b.text) }
+      : { ...b, id: newBlockId() }
+  );
 }
 
 function shorten(text: string) {

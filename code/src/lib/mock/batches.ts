@@ -1,6 +1,8 @@
 import { workspaceParts } from "@/lib/time";
 import { type Campaign, type Template, TODAY, sampleCampaigns } from "@/lib/mock/campaigns";
-import { type Batch, type ContactList, type Sender, batches, contactLists, members, senders } from "@/lib/mock/workspace";
+import { type Batch, type Sender, batches, members, senders } from "@/lib/mock/workspace";
+import type { Contact } from "@/lib/mock/contacts";
+import { templateStore } from "@/lib/mock/template-store";
 
 // Sending + reports data (2026-10-28). The shared `batches` mock carries status and counts; everything a report
 // needs on top (engagement, links, domains, recipients) is defined or derived here, deterministically so
@@ -28,8 +30,14 @@ export { CURRENT_USER_ID };
 
 export const allTemplates = sampleCampaigns.flatMap((c) => c.templates.map((t) => ({ template: t, campaign: c })));
 
+/** Seed templates, then ones made this session (copies, created in the editor; lib/mock/template-store.ts). */
 export function findTemplate(id: string | null | undefined): { template: Template; campaign: Campaign } | undefined {
-  return allTemplates.find((x) => x.template.id === id);
+  const seed = allTemplates.find((x) => x.template.id === id);
+  if (seed || !id) return seed;
+  const s = templateStore();
+  const made = s.copies.find((x) => x.template.id === id);
+  if (!made || s.deleted.includes(id)) return undefined;
+  return { template: { ...made.template, ...s.patch[id] }, campaign: { ...made.campaign, templates: [] } };
 }
 
 // Subject lines are not in the shared template mock.
@@ -46,7 +54,6 @@ export const SUBJECTS: Record<string, string> = {
 };
 
 export const senderById = (id: string) => senders.find((s) => s.id === id);
-export const listById = (id: string) => contactLists.find((l) => l.id === id);
 export const memberById = (id: string) => members.find((m) => m.id === id);
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -115,52 +122,52 @@ function rng(seed: number) {
 
 // Older sends so the Overview has a year of history. Fictional, placed inside each campaign's period; the first
 // months went out from the shared sender, before the workspace verified its own domain (2026-03-03).
-type HistorySpec = { templateId: string; date: string; recipients: number; senderId: string; listIds: string[] };
+type HistorySpec = { templateId: string; date: string; recipients: number; senderId: string; tags: string[] };
 const HISTORY: HistorySpec[] = [
-  { templateId: "t6", date: "2025-11-18T00:00:00Z", recipients: 420, senderId: "s0", listIds: ["l3"] },
-  { templateId: "t6", date: "2025-12-16T00:00:00Z", recipients: 380, senderId: "s0", listIds: ["l3"] },
-  { templateId: "t6", date: "2026-01-20T00:00:00Z", recipients: 450, senderId: "s0", listIds: ["l3"] },
-  { templateId: "t6", date: "2026-02-17T00:00:00Z", recipients: 520, senderId: "s0", listIds: ["l3"] },
-  { templateId: "t6", date: "2026-03-17T00:00:00Z", recipients: 880, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t6", date: "2026-04-21T00:00:00Z", recipients: 1150, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t6", date: "2026-05-19T00:00:00Z", recipients: 1320, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t6", date: "2026-06-16T00:00:00Z", recipients: 1480, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t6", date: "2026-07-21T00:00:00Z", recipients: 1610, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t6", date: "2026-08-18T00:00:00Z", recipients: 1900, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t6", date: "2026-09-15T00:00:00Z", recipients: 2210, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t4", date: "2026-08-20T01:30:00Z", recipients: 140, senderId: "s1", listIds: ["l2"] },
-  { templateId: "t4", date: "2026-09-03T01:30:00Z", recipients: 180, senderId: "s1", listIds: ["l2"] },
-  { templateId: "t5", date: "2026-09-19T01:30:00Z", recipients: 150, senderId: "s1", listIds: ["l2"] },
-  { templateId: "t1", date: "2026-10-06T02:00:00Z", recipients: 300, senderId: "s1", listIds: ["l1"] },
+  { templateId: "t6", date: "2025-11-18T00:00:00Z", recipients: 420, senderId: "s0", tags: ["distributor"] },
+  { templateId: "t6", date: "2025-12-16T00:00:00Z", recipients: 380, senderId: "s0", tags: ["distributor"] },
+  { templateId: "t6", date: "2026-01-20T00:00:00Z", recipients: 450, senderId: "s0", tags: ["distributor"] },
+  { templateId: "t6", date: "2026-02-17T00:00:00Z", recipients: 520, senderId: "s0", tags: ["distributor"] },
+  { templateId: "t6", date: "2026-03-17T00:00:00Z", recipients: 880, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t6", date: "2026-04-21T00:00:00Z", recipients: 1150, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t6", date: "2026-05-19T00:00:00Z", recipients: 1320, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t6", date: "2026-06-16T00:00:00Z", recipients: 1480, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t6", date: "2026-07-21T00:00:00Z", recipients: 1610, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t6", date: "2026-08-18T00:00:00Z", recipients: 1900, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t6", date: "2026-09-15T00:00:00Z", recipients: 2210, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t4", date: "2026-08-20T01:30:00Z", recipients: 140, senderId: "s1", tags: ["fair"] },
+  { templateId: "t4", date: "2026-09-03T01:30:00Z", recipients: 180, senderId: "s1", tags: ["fair"] },
+  { templateId: "t5", date: "2026-09-19T01:30:00Z", recipients: 150, senderId: "s1", tags: ["fair"] },
+  { templateId: "t1", date: "2026-10-06T02:00:00Z", recipients: 300, senderId: "s1", tags: ["hotel"] },
   // Through the shared sender before Linh's own address was used again (mock, shows the "Shared" sender row).
-  { templateId: "t2", date: "2026-10-09T02:00:00Z", recipients: 240, senderId: "s0", listIds: ["l1"] },
-  { templateId: "t1", date: "2026-10-13T02:00:00Z", recipients: 420, senderId: "s1", listIds: ["l1"] },
-  { templateId: "t2", date: "2026-10-16T02:00:00Z", recipients: 210, senderId: "s1", listIds: ["l1"] },
-  { templateId: "t1", date: "2026-10-20T02:00:00Z", recipients: 380, senderId: "s1", listIds: ["l1"] },
-  { templateId: "t2", date: "2026-10-23T02:00:00Z", recipients: 260, senderId: "s1", listIds: ["l1"] },
+  { templateId: "t2", date: "2026-10-09T02:00:00Z", recipients: 240, senderId: "s0", tags: ["hotel"] },
+  { templateId: "t1", date: "2026-10-13T02:00:00Z", recipients: 420, senderId: "s1", tags: ["hotel"] },
+  { templateId: "t2", date: "2026-10-16T02:00:00Z", recipients: 210, senderId: "s1", tags: ["hotel"] },
+  { templateId: "t1", date: "2026-10-20T02:00:00Z", recipients: 380, senderId: "s1", tags: ["hotel"] },
+  { templateId: "t2", date: "2026-10-23T02:00:00Z", recipients: 260, senderId: "s1", tags: ["hotel"] },
   // Filler for the 30 days before, so the Overview's dashed "previous period" lines have data too (2026-10-29).
-  { templateId: "t6", date: "2026-08-29T02:00:00Z", recipients: 240, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t1", date: "2026-08-31T02:00:00Z", recipients: 200, senderId: "s1", listIds: ["l1"] },
-  { templateId: "t5", date: "2026-09-05T01:30:00Z", recipients: 160, senderId: "s1", listIds: ["l2"] },
-  { templateId: "t6", date: "2026-09-08T02:00:00Z", recipients: 260, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t2", date: "2026-09-10T02:00:00Z", recipients: 180, senderId: "s1", listIds: ["l1"] },
-  { templateId: "t4", date: "2026-09-12T01:30:00Z", recipients: 140, senderId: "s1", listIds: ["l2"] },
-  { templateId: "t1", date: "2026-09-17T02:00:00Z", recipients: 210, senderId: "s1", listIds: ["l1"] },
-  { templateId: "t6", date: "2026-09-22T02:00:00Z", recipients: 230, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t2", date: "2026-09-24T02:00:00Z", recipients: 190, senderId: "s1", listIds: ["l1"] },
+  { templateId: "t6", date: "2026-08-29T02:00:00Z", recipients: 240, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t1", date: "2026-08-31T02:00:00Z", recipients: 200, senderId: "s1", tags: ["hotel"] },
+  { templateId: "t5", date: "2026-09-05T01:30:00Z", recipients: 160, senderId: "s1", tags: ["fair"] },
+  { templateId: "t6", date: "2026-09-08T02:00:00Z", recipients: 260, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t2", date: "2026-09-10T02:00:00Z", recipients: 180, senderId: "s1", tags: ["hotel"] },
+  { templateId: "t4", date: "2026-09-12T01:30:00Z", recipients: 140, senderId: "s1", tags: ["fair"] },
+  { templateId: "t1", date: "2026-09-17T02:00:00Z", recipients: 210, senderId: "s1", tags: ["hotel"] },
+  { templateId: "t6", date: "2026-09-22T02:00:00Z", recipients: 230, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t2", date: "2026-09-24T02:00:00Z", recipients: 190, senderId: "s1", tags: ["hotel"] },
   // Filler so the Overview trend has a send every few days across the last 30 (user request 2026-10-29: fake data
   // that shows the chart well). Mixed templates, so the rates move the way real sends do.
-  { templateId: "t6", date: "2026-09-27T02:00:00Z", recipients: 260, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t4", date: "2026-09-29T01:30:00Z", recipients: 150, senderId: "s1", listIds: ["l2"] },
-  { templateId: "t1", date: "2026-10-01T02:00:00Z", recipients: 220, senderId: "s1", listIds: ["l1"] },
-  { templateId: "t5", date: "2026-10-03T01:30:00Z", recipients: 170, senderId: "s1", listIds: ["l2"] },
-  { templateId: "t6", date: "2026-10-07T02:00:00Z", recipients: 310, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t4", date: "2026-10-10T01:30:00Z", recipients: 160, senderId: "s1", listIds: ["l2"] },
-  { templateId: "t6", date: "2026-10-14T02:00:00Z", recipients: 280, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t5", date: "2026-10-17T01:30:00Z", recipients: 190, senderId: "s1", listIds: ["l2"] },
-  { templateId: "t6", date: "2026-10-18T02:00:00Z", recipients: 240, senderId: "s2", listIds: ["l3"] },
-  { templateId: "t1", date: "2026-10-21T02:00:00Z", recipients: 230, senderId: "s1", listIds: ["l1"] },
-  { templateId: "t4", date: "2026-10-25T01:30:00Z", recipients: 140, senderId: "s1", listIds: ["l2"] },
+  { templateId: "t6", date: "2026-09-27T02:00:00Z", recipients: 260, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t4", date: "2026-09-29T01:30:00Z", recipients: 150, senderId: "s1", tags: ["fair"] },
+  { templateId: "t1", date: "2026-10-01T02:00:00Z", recipients: 220, senderId: "s1", tags: ["hotel"] },
+  { templateId: "t5", date: "2026-10-03T01:30:00Z", recipients: 170, senderId: "s1", tags: ["fair"] },
+  { templateId: "t6", date: "2026-10-07T02:00:00Z", recipients: 310, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t4", date: "2026-10-10T01:30:00Z", recipients: 160, senderId: "s1", tags: ["fair"] },
+  { templateId: "t6", date: "2026-10-14T02:00:00Z", recipients: 280, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t5", date: "2026-10-17T01:30:00Z", recipients: 190, senderId: "s1", tags: ["fair"] },
+  { templateId: "t6", date: "2026-10-18T02:00:00Z", recipients: 240, senderId: "s2", tags: ["distributor"] },
+  { templateId: "t1", date: "2026-10-21T02:00:00Z", recipients: 230, senderId: "s1", tags: ["hotel"] },
+  { templateId: "t4", date: "2026-10-25T01:30:00Z", recipients: 140, senderId: "s1", tags: ["fair"] },
 ];
 
 // Base rates per template (open and click over delivered, bounce over recipients).
@@ -176,7 +183,7 @@ const BASE: Record<string, { open: number; click: number; bounce: number }> = {
 const historyBatches: ReportBatch[] = HISTORY.map((h, i) => {
   const r = rng(1000 + i);
   const base = BASE[h.templateId];
-  // The shared sender's early lists bounced more (unverified lists, no domain of its own yet).
+  // The shared sender's early sends bounced more (unchecked addresses, no domain of its own yet).
   const bounceRate = base.bounce * (h.senderId === "s0" ? 1.6 : 1) * (0.8 + r() * 0.4);
   const bounces = Math.round(h.recipients * bounceRate);
   const delivered = h.recipients - bounces;
@@ -188,7 +195,7 @@ const historyBatches: ReportBatch[] = HISTORY.map((h, i) => {
     templateId: h.templateId,
     campaignId: tpl?.campaign.id ?? "",
     senderId: h.senderId,
-    listIds: h.listIds,
+    tags: h.tags,
     status: "sent",
     recipients: h.recipients,
     sent: h.recipients,
@@ -250,18 +257,21 @@ export function batchTitle(b: ReportBatch) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // Audience for a new batch (live app POST /api/email/batches: suppression, one-copy-per-mailbox, deliverability
-// gate, cap). Lists overlap; the numbers are fictional but follow the order the live app removes people in.
+// gate, cap), person by person over the contact book. The audience is everyone carrying any picked tag (the live
+// app's contact picker filters the book by tag, EmailBatchWizard; PRD-02 BAT-CREATE-001 "Pick contacts from the
+// contact book"). People are removed in the order the live app removes them.
 // ---------------------------------------------------------------------------------------------------------------
 
-// Contacts that sit in both lists (counted once).
-const OVERLAP: Record<string, number> = { "l1|l2": 18, "l1|l3": 41, "l1|l4": 2, "l2|l3": 9, "l3|l4": 1 };
-
 export type AudienceSummary = {
-  lists: ContactList[];
+  tags: string[];
+  /** Contacts carrying any picked tag, each counted once. */
   contacts: number;
+  /** A second contact with the same mailbox: the live app sends one copy per inbox. */
   duplicates: number;
   /** Unsubscribed, bounced before or undeliverable (bad syntax, typo domain, no MX): AC-EC-B-04/05. */
   unreachable: number;
+  /** Carry a "Don't send to" tag. */
+  excluded: number;
   /** Mailboxes this template already reached: the live app sends one copy per inbox per template. */
   alreadyReceived: number;
   /** After every exclusion, before the cap. */
@@ -269,27 +279,69 @@ export type AudienceSummary = {
   /** What the batch will send to (eligible capped at BATCH_CAP). */
   recipients: number;
   truncated: number;
+  /** Who gets it, in book order (length = recipients). */
+  people: Contact[];
+  unreachablePeople: Contact[];
+  excludedPeople: Contact[];
 };
 
-export function summarizeAudience(listIds: string[], templateId: string | undefined): AudienceSummary {
-  const lists = listIds.map(listById).filter((l): l is ContactList => !!l);
-  const contacts = lists.reduce((n, l) => n + l.contacts, 0);
-  let duplicates = 0;
-  for (let i = 0; i < lists.length; i++)
-    for (let j = i + 1; j < lists.length; j++) duplicates += OVERLAP[[lists[i].id, lists[j].id].sort().join("|")] ?? 0;
-  const unreachable = lists.reduce((n, l) => n + l.unreachable, 0);
-  // People on a list that this template was already sent to (sent or sending batches).
-  const reached = new Set(
+function hashId(s: string) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+
+export function summarizeAudience(
+  book: Contact[],
+  tags: string[],
+  excludeTags: string[],
+  templateId: string | undefined,
+  /** Contacts picked one by one (New batch › Self-upload table, 2026-11-13): used instead of the tag match. */
+  ids?: ReadonlySet<string>
+): AudienceSummary {
+  const lower = (xs: string[]) => new Set(xs.map((t) => t.toLowerCase()));
+  const picked = lower(tags);
+  const left = lower(excludeTags);
+  // Tags this template already went to (sent or sending batches).
+  const reached = lower(
     allBatches()
       .filter((b) => b.templateId === templateId && (b.status === "sent" || b.status === "sending"))
-      .flatMap((b) => b.listIds)
+      .flatMap((b) => b.tags)
   );
-  const alreadyReceived = lists
-    .filter((l) => reached.has(l.id))
-    .reduce((n, l) => n + Math.round((l.contacts - l.unreachable) * 0.96), 0);
-  const eligible = Math.max(0, contacts - duplicates - unreachable - alreadyReceived);
+  const has = (c: Contact, set: Set<string>) => c.tags.some((t) => set.has(t.toLowerCase()));
+  const matched = ids ? book.filter((c) => ids.has(c.id)) : picked.size ? book.filter((c) => has(c, picked)) : [];
+  const seen = new Set<string>();
+  const unreachablePeople: Contact[] = [];
+  const excludedPeople: Contact[] = [];
+  const eligiblePeople: Contact[] = [];
+  let duplicates = 0;
+  let alreadyReceived = 0;
+  for (const c of matched) {
+    const mailbox = c.email.trim().toLowerCase();
+    if (c.unreachable) unreachablePeople.push(c);
+    else if (seen.has(mailbox)) duplicates += 1;
+    else if (has(c, left)) excludedPeople.push(c);
+    // Nearly everyone with a reached tag got it; a few joined the tag after that send.
+    else if (has(c, reached) && hashId(c.id) % 25 !== 0) alreadyReceived += 1;
+    else eligiblePeople.push(c);
+    seen.add(mailbox);
+  }
+  const eligible = eligiblePeople.length;
   const recipients = Math.min(eligible, BATCH_CAP);
-  return { lists, contacts, duplicates, unreachable, alreadyReceived, eligible, recipients, truncated: eligible - recipients };
+  return {
+    tags,
+    contacts: matched.length,
+    duplicates,
+    unreachable: unreachablePeople.length,
+    excluded: excludedPeople.length,
+    alreadyReceived,
+    eligible,
+    recipients,
+    truncated: eligible - recipients,
+    people: eligiblePeople.slice(0, recipients),
+    unreachablePeople,
+    excludedPeople,
+  };
 }
 
 /** Senders this user may send as (BR-RULE-EC-42): their own confirmed sender, admin-marked identities, the
@@ -504,6 +556,3 @@ export function hourlySnapshot(b: ReportBatch) {
 }
 
 export { TODAY };
-
-// Overlap between lists, for the wizard's "Don't send to" lists (recipient-check.ts, 2026-10-29).
-export { OVERLAP as LIST_OVERLAP };

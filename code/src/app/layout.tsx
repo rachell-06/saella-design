@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/layout/theme-provider";
+import { RouteProgress } from "@/components/saella/route-progress";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -33,6 +34,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
+          {/* Top bar while a route loads (PATTERNS.md §9.17). */}
+          <RouteProgress />
           <TooltipProvider>{children}</TooltipProvider>
           <Toaster />
         </ThemeProvider>

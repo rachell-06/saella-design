@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { BATCH_CAP, allBatches, batchTitle, listById } from "@/lib/mock/batches";
+import { BATCH_CAP, allBatches, batchTitle } from "@/lib/mock/batches";
 import type { RefinedAudience } from "./recipient-check";
 
 // "Review who is left out" (R1, 2026-10-29; HubSpot "Estimated recipients 2 out of 3 · review reasons").
@@ -27,30 +27,25 @@ export function LeftOutDialog({
   onOpenChange,
   audience,
   templateId,
-  excludeListIds,
   excludeTags,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   audience: RefinedAudience;
   templateId?: string;
-  excludeListIds: string[];
   excludeTags: string[];
 }) {
   const leftOut = audience.contacts - audience.recipients;
-  // The send that already reached these lists with this template, to link its report.
+  // The send that already reached these tags with this template, to link its report.
+  const picked = new Set(audience.tags.map((t) => t.toLowerCase()));
   const earlier = allBatches()
     .filter(
       (b) =>
         b.templateId === templateId &&
         (b.status === "sent" || b.status === "sending") &&
-        b.listIds.some((id) => audience.lists.some((l) => l.id === id)),
+        b.tags.some((t) => picked.has(t.toLowerCase())),
     )
     .sort((a, b) => (b.sentAt ?? "").localeCompare(a.sentAt ?? ""))[0];
-  const exListNames = excludeListIds
-    .map((id) => listById(id)?.name)
-    .filter(Boolean)
-    .join(", ");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -59,7 +54,7 @@ export function LeftOutDialog({
           <DialogTitle>Who is left out</DialogTitle>
           <DialogDescription className="tabular-nums">
             {leftOut === 0
-              ? `Everyone in these lists gets this email: ${n(audience.recipients)} people.`
+              ? `Everyone with these tags gets this email: ${n(audience.recipients)} people.`
               : `${n(leftOut)} of ${n(audience.contacts)} contacts won't get this email. Saella removes them before sending.`}
           </DialogDescription>
         </DialogHeader>
@@ -85,9 +80,9 @@ export function LeftOutDialog({
             )}
             {audience.duplicates > 0 && (
               <Reason
-                title="In more than one list"
+                title="Same mailbox as another contact"
                 count={audience.duplicates}
-                note="They are counted once and get one email, not one per list."
+                note="Each mailbox gets one email, even when several contacts share it."
               />
             )}
             {audience.alreadyReceived > 0 && (
@@ -116,25 +111,17 @@ export function LeftOutDialog({
               <Reason
                 title="In “Don't send to”"
                 count={audience.excluded}
-                note={[
-                  exListNames && `Also in ${exListNames}.`,
-                  excludeTags.length > 0 &&
-                    `Tagged ${excludeTags.map((t) => `“${t}”`).join(" or ")}.`,
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
+                note={`Tagged ${excludeTags.map((t) => `“${t}”`).join(" or ")}.`}
               >
-                {audience.taggedPeople.length > 0 && (
-                  <People
-                    rows={audience.taggedPeople.map((c) => ({
-                      id: c.id,
-                      name: `${c.firstName} ${c.lastName}`,
-                      email: c.email,
-                      why: c.tags.filter((t) => excludeTags.includes(t)).join(", "),
-                    }))}
-                    total={audience.excludedByTag}
-                  />
-                )}
+                <People
+                  rows={audience.excludedPeople.map((c) => ({
+                    id: c.id,
+                    name: `${c.firstName} ${c.lastName}`,
+                    email: c.email,
+                    why: c.tags.filter((t) => excludeTags.some((x) => x.toLowerCase() === t.toLowerCase())).join(", "),
+                  }))}
+                  total={audience.excluded}
+                />
               </Reason>
             )}
             {audience.truncated > 0 && (
