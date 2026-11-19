@@ -1,7 +1,7 @@
 "use client";
 
-// Overview boards and cards, in the live app's content and order (Repo EmailMetricsDashboard, origin/development
-// 2026-11-05): Campaign details, Campaign leaderboard, Template leaderboard, Templates in this campaign,
+// Overview boards and cards, in the live app's content and order (Repo EmailMetricsDashboard): Campaign details,
+// Campaign leaderboard, Template leaderboard, Templates in this campaign,
 // Deliverability by recipient domain, Volume by template, Sender board. Saella look: tables in a bordered card with
 // thin column dividers (as on Leads), rates through RateCell ("38.3% (467)", blank when nothing is under them),
 // numbered medals instead of emoji.
@@ -11,7 +11,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDownIcon, ArrowRightIcon, ArrowUpIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { Bar, BarChart, Cell, LabelList, Pie, PieChart, XAxis, YAxis } from "recharts";
-import { campaignStatus, formatDate, industryLabels, sampleCampaigns } from "@/lib/mock/campaigns";
+import { type Campaign, campaignStatus, formatDate, industryLabels } from "@/lib/mock/campaigns";
+import { LOW_SAMPLE } from "@/lib/mock/batches";
 import { Button } from "@/components/ui/button";
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,7 +25,6 @@ import {
   type DomainRow,
   type GroupRow,
   type RankMode,
-  type Span,
   type Totals,
   measure,
   rank,
@@ -72,18 +72,23 @@ function Rate({ t, k, strong, className }: { t: Totals; k: RateKind; strong?: bo
   return <RateCell kind={k} part={part} whole={whole} strong={strong} className={className} />;
 }
 
-/** "Delivered / Recip." as in the live app boards. */
+/** "Delivered / Recip." as in the live app boards. Recipients reached so far: a batch still sending (412 of 640) counts
+ *  its sends, not its whole audience, so the pair matches the delivery rate, Templates and the batch report. */
 function DeliveredCell({ t }: { t: Totals }) {
+  // Nothing sent in the period: an empty cell, not "0 / 0" (DESIGN §2).
   return (
     <TableCell className="tabular-nums">
-      {n(t.delivered)}
-      <span className="text-muted-foreground"> / {n(t.recipients)}</span>
+      {t.sends > 0 && (
+        <>
+          {n(t.delivered)}
+          <span className="text-muted-foreground"> / {n(t.sends)}</span>
+        </>
+      )}
     </TableCell>
   );
 }
 
-/** Card title + controls. No descriptive subtext under the title (user decision 2026-11-12): only a time window
- *  may stay as `subtitle`. */
+/** Card title + controls. No descriptive subtext under the title: only a time window may stay as `subtitle`. */
 export function CardHead({
   id,
   title,
@@ -98,9 +103,9 @@ export function CardHead({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-5">
       <div className="flex flex-col gap-0.5">
-        <h3 id={id} className="font-heading text-base font-medium">
+        <h2 id={id} className="font-heading text-base font-medium">
           {title}
-        </h3>
+        </h2>
         {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {children}
@@ -126,56 +131,39 @@ function EmptyRow({ cols, children }: { cols: number; children: React.ReactNode 
 // ---------------------------------------------------------------------------------------------------------------
 // Campaign details (live app CampaignDetailCard): Campaign view with one campaign picked.
 
-export function CampaignDetailCard({ campaignId, templateCount }: { campaignId: string; templateCount: number }) {
-  const c = sampleCampaigns.find((x) => x.id === campaignId);
-  if (!c) return null;
+// No template count: "Templates in this campaign" below lists them. No group labels: three facts need none.
+export function CampaignDetailCard({ campaign: c }: { campaign: Campaign }) {
   // Campaign industries are ISIC classes; a fully checked section reads as the section.
   const industryNames = industryLabels(c.industries);
-  const rows: { group: string; items: [string, React.ReactNode][] }[] = [
-    {
-      group: "Overview",
-      items: [
-        ["Templates", n(templateCount)],
-        ["Description", c.description || "–"],
-      ],
-    },
-    {
-      group: "Targeting",
-      items: [
-        ["Country", c.countries.length ? c.countries.join(", ") : "All"],
-        [
-          "Industry",
-          industryNames.length === 0 ? (
-            "–"
-          ) : industryNames.length > 2 ? (
-            <Hint label={industryNames.join(", ")}>
-              <span tabIndex={0} className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                {industryNames[0]} <span className="text-muted-foreground">+{industryNames.length - 1}</span>
-              </span>
-            </Hint>
-          ) : (
-            industryNames.join(", ")
-          ),
-        ],
-      ],
-    },
+  const items: [string, React.ReactNode][] = [
+    ["Description", c.description || "–"],
+    ["Country", c.countries.length ? c.countries.join(", ") : "All"],
+    [
+      "Industry",
+      industryNames.length === 0 ? (
+        "–"
+      ) : industryNames.length > 2 ? (
+        <Hint label={industryNames.join(", ")}>
+          <span tabIndex={0} className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {industryNames[0]} <span className="text-muted-foreground">+{industryNames.length - 1}</span>
+          </span>
+        </Hint>
+      ) : (
+        industryNames.join(", ")
+      ),
+    ],
   ];
   return (
     <section aria-labelledby="campaign-detail" className={cn(card, "pb-4")}>
       <CardHead id="campaign-detail" title="Campaign details" />
-      <div className="grid gap-x-8 gap-y-4 px-5 md:grid-cols-2">
-        {rows.map((r) => (
-          <dl key={r.group} className="flex flex-col gap-2 text-sm">
-            <span className="text-xs font-medium tracking-wide text-subtle-foreground uppercase">{r.group}</span>
-            {r.items.map(([label, value]) => (
-              <div key={label} className="grid grid-cols-[9rem_minmax(0,1fr)] gap-3">
-                <dt className="text-muted-foreground">{label}</dt>
-                <dd>{value}</dd>
-              </div>
-            ))}
-          </dl>
+      <dl className="grid gap-x-8 gap-y-2 px-5 text-sm md:grid-cols-2">
+        {items.map(([label, value]) => (
+          <div key={label} className="grid grid-cols-[9rem_minmax(0,1fr)] gap-3">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd>{value}</dd>
+          </div>
         ))}
-      </div>
+      </dl>
     </section>
   );
 }
@@ -183,8 +171,7 @@ export function CampaignDetailCard({ campaignId, templateCount }: { campaignId: 
 // ---------------------------------------------------------------------------------------------------------------
 // Leaderboards (live app LeaderHead + rankCampaigns / rankTemplates + BelowGate).
 
-/** Leaderboards on the Campaign view show the top 3 of the current ranking (user decision 2026-11-12); the rest
- *  sits behind "View all". */
+/** Leaderboards on the Campaign view show the top 3 of the current ranking; the rest sits behind "View all". */
 export const BOARD_TOP = 3;
 /** Rows in the Template view's board and its chart (more go behind "View all"). */
 const FULL_TOP = 10;
@@ -194,8 +181,8 @@ const MODES: { value: RankMode; label: string }[] = [
   { value: "lowest", label: "Lowest" },
 ];
 
-/** Two small dropdowns side by side: [Highest ▾] [All metrics ▾] (user decision 2026-11-12). Fixed widths fit the
- *  longest option, so the triggers don't jump. */
+/** Two small dropdowns side by side: [Highest ▾] [All metrics ▾]. Fixed widths fit the longest option, so the
+ *  triggers don't jump. */
 function LeaderControls<M extends string>({
   title,
   mode,
@@ -246,7 +233,7 @@ function LeaderControls<M extends string>({
 }
 
 /**
- * Footer row of a leaderboard (user decision 2026-11-12): left, the rows under the sample gate, listed not hidden
+ * Footer row of a leaderboard: left, the rows under the sample gate, listed not hidden
  * (live app BelowGate); right, a quiet "View all →" to the full list when the board cut rows. Nothing to show: no row.
  */
 function BoardFooter({ rows, viewAll }: { rows: GroupRow[]; viewAll?: { href: string; label: string } | null }) {
@@ -324,12 +311,12 @@ function RankHead({ on, mode, children }: { on: boolean; mode: RankMode; childre
 const ranked = (on: boolean) => (on ? rankedTint : undefined);
 
 // Medals for places 1–3 when ranking highest first (live app rankCell); numbered so the place stays readable.
-// Clear steps at a glance (user feedback 2026-11-12): #1 solid gold and larger, #2 neutral, #3 soft bronze,
 // 4+ a plain muted number centred in the same slot.
 const MEDALS = [
   {
     label: "1st place",
-    className: "size-7 bg-warning text-warning-foreground ring-2 ring-warning-soft",
+    // Gold from the chart palette (not `warning`, which means "careful"); dark ink on it in both themes.
+    className: "size-7 bg-chart-5 text-deep ring-2 ring-chart-5/30",
   },
   {
     label: "2nd place",
@@ -365,33 +352,39 @@ function Place({ i, medals }: { i: number; medals: boolean }) {
 type CampSort = "all" | "reply" | "open" | "click" | "unsub" | "bounce";
 const CAMP_SORTS: { value: CampSort; label: string }[] = [
   { value: "all", label: "All metrics" },
-  { value: "reply", label: "Replies" },
+  { value: "reply", label: "Reply rate" },
   { value: "open", label: "Open rate" },
   { value: "click", label: "Click rate" },
   { value: "unsub", label: "Unsub rate" },
   { value: "bounce", label: "Bounce rate" },
 ];
 
-/** Campaign leaderboard: top 3. "All metrics" (default) ranks by Replies (a count) with no column highlighted; a
- *  picked metric highlights its column. A row narrows Overview to that campaign. */
-export function CampaignLeaderboard({ rows, onPick }: { rows: GroupRow[]; onPick: (id: string) => void }) {
+/** Campaign leaderboard: top 3. "All metrics" (default) ranks by reply rate (the live app ranks the reply count)
+ *  with no column highlighted; a picked metric highlights its column. A row narrows Overview to that campaign. */
+export function CampaignLeaderboard({
+  rows,
+  campaigns,
+  onPick,
+}: {
+  rows: GroupRow[];
+  /** The campaigns Overview lists (as of now, archived left out): the ones with no sends follow as idle rows. */
+  campaigns: Campaign[];
+  onPick: (id: string) => void;
+}) {
   const [mode, setMode] = useState<RankMode>("top");
   const [sort, setSort] = useState<CampSort>("all");
   const metric = sort === "all" ? "reply" : sort;
-  // Same shape as the Template view (designer 2026-11-13): a chart of the ranked campaigns above, then every campaign
-  // (up to FULL_TOP, ranked first, under-sampled after), top 3 with medals, "View all" to Campaigns.
-  // Campaigns with no sends in the period are listed too, last (designer 2026-11-13: every campaign shows).
-  const idle: GroupRow[] = sampleCampaigns
+  // Every campaign (up to FULL_TOP, ranked first, under-sampled after), top 3 with medals, "View all" to Campaigns.
+  // Campaigns with no sends in the period are listed last and never ranked: no place number and blank cells
+  // (DESIGN §2), whether Highest or Lowest is picked.
+  const idle: GroupRow[] = campaigns
     .filter((c) => !rows.some((r) => r.id === c.id))
     .map((c) => ({ id: c.id, name: c.name, status: campaignStatus(c), totals: sum([]) }));
-  const res = rank([...rows, ...idle], metric, mode, {
-    replyIsCount: true,
-    limit: FULL_TOP,
-  });
-  const shown = [...res.ranked, ...res.belowGate.slice(0, Math.max(0, FULL_TOP - res.ranked.length))];
+  const res = rank(rows, metric, mode, { limit: FULL_TOP });
+  const shown = [...res.ranked, ...res.belowGate, ...idle].slice(0, FULL_TOP);
   return (
     <>
-    {/* No ranked chart on the Campaign view (designer 2026-11-13); the Template view keeps its own. */}
+    {/* No ranked chart on the Campaign view; the Template view keeps its own. */}
     <section aria-labelledby="camp-leader" className={card}>
       <CardHead id="camp-leader" title="Campaign leaderboard">
         <LeaderControls
@@ -403,7 +396,7 @@ export function CampaignLeaderboard({ rows, onPick }: { rows: GroupRow[]; onPick
           options={CAMP_SORTS}
         />
       </CardHead>
-      <Table aria-label="Campaign leaderboard" className={cn("table-fixed min-w-[62rem]", frame)}>
+      <Table aria-label="Campaign leaderboard" className={cn("table-fixed min-w-[56rem] min-[1440px]:min-w-[62rem] max-[1439px]:[&_[data-slot=rate-value]]:flex-wrap max-[1439px]:[&_[data-slot=rate-value]]:gap-y-0", frame)}>
         <colgroup>
           <col className="w-14" />
           <col />
@@ -428,7 +421,7 @@ export function CampaignLeaderboard({ rows, onPick }: { rows: GroupRow[]; onPick
               Click
             </RankHead>
             <RankHead on={sort === "reply"} mode={mode}>
-              Replies
+              Reply
             </RankHead>
             <RankHead on={sort === "unsub"} mode={mode}>
               Unsub
@@ -458,9 +451,7 @@ export function CampaignLeaderboard({ rows, onPick }: { rows: GroupRow[]; onPick
                 <DeliveredCell t={r.totals} />
                 <Rate t={r.totals} k="open" strong={sort === "open"} className={ranked(sort === "open")} />
                 <Rate t={r.totals} k="click" strong={sort === "click"} className={ranked(sort === "click")} />
-                <TableCell className={cn("font-medium tabular-nums", ranked(sort === "reply"))}>
-                  {n(r.totals.replies)}
-                </TableCell>
+                <Rate t={r.totals} k="reply" strong={sort === "reply"} className={ranked(sort === "reply")} />
                 <Rate t={r.totals} k="unsub" strong={sort === "unsub"} className={ranked(sort === "unsub")} />
                 <Rate t={r.totals} k="bounce" strong={sort === "bounce"} className={ranked(sort === "bounce")} />
               </TableRow>
@@ -502,15 +493,14 @@ export function TemplateLeaderboard({
   const router = useRouter();
   const [mode, setMode] = useState<RankMode>("top");
   const [sort, setSort] = useState<TplSort>("all");
-  // Default ranking: click rate (designer 2026-11-13; was open rate, which privacy proxies inflate).
   const metric = sort === "all" ? "click" : sort;
   const res = rank(rows, metric, mode, {
     limit: full ? FULL_TOP : BOARD_TOP,
   });
-  // Template view: up to FULL_TOP ranked rows, then the under-sampled ones; the chart above draws the same ranked rows
-  // (designer 2026-11-13: chart and table show the same templates). "View all" goes to Templates for the rest.
+  // Template view: up to FULL_TOP ranked rows, then the under-sampled ones; the chart above draws the same ranked rows.
+  // "View all" goes to Templates for the rest.
   const shown = full ? [...res.ranked, ...res.belowGate.slice(0, Math.max(0, FULL_TOP - res.ranked.length))] : res.ranked;
-  // No CTO column (designer 2026-11-13): it repeats Click ÷ Open, both already shown.
+  // No CTO column: it repeats Click ÷ Open, both already shown.
   const cols = 9;
   return (
     <>
@@ -526,7 +516,7 @@ export function TemplateLeaderboard({
             options={TPL_SORTS}
           />
         </CardHead>
-        <Table aria-label="Template leaderboard" className={cn("table-fixed min-w-[67rem]", frame)}>
+        <Table aria-label="Template leaderboard" className={cn("table-fixed min-w-[58rem] min-[1440px]:min-w-[67rem] max-[1439px]:[&_[data-slot=rate-value]]:flex-wrap max-[1439px]:[&_[data-slot=rate-value]]:gap-y-0", frame)}>
           <colgroup>
             <col className="w-14" />
             <col />
@@ -610,7 +600,7 @@ export function TemplateLeaderboard({
             )}
           </TableBody>
         </Table>
-        {/* "View all" in both views, like the campaign board (designer 2026-11-13). */}
+        {/* "View all" in both views, like the campaign board. */}
         <BoardFooter
           rows={full ? [] : res.belowGate}
           viewAll={full || rows.length > BOARD_TOP ? { href: "/templates", label: "View all templates" } : null}
@@ -621,10 +611,10 @@ export function TemplateLeaderboard({
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Ranked chart (Template view, above the full leaderboard; user decision 2026-11-13): a picture of the leaderboard's
-// current state: the same ranked rows the table lists, in its order (designer 2026-11-13), bars = the ranking metric's value. It follows the leaderboard's
-// Highest/Lowest and metric dropdowns and its sample gate; under "All metrics" it shows the default, open rate, and
-// the title says so. All bars brand: a gold #1 bar reads as a second colour scale next to the orange.
+// Ranked chart (Template view, above the full leaderboard): the same ranked rows the table lists, in its order,
+// bars = the ranking metric's value. It follows the leaderboard's Highest/Lowest and metric dropdowns and its sample
+// gate; under "All metrics" it shows the default, open rate, and the title says so. All bars brand: a gold #1 bar
+// reads as a second colour scale next to the orange.
 
 const CHART_TOP = FULL_TOP;
 const chartConfig = {
@@ -637,7 +627,6 @@ function RankChart({
   metric,
   mode,
   options = TPL_SORTS,
-  replyIsCount = false,
 }: {
   id?: string;
   rows: GroupRow[];
@@ -645,12 +634,9 @@ function RankChart({
   mode: RankMode;
   /** The board's metric dropdown, for the title's wording. */
   options?: { value: string; label: string }[];
-  /** Campaign board: Replies rank as a count, so the bars are counts, not rates. */
-  replyIsCount?: boolean;
 }) {
   const label = options.find((o) => o.value === metric)!.label.toLowerCase();
-  const asCount = replyIsCount && metric === "reply";
-  const fmt = (v: unknown) => (asCount ? Number(v).toLocaleString("en-US") : `${(Number(v) * 100).toFixed(1)}%`);
+  const fmt = (v: unknown) => `${(Number(v) * 100).toFixed(1)}%`;
   const title = `${mode === "top" ? "Top" : "Lowest"} ${Math.min(CHART_TOP, rows.length) || CHART_TOP} by ${label}`;
   // Two templates can share a name across campaigns: qualify only the names that clash (live app).
   const seen = new Map<string, number>();
@@ -658,7 +644,7 @@ function RankChart({
   const name = (r: GroupRow) => ((seen.get(r.name) ?? 0) > 1 && r.sub ? `${r.name} · ${r.sub}` : r.name);
   const bars = rows.slice(0, CHART_TOP).map((r) => {
     const { successes, denominator } = measure(r.totals, metric);
-    const value = asCount ? r.totals.replies : denominator > 0 ? successes / denominator : 0;
+    const value = denominator > 0 ? successes / denominator : 0;
     // A row with no sends in the period (an idle campaign) gets an empty bar and says so beside its name (recharts
     // draws no label on a zero-width bar).
     const idle = r.totals.sends === 0;
@@ -684,8 +670,7 @@ function RankChart({
                 width={240}
                 tickLine={false}
                 axisLine={false}
-                // One line per name: recharts wraps long ticks, so draw the text ourselves, cut with "…" (the full
-                // name is in the bar's tooltip).
+                // One line per name: recharts wraps long ticks, so draw the text ourselves, cut with "…" (full name in the tooltip).
                 tick={({ x, y, payload }: { x: number | string; y: number | string; payload: { value: string } }) => {
                   const v = payload.value;
                   return (
@@ -721,10 +706,13 @@ function RankChart({
   );
 }
 
-/** Templates in this campaign (live app, Campaign view with a campaign picked): all of them, best open rate first. */
+/** Templates in this campaign (live app, Campaign view with a campaign picked): all of them, best open rate first.
+ *  Places and medals only for templates the ranking gate admits (rank(): its own sample, lowered when fewer than 3
+ *  clear it); templates under 20 sends never get a medal (too few to judge, DESIGN §2). The rest follow unnumbered. */
 export function TemplatesInCampaign({ rows }: { rows: GroupRow[] }) {
-  const open = (r: GroupRow) => (r.totals.delivered ? r.totals.opens / r.totals.delivered : -1);
-  const shown = [...rows].sort((a, b) => open(b) - open(a));
+  const res = rank(rows, "open", "top", { limit: rows.length });
+  const placed = res.ranked.filter((r) => measure(r.totals, "open").denominator >= LOW_SAMPLE);
+  const shown = [...placed, ...rows.filter((r) => !placed.includes(r)).sort((a, b) => b.totals.sends - a.totals.sends)];
   return (
     <section aria-labelledby="tpl-in-campaign" className={cn(card, "pb-1")}>
       <CardHead id="tpl-in-campaign" title="Templates in this campaign" />
@@ -754,9 +742,7 @@ export function TemplatesInCampaign({ rows }: { rows: GroupRow[] }) {
         <TableBody>
           {shown.map((r, i) => (
             <TableRow key={r.id}>
-              <TableCell>
-                <Place i={i} medals />
-              </TableCell>
+              <TableCell>{i < placed.length ? <Place i={i} medals /> : null}</TableCell>
               <TableCell className="truncate" title={r.name}>
                 <Link href={r.href!} className="font-medium underline-offset-4 hover:underline">
                   {r.name}
@@ -844,12 +830,10 @@ const SENDER_RATES = ["delivery", "open", "bounce"] as const;
 export function SenderBoard({
   rows,
   domains,
-  span,
 }: {
   rows: GroupRow[];
   /** Every sending domain of the workspace (live app senderDomains), not only those that sent. */
   domains: string[];
-  span: Span;
 }) {
   const [domain, setDomain] = useState("all");
   const shown = rows.filter((r) => domain === "all" || r.domain === domain);
@@ -865,12 +849,8 @@ export function SenderBoard({
   const config = Object.fromEntries(slices.map((s) => [s.id, { label: s.name, color: s.fill }])) satisfies ChartConfig;
   return (
     <section aria-labelledby="sender-board" className={cn(card, "pb-1")}>
-      {/* The window is in the title (live app): a sender that didn't send in it is simply absent. */}
-      <CardHead
-        id="sender-board"
-        title="Sender board"
-        subtitle={span.label.charAt(0).toUpperCase() + span.label.slice(1)}
-      >
+      {/* No period line: the period picker above says it; a sender that didn't send in it is simply absent. */}
+      <CardHead id="sender-board" title="Sender board">
         <Select value={domain} onValueChange={setDomain}>
           <SelectTrigger size="sm" className="w-56" aria-label="Sending domain">
             <SelectValue />
@@ -890,9 +870,11 @@ export function SenderBoard({
       {shown.length === 0 ? (
         <p className="px-5 py-8 text-center text-sm text-muted-foreground">No senders</p>
       ) : (
-        <div className="grid items-start gap-4 border-t pt-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        // Laptops (≤1440, DESIGN.md §10): a narrower pie column, narrower columns and the rate's count wrapping under
+        // it, so the table fits its card at 1280 without sideways scrolling.
+        <div className="grid items-start gap-4 border-t pt-4 lg:grid-cols-[13rem_minmax(0,1fr)] min-[1441px]:lg:grid-cols-[18rem_minmax(0,1fr)]">
           <div className="flex flex-col items-center gap-3 px-5 pb-4">
-            <ChartContainer config={config} className="aspect-square h-56">
+            <ChartContainer config={config} className="aspect-square h-40 min-[1441px]:h-56">
               <PieChart>
                 <ChartTooltip content={<ChartTooltipContent nameKey="id" hideLabel />} />
                 <Pie
@@ -922,17 +904,19 @@ export function SenderBoard({
           <Table
             aria-label="Senders"
             className={cn(
-              "table-fixed min-w-[51rem]",
+              "table-fixed min-w-[42rem] min-[1441px]:min-w-[51rem]",
+              // A rate's count may wrap under it when the column is narrow (only then: flex-wrap).
+              "[&_[data-slot=rate-value]]:flex-wrap [&_[data-slot=rate-value]]:gap-y-0",
               frame,
               "lg:**:data-[slot=table-cell]:first:pl-3 lg:**:data-[slot=table-head]:first:pl-3",
             )}
           >
             <colgroup>
               <col />
-              <col className="w-48" />
+              <col className="w-36 min-[1441px]:w-48" />
               <col className="w-20" />
               {SENDER_RATES.map((k) => (
-                <col key={k} className="w-28" />
+                <col key={k} className="w-24 min-[1441px]:w-28" />
               ))}
             </colgroup>
             <TableHeader className={headRow}>

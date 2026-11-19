@@ -1,5 +1,6 @@
 "use client";
 
+import { SCROLL_SHEET_BODY } from "@/lib/scroll";
 import { useMemo } from "react";
 import Link from "next/link";
 import {
@@ -27,7 +28,7 @@ import { type Contact, fmt, formatDate, useContactsStore } from "@/lib/mock/cont
 import { invalidReason } from "./contact-book";
 import { InvalidBadge } from "./email-safety";
 
-// Contact profile in a Sheet (DESIGN.md §8.1: Sheet for contact detail; R8 2026-10-29, HubSpot H3 + Apollo A2).
+// Contact profile in a Sheet (DESIGN.md §8.1; R8).
 // Details on top, then the email activity timeline: one line per event, grouped by month, newest first, with a
 // one-line summary counted per batch. Each line links to the batch report. Preview: ?contact=<id> opens it,
 // &activity=loading | empty | error forces a state. An Invalid address shows the badge and its reason.
@@ -81,7 +82,7 @@ export function ContactSheet({
               )}
             </SheetHeader>
 
-            <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
+            <div className={cn("flex flex-col gap-6 p-4", SCROLL_SHEET_BODY)}>
               <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 text-sm">
                 <Fact label="Email">
                   {c.email}
@@ -131,12 +132,13 @@ export function ContactSheet({
 
 function SummaryLine({ events }: { events: ActivityEvent[] }) {
   const s = summarize(events);
+  // Only what happened: an address whose one email bounced reads "Bounced 1 batch", not "Received 0 · opened 0".
   const parts = [
-    `Received ${fmt(s.received)} ${s.received === 1 ? "batch" : "batches"}`,
-    `opened ${fmt(s.opened)}`,
+    s.received > 0 && `Received ${fmt(s.received)} ${s.received === 1 ? "batch" : "batches"}`,
+    s.received > 0 && `opened ${fmt(s.opened)}`,
     s.clicked > 0 && `clicked ${fmt(s.clicked)}`,
-    `replied ${fmt(s.replied)}`,
-    s.bounced > 0 && `bounced ${fmt(s.bounced)}`,
+    s.received > 0 && `replied ${fmt(s.replied)}`,
+    s.bounced > 0 && (s.received > 0 ? `bounced ${fmt(s.bounced)}` : `Bounced ${fmt(s.bounced)} ${s.bounced === 1 ? "batch" : "batches"}`),
   ].filter(Boolean);
   return <p className="text-sm text-muted-foreground tabular-nums">{parts.join(" · ")}</p>;
 }
@@ -194,7 +196,6 @@ function ActivityBody({ state, events, onRetry }: { state?: ActivityState; event
           <ol className="flex flex-col">
             {g.events.map((e, i) => (
               <li key={e.id} className="relative flex gap-3 pb-4 last:pb-0">
-                {/* Rail between icons; the last line of a month has none. */}
                 {i < g.events.length - 1 && <span aria-hidden className="absolute top-8 bottom-1 left-3.5 w-px bg-border" />}
                 <span
                   aria-hidden

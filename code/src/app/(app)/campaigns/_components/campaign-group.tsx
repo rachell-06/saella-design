@@ -1,14 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useRef, useState } from "react";
 import {
   ArchiveIcon,
   ArchiveRestoreIcon,
   BarChart3Icon,
-  ChevronDownIcon,
+  ChevronRightIcon,
   CircleDashedIcon,
-  Clock3Icon,
   EllipsisVerticalIcon,
   InfoIcon,
   PencilIcon,
@@ -18,18 +16,16 @@ import {
 import {
   type Campaign,
   industryLabels,
-  type Template,
   formatDate,
   formatDateTime,
   rate,
   totals,
 } from "@/lib/mock/campaigns";
-import { type Viewer, accessFor, detailsFor, ownerName } from "@/lib/mock/templates";
+import type { Viewer } from "@/lib/mock/templates";
 import { AutomateDialog } from "@/components/features/automation-panel";
 import { Hint } from "@/components/saella/hint";
 import { RateCell } from "@/components/saella/rate-meter";
 import { type CampaignStatus, StatusBadge } from "@/components/saella/status-badge";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -40,21 +36,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { SendButton, TemplateMenu } from "@/components/features/template-menu";
+import { EditIconButton, SendButton, TemplateMenu, TemplateNameCell, useRowOpen } from "@/components/features/template-menu";
 
-// One campaign as a collapsible card. Presentation (2026-11-11, user request): Studio Admin /dashboard/infrastructure
-// ProjectEnvironments, as first ported on the Templates list: header = chevron + name + "(N templates)", ⓘ with
-// targeting and totals, a ghost "Add template" and an outline ⋮; inside, a table with a muted header row ruled top and
-// bottom, no row hover, a two-line name cell (name + type chip, owner/access), one RateCell column per
-// rate (numbers, not Infrastructure's usage bars: PATTERNS.md §9.7), Last sent as icon + muted text, Send + ⋯ always
-// shown, and a muted empty row. No follow-ups and no automation here (designer 2026-11-12), only an Automate menu item that opens the
-// automation dialog.
-
-const KIND_LABEL = { letter: "Letter", design: "Design" } as const;
+// Numbers: the card's rows and ⓘ totals come from applyTemplateStore (lib/mock/templates.ts), which takes each
+// template's figures from its batches, the same source as Templates and the template page (PATTERNS 9.7).
+// One campaign as a collapsible card. Presentation: Studio Admin /dashboard/infrastructure ProjectEnvironments:
+// header = chevron + name + "(N templates)", ⓘ with targeting and totals (a popover, opened by click or keyboard
+// focus), a ghost "Add template" and an outline ⋮; inside, a table with one RateCell column per rate (numbers, not
+// Infrastructure's usage bars: PATTERNS.md §9.7), and a muted empty row. The template table matches the Templates
+// list; a click anywhere on a row opens the template (PATTERNS 9.1). No follow-ups here; Automate is a ⋯ item that
+// opens the automation dialog (active templates only).
 
 // Templates shown per campaign before "Show all N templates" (follow-ups don't count).
 const TEMPLATE_LIMIT = 5;
@@ -95,14 +90,16 @@ export function CampaignGroup({
   const c = campaign;
   const t = totals(c);
   const [showAll, setShowAll] = useState(false);
-  // Automate opens the shared automation dialog, as in the live app (designer 2026-11-13).
+  // Automate opens the shared automation dialog, as in the live app.
   const [automating, setAutomating] = useState<string | null>(null);
-  // Templates only: follow-ups are not shown on Campaigns (they're on the template page). Long campaigns show their
-  // first TEMPLATE_LIMIT.
+  const rowOpen = useRowOpen();
+  // Templates only: follow-ups are on the template page. Long campaigns show their first TEMPLATE_LIMIT.
   const rows = c.templates.filter((tpl) => !tpl.followUp);
   const limited = !showAll && rows.length > TEMPLATE_LIMIT;
   const shownRows = limited ? rows.slice(0, TEMPLATE_LIMIT) : rows;
   const count = rows.length;
+  const addBlocked =
+    status === "ended" ? "This campaign has ended" : status === "archived" ? "Unarchive the campaign to add templates" : undefined;
 
   return (
     <Collapsible
@@ -120,7 +117,8 @@ export function CampaignGroup({
             variant="ghost"
             className="group/trigger -ml-2 h-auto min-w-0 justify-start gap-2 px-2 py-1 hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent"
           >
-            <ChevronDownIcon className="transition-transform group-data-[state=open]/trigger:rotate-180" />
+            {/* › closed, ⌄ open: the same chevron as Social › Accounts. */}
+            <ChevronRightIcon className="text-muted-foreground transition-transform group-data-[state=open]/trigger:rotate-90" />
             <span className="flex min-w-0 items-baseline gap-1.5 text-left">
               <span className="truncate leading-none font-medium">{c.name}</span>
               <span className="shrink-0 text-sm font-normal text-muted-foreground tabular-nums">
@@ -130,9 +128,8 @@ export function CampaignGroup({
           </Button>
         </CollapsibleTrigger>
         <CampaignInfo campaign={c} />
-        {/* No campaign status badge on the card (designer 2026-11-12); status is a Filter section. */}
-        {/* Collapsed cards show their actions on hover or keyboard focus, so a long list isn't 60 rows of
-            identical buttons (2026-10-27). Open cards always show them. */}
+        {/* No campaign status badge on the card; status is a Filter section. */}
+        {/* Collapsed cards show their actions on hover or keyboard focus; open cards always show them. */}
         <div
           className={cn(
             "ml-auto flex shrink-0 items-center gap-2 transition-opacity",
@@ -140,10 +137,10 @@ export function CampaignGroup({
             "has-aria-expanded:opacity-100! [@media(hover:none)]:opacity-100!"
           )}
         >
-          {/* An ended campaign can't send, and New template doesn't list it: the button stays, disabled with why. */}
-          <Hint label={status === "ended" ? "This campaign has ended" : undefined}>
-            <span tabIndex={status === "ended" ? 0 : undefined}>
-              <Button variant="ghost" size="sm" onClick={onAddTemplate} disabled={status === "ended"}>
+          {/* An ended or archived campaign can't send: the button stays, disabled with why. */}
+          <Hint label={addBlocked}>
+            <span tabIndex={addBlocked ? 0 : undefined}>
+              <Button variant="ghost" size="sm" onClick={onAddTemplate} disabled={Boolean(addBlocked)}>
                 <PlusIcon data-icon="inline-start" />
                 Add template
               </Button>
@@ -210,7 +207,7 @@ export function CampaignGroup({
               <col className="w-28" />
               <col className="w-28" />
               <col className="w-30" />
-              <col className="w-26" />
+              <col className="w-36" />
             </colgroup>
             <TableHeader className="bg-table-head [&_tr]:border-y">
               <TableRow>
@@ -226,13 +223,12 @@ export function CampaignGroup({
                 </TableHead>
               </TableRow>
             </TableHeader>
-            {/* No row background on hover or open menu, as on Studio Admin infrastructure. */}
-            <TableBody className="**:data-[slot='table-row']:hover:bg-transparent **:data-[slot='table-row']:has-aria-expanded:bg-transparent">
+            <TableBody>
               {shownRows.map((tpl) => {
                 return (
-                  <TableRow key={tpl.id}>
-                    <TableCell>
-                      <NameCell template={tpl} viewer={viewer} />
+                  <TableRow key={tpl.id} className="group/row cursor-pointer" onClick={rowOpen(`/templates/${tpl.id}`)}>
+                    <TableCell className="whitespace-normal">
+                      <TemplateNameCell template={tpl} viewer={viewer} />
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={tpl.status === "active" ? "template-active" : "template-inactive"} />
@@ -241,14 +237,10 @@ export function CampaignGroup({
                     <RateCell kind="open" part={tpl.opens} whole={tpl.delivered} />
                     <RateCell kind="click" part={tpl.clicks} whole={tpl.delivered} />
                     <RateCell kind="bounce" part={tpl.bounces} whole={tpl.recipients} />
-                    <TableCell>
+                    <TableCell className="text-muted-foreground tabular-nums">
                       {tpl.lastSent && (
                         <Hint label={formatDateTime(tpl.lastSent)}>
-                          <span
-                            className="inline-flex items-center gap-1.5 rounded-sm text-muted-foreground tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            tabIndex={0}
-                          >
-                            <Clock3Icon aria-hidden className="size-4" />
+                          <span tabIndex={0} className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
                             {formatDate(tpl.lastSent)}
                           </span>
                         </Hint>
@@ -256,10 +248,12 @@ export function CampaignGroup({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="-mr-2 flex items-center justify-end gap-1">
+                        <EditIconButton template={tpl} viewer={viewer} />
                         <SendButton template={tpl} viewer={viewer} sendingBlocked={sendingBlocked} iconOnly />
                         <TemplateMenu
                           template={tpl}
                           viewer={viewer}
+                          showEdit={false}
                           campaigns={campaigns}
                           onAutomate={() => setAutomating(tpl.id)}
                         />
@@ -286,55 +280,53 @@ export function CampaignGroup({
   );
 }
 
-/** Name (links to the template); line 2 is the owner and the viewer's access (PRD Master: the list shows the owner and
- *  your access), like Infrastructure's two-line Server cell. */
-function NameCell({ template: t, viewer }: { template: Template; viewer: Viewer }) {
-  const access = accessFor(t, viewer);
-  const line2 =
-    access === "owner"
-      ? "Yours"
-      : `${ownerName(t.owner)} · ${access === "viewer" ? "view only" : access === "shared" ? "shared with you" : "admin access"}`;
-  return (
-    <div className="flex min-w-0 items-start gap-2">
-      <div className="flex min-w-0 flex-col">
-        {/* Type as a small chip after the name (no Type column, as on Templates; designer 2026-11-12). The name
-            truncates first; the chip keeps its size. */}
-        <div className="flex min-w-0 items-center gap-1.5">
-          <Link
-            href={`/templates/${t.id}`}
-            className="truncate rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            title={t.name}
-          >
-            {t.name}
-          </Link>
-          <Badge variant="outline" className="h-5 shrink-0 px-1.5 font-normal text-muted-foreground">
-            {KIND_LABEL[detailsFor(t.id).kind]}
-          </Badge>
-        </div>
-        <span className="truncate text-xs text-muted-foreground" title={line2}>
-          {line2}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// Everything about the campaign that isn't its name, in a hover card on the ⓘ next to it (hover or keyboard focus).
+// Everything about the campaign that isn't its name, in a popover on the ⓘ next to it. It opens on a click or when
+// the ⓘ gets keyboard focus (a hover card can't be reached by touch). Focus that comes back to the ⓘ as the popover
+// closes doesn't reopen it.
 function CampaignInfo({ campaign: c }: { campaign: Campaign }) {
   const t = totals(c);
   const open = rate(t.opens, t.delivered);
   const click = rate(t.clicks, t.delivered);
   const bounce = rate(t.bounces, t.recipients);
+  const [shown, setShown] = useState(false);
+  const returning = useRef(false);
   return (
-    <HoverCard openDelay={150} closeDelay={100}>
-      <HoverCardTrigger asChild>
-        <Button variant="ghost" size="icon-sm" aria-label={`About ${c.name}`} className="text-muted-foreground">
+    <Popover open={shown} onOpenChange={setShown}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`About ${c.name}`}
+          className="text-muted-foreground"
+          onFocus={(e) => {
+            if (returning.current) return;
+            if (e.currentTarget.matches(":focus-visible")) setShown(true);
+          }}
+        >
           <InfoIcon />
         </Button>
-      </HoverCardTrigger>
-      <HoverCardContent align="start" className="flex w-80 flex-col gap-3">
-        {c.description && <p className="text-sm text-muted-foreground">{c.description}</p>}
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="flex w-80 flex-col gap-3"
+        // Nothing to act on inside: focus stays on the ⓘ, so Tab moves on (and closes it) as usual.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={() => {
+          returning.current = true;
+          requestAnimationFrame(() => {
+            returning.current = false;
+          });
+        }}
+      >
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm tabular-nums">
+          {/* Labelled like the rest, at most 2 lines (unlabelled, the user's text reads as Saella's caption). The full text
+              is in Edit campaign. */}
+          {c.description && (
+            <>
+              <dt className="text-muted-foreground">Description</dt>
+              <dd className="line-clamp-2">{c.description}</dd>
+            </>
+          )}
           <dt className="text-muted-foreground">Countries</dt>
           <dd>{c.countries.join(", ") || "All countries"}</dd>
           <dt className="text-muted-foreground">Industries</dt>
@@ -364,8 +356,8 @@ function CampaignInfo({ campaign: c }: { campaign: Campaign }) {
             </>
           )}
         </dl>
-      </HoverCardContent>
-    </HoverCard>
+      </PopoverContent>
+    </Popover>
   );
 }
 

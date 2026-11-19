@@ -1,5 +1,6 @@
 "use client";
 
+import { SCROLL_TABLE_FILL } from "@/lib/scroll";
 import { useState } from "react";
 import {
   type PaginationState,
@@ -12,14 +13,13 @@ import { ArrowDownIcon, ArrowUpIcon, ChevronLeftIcon, ChevronRightIcon } from "l
 import { type DataTableColumn } from "@/components/saella/data-table";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type DataTableFeatures, dataTableFeatures } from "@/lib/data-table-features";
 import { cn } from "@/lib/utils";
 
-// Table + pager for Self-upload, built like Find companies' table (designer request 2026-11-13). The screen owns
-// the table (useContactsTable) so it can read the selection.
+// Table + pager for Self-upload, built like Find companies' table. The screen owns the table (useContactsTable) so it
+// can read the selection.
 
 export type ContactsTable<TData extends RowData> = ReactTable<DataTableFeatures, TData>;
 
@@ -42,8 +42,8 @@ export function useContactsTable<TData extends RowData>({
   const [rowSelection, setRowSelection] = useState({});
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: pageSizeOptions[0] });
 
-  // New results (search, filter, or the book changed after a bulk action) start from page 1 with nothing
-  // selected, as on Find companies (reset during render, not in an effect). Paging keeps the selection.
+  // New results (search, filter, or the book changed after a bulk action) start from page 1 with nothing selected
+  // (reset during render, not in an effect). Paging keeps the selection.
   const [prevData, setPrevData] = useState(data);
   if (data !== prevData) {
     setPrevData(data);
@@ -80,15 +80,13 @@ const cellClass = (id: string, head = false) =>
     id === "actions" && "px-1.5"
   );
 
-// Same build as Find companies' table (companies-table.tsx, designer request 2026-11-13: the Leads tables must
-// match): fills the card and scrolls under a sticky warm header, hairline cells 48px high, header icons, sort
-// arrow only on the sorted column, and a footer "1 – 20 of N contacts · Rows per page" with up to 5 page buttons.
+// Same build as Find companies' table (companies-table.tsx; the Leads tables must match): fills the card and
+// scrolls under a sticky header, a footer "1 – 50 of N contacts" with up to 5 page buttons (no Rows per page).
 export function ContactsTableView<TData extends RowData>({
   table,
   label,
   noun = "contacts",
   loading = false,
-  pageSizeOptions,
   emptyState,
   skeletonCell,
   skeletonRows = 8,
@@ -107,7 +105,6 @@ export function ContactsTableView<TData extends RowData>({
   /** Skeleton for one cell, shaped like the real cell of that column so rows keep their height (PATTERNS.md §9.17). */
   skeletonCell?: (columnId: string, row: number) => React.ReactNode;
   skeletonRows?: number;
-  pageSizeOptions: number[];
   emptyState?: React.ReactNode;
   /** Clicking a row opens its profile sheet; the name button stays the keyboard way in. */
   onRowClick?: (row: TData) => void;
@@ -123,11 +120,10 @@ export function ContactsTableView<TData extends RowData>({
   const pages = Array.from({ length: Math.min(5, pageCount) }, (_, i) => pageStart + i);
   const total = table.getCoreRowModel().rows.length;
   const n = (x: number) => x.toLocaleString("en-US");
-  const sizeId = `${label.toLowerCase().replace(/\W+/g, "-")}-page-size`;
 
   return (
     <div
-      className="group/dt flex min-h-0 flex-1 flex-col *:data-[slot=table-container]:min-h-0 *:data-[slot=table-container]:flex-1 *:data-[slot=table-container]:overflow-auto"
+      className={cn("group/dt flex min-h-0 flex-1 flex-col", SCROLL_TABLE_FILL)}
       data-selecting={selected > 0 || undefined}
     >
       <Table aria-label={label} aria-busy={loading || undefined} className="border-separate border-spacing-0">
@@ -237,28 +233,14 @@ export function ContactsTableView<TData extends RowData>({
             total > 0 && (
               <span className="tabular-nums" aria-live="polite">
                 {n(pageIndex * pageSize + 1)} – {n(Math.min((pageIndex + 1) * pageSize, total))} of {n(total)} {noun}
-                {selected > 0 && ` · ${n(selected)} selected`}
               </span>
             )
           )}
-          {!loading && total > pageSizeOptions[0] && (
-            <div className="flex items-center gap-2">
-              <span id={sizeId}>Rows per page</span>
-              <Select value={String(pageSize)} onValueChange={(v) => table.setPagination({ pageIndex: 0, pageSize: Number(v) })}>
-                <SelectTrigger size="sm" className="w-18" aria-labelledby={sizeId}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent side="top">
-                  <SelectGroup>
-                    {pageSizeOptions.map((size) => (
-                      <SelectItem key={size} value={String(size)}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* PATTERNS 9.1: the header checkbox takes this page; with the page taken and more on other pages, every match. */}
+          {!loading && table.getIsAllPageRowsSelected() && selected < total && rows.length < total && (
+            <Button variant="link" className="h-auto min-h-6 border-0 p-0 tabular-nums" onClick={() => table.toggleAllRowsSelected(true)}>
+              Select all {n(total)} matching
+            </Button>
           )}
         </div>
         {!loading && pageCount > 1 && (

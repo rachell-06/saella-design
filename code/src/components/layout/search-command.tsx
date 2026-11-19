@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PlusIcon, SearchIcon, SparklesIcon } from "lucide-react";
-import { navItems } from "@/components/layout/app-sidebar";
+import { PlusIcon, SearchIcon } from "lucide-react";
+import { navItems, subPages } from "@/components/layout/app-sidebar";
+import { SaellaMini } from "@/components/saella/saella-mini";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -17,9 +18,8 @@ import {
 } from "@/components/ui/command";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 
-// Quick search in the app header (pattern from Studio Admin, 2026-10-27). Opens with Ctrl+K / ⌘K
-// (Studio Admin uses J; K is what most tools use). Lists pages from the sidebar plus common actions.
-// The visible box was removed from the top bar (designer 2026-11-12: unused); Ctrl+K / ⌘K still opens the palette.
+// Quick search (pattern from Studio Admin). Opens with Ctrl+K / ⌘K (Studio Admin uses J; K is what most tools use);
+// no visible box in the top bar. Lists pages from the sidebar plus common actions.
 export function SearchCommand({ onAskAgent, showTrigger = true }: { onAskAgent?: () => void; showTrigger?: boolean }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -60,7 +60,7 @@ export function SearchCommand({ onAskAgent, showTrigger = true }: { onAskAgent?:
         <Command>
           <CommandInput placeholder="Search pages and actions…" />
           <CommandList>
-            <CommandEmpty>Nothing matches. Try a page name like “Contacts”.</CommandEmpty>
+            <CommandEmpty>Nothing matches. Try a page name like “Leads”.</CommandEmpty>
             <CommandGroup heading="Actions">
               <CommandItem
                 onSelect={() => {
@@ -68,7 +68,8 @@ export function SearchCommand({ onAskAgent, showTrigger = true }: { onAskAgent?:
                   onAskAgent?.();
                 }}
               >
-                <SparklesIcon />
+                {/* The agent's face, as on the launcher (DESIGN.md §2: the agent is Saella mini, not ✨). */}
+                <SaellaMini size={20} className="-mx-0.5 size-5" />
                 Ask the agent
               </CommandItem>
               <CommandItem onSelect={() => go("/campaigns/new")}>
@@ -79,9 +80,22 @@ export function SearchCommand({ onAskAgent, showTrigger = true }: { onAskAgent?:
             <CommandSeparator />
             <CommandGroup heading="Pages">
               {navItems.map((item) => (
-                <CommandItem key={item.href} onSelect={() => go(item.href)}>
+                <CommandItem key={item.href} keywords={item.keywords} onSelect={() => go(item.href)}>
                   <item.icon />
                   {item.label}
+                </CommandItem>
+              ))}
+              {/* Tabs and sub-pages (Leads tabs, Settings pages), straight to the page asked for. */}
+              {subPages.map((item) => (
+                <CommandItem
+                  key={`${item.parent}-${item.href}`}
+                  value={`${item.label} ${item.parent}`}
+                  keywords={item.keywords}
+                  onSelect={() => go(item.href)}
+                >
+                  <item.icon />
+                  {item.label}
+                  <span className="ml-auto text-xs text-muted-foreground">{item.parent}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

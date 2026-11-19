@@ -18,6 +18,7 @@ export function ContactDialog({
   open,
   contact,
   tagSuggestions,
+  takenBy,
   onOpenChange,
   onSave,
 }: {
@@ -25,13 +26,24 @@ export function ContactDialog({
   /** Edit this contact; empty = add. */
   contact?: Contact;
   tagSuggestions: string[];
+  /** Edit only: another contact that already has this email + company (AC-CON-M-02, unique per BR-RULE-CON-05). */
+  takenBy?: (draft: Pick<Contact, "email" | "company">) => Contact | undefined;
   onOpenChange: (open: boolean) => void;
   onSave: (draft: ContactDraft) => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-xl">
-        {open && <ContactForm key={contact?.id ?? "new"} contact={contact} tagSuggestions={tagSuggestions} onCancel={() => onOpenChange(false)} onSave={onSave} />}
+        {open && (
+          <ContactForm
+            key={contact?.id ?? "new"}
+            contact={contact}
+            tagSuggestions={tagSuggestions}
+            takenBy={takenBy}
+            onCancel={() => onOpenChange(false)}
+            onSave={onSave}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -40,11 +52,13 @@ export function ContactDialog({
 function ContactForm({
   contact,
   tagSuggestions,
+  takenBy,
   onCancel,
   onSave,
 }: {
   contact?: Contact;
   tagSuggestions: string[];
+  takenBy?: (draft: Pick<Contact, "email" | "company">) => Contact | undefined;
   onCancel: () => void;
   onSave: (draft: ContactDraft) => void;
 }) {
@@ -58,7 +72,14 @@ function ContactForm({
     tags: contact?.tags ?? [],
   });
   const [touched, setTouched] = useState(false);
-  const emailError = !d.email.trim() ? "Enter an email address" : !EMAIL_RE.test(d.email.trim()) ? "This doesn't look like an email address" : undefined;
+  const taken = contact && EMAIL_RE.test(d.email.trim()) ? takenBy?.({ email: d.email.trim(), company: d.company.trim() }) : undefined;
+  const emailError = !d.email.trim()
+    ? "Enter an email address"
+    : !EMAIL_RE.test(d.email.trim())
+      ? "This doesn't look like an email address"
+      : taken
+        ? `${`${taken.firstName} ${taken.lastName}`.trim() || "Another contact"} already has this email${d.company.trim() ? ` at ${d.company.trim()}` : ""}. Edit that contact instead.`
+        : undefined;
   const set = (k: keyof ContactDraft) => (e: React.ChangeEvent<HTMLInputElement>) => setD({ ...d, [k]: e.target.value });
 
   return (

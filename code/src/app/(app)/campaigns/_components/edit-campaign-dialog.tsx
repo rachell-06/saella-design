@@ -112,7 +112,7 @@ function EditForm({ campaign, onSave }: { campaign: Campaign; onSave: (id: strin
               options={MARKETS}
               value={countries}
               onChange={setCountries}
-              placeholder="Any country — pick one or more"
+              placeholder="Any country"
             />
           </Field>
           <Field>
@@ -122,8 +122,7 @@ function EditForm({ campaign, onSave }: { campaign: Campaign; onSave: (id: strin
         </div>
         <Field>
           <FieldLabel htmlFor="ec-period">Campaign period (optional)</FieldLabel>
-          {/* Same range picker as everywhere (designer 2026-11-13). Live app: the start stays free so a running
-              campaign can be edited; the end can't be in the past. */}
+          {/* Live app: the start stays free so a running campaign can be edited; the end can't be in the past. */}
           <DateRangePicker
             id="ec-period"
             value={period}

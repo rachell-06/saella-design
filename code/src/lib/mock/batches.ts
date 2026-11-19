@@ -1,10 +1,9 @@
 import { workspaceParts } from "@/lib/time";
-import { type Campaign, type Template, TODAY, sampleCampaigns } from "@/lib/mock/campaigns";
+import { TODAY, sampleCampaigns } from "@/lib/mock/campaigns";
 import { type Batch, type Sender, batches, members, senders } from "@/lib/mock/workspace";
 import type { Contact } from "@/lib/mock/contacts";
-import { templateStore } from "@/lib/mock/template-store";
 
-// Sending + reports data (2026-10-28). The shared `batches` mock carries status and counts; everything a report
+// Sending + reports data. The shared `batches` mock carries status and counts; everything a report
 // needs on top (engagement, links, domains, recipients) is defined or derived here, deterministically so
 // screenshots are stable. All names are fictional, all numbers illustrative.
 // Rules come from the live app (Repo) and PRD-02; each constant says where.
@@ -15,11 +14,33 @@ export const BATCH_CAP = 5000;
 export { SHARED_MONTHLY_CAP, SHARED_USED_THIS_MONTH } from "@/lib/mock/constants";
 /** Worker drip rate: 600 emails/hour (PRD-02 key numbers; live app sendRatePerHour). */
 export const SEND_PER_HOUR = 600;
-/** Today's safe volume (live app send-governor tier "up to 5,000 → 750/day"). Over it the batch spreads over
- *  several days (BR-RULE-EC-07: defer, never fail). */
-export const DAILY_ALLOWANCE = 750;
-/** Already sent today: batch b2 is still sending. */
-export const SENT_TODAY = 412;
+/**
+ * Daily sending cap per sender email domain. Values are rungs of the live send-governor's warm-up ladder (Repo
+ * src/lib/email/send-governor.ts
+ * WARMUP_LADDER: 200 / 500 / 750 / 1,000 / 1,500 / 2,000 a day by lifetime delivered; PRD-02 BR-RULE-EC-20 "200 to
+ * 2000/day"). The live app keeps ONE rung per workspace; per domain is Saella's rule (decisions.md). Mock picks:
+ * - northwind-ceramics.com: warmed own domain, ~5,100 delivered so far → the 5,000–10,000 rung, 1,000 a day.
+ * - northwind-tiles.vn: newer domain, nothing delivered yet → the cold-start rung, 200 a day.
+ * - shared.saella.ai (the shared instant sender): cold-start rung, 200 a day, on top of its 1,000 a month.
+ * Over the cap a send spreads over several days (BR-RULE-EC-07: defer, never fail).
+ */
+export const DOMAIN_DAILY_CAP: Record<string, number> = {
+  "northwind-ceramics.com": 1000,
+  "northwind-tiles.vn": 200,
+  "shared.saella.ai": 200,
+};
+/** The ladder's first rung: a domain with no history starts here. */
+const COLD_START_CAP = 200;
+export const domainOf = (email: string) => email.split("@")[1]?.toLowerCase() ?? "";
+/** The daily cap of the sender's domain. */
+export function dailyCapFor(sender: Pick<Sender, "email"> | undefined) {
+  return sender ? (DOMAIN_DAILY_CAP[domainOf(sender.email)] ?? COLD_START_CAP) : COLD_START_CAP;
+}
+/** Already sent today, per domain: batch b2 is still sending from northwind-ceramics.com. */
+const SENT_TODAY_BY_DOMAIN: Record<string, number> = { "northwind-ceramics.com": 412 };
+export function sentTodayFor(sender: Pick<Sender, "email"> | undefined) {
+  return sender ? (SENT_TODAY_BY_DOMAIN[domainOf(sender.email)] ?? 0) : 0;
+}
 /** Rates below this many sends are not meaningful (BR-RULE-EC-21). */
 export const LOW_SAMPLE = 20;
 /** Workspace auto-pause level (BR-RULE-EC-18): 10% bounces over 7 days with ≥ 200 sends. */
@@ -28,17 +49,9 @@ export const PAUSE_BOUNCE = 0.1;
 import { CURRENT_USER_ID } from "@/lib/mock/constants";
 export { CURRENT_USER_ID };
 
-export const allTemplates = sampleCampaigns.flatMap((c) => c.templates.map((t) => ({ template: t, campaign: c })));
-
-/** Seed templates, then ones made this session (copies, created in the editor; lib/mock/template-store.ts). */
-export function findTemplate(id: string | null | undefined): { template: Template; campaign: Campaign } | undefined {
-  const seed = allTemplates.find((x) => x.template.id === id);
-  if (seed || !id) return seed;
-  const s = templateStore();
-  const made = s.copies.find((x) => x.template.id === id);
-  if (!made || s.deleted.includes(id)) return undefined;
-  return { template: { ...made.template, ...s.patch[id] }, campaign: { ...made.campaign, templates: [] } };
-}
+/** The seed campaign a seed template starts in: only for building the seed batches below. Screens look templates up
+ *  with findTemplate in lib/mock/templates.ts, which has this session's changes (moves, deletes, status). */
+const seedCampaignOf = (templateId: string) => sampleCampaigns.find((c) => c.templates.some((t) => t.id === templateId))?.id;
 
 // Subject lines are not in the shared template mock.
 export const SUBJECTS: Record<string, string> = {
@@ -102,7 +115,8 @@ const m = (p: Partial<BatchMetrics> & Pick<BatchMetrics, "delivered" | "opens" |
 // Engagement of the shared batches, consistent with the template totals in campaigns/data.ts where they match.
 const SHARED_METRICS: Record<string, BatchMetrics> = {
   b1: m({ delivered: 1218, opens: 466, clicks: 74, bounces: 22, unsubs: 6, complaints: 1, forwarded: 3 }),
-  b2: m({ delivered: 405, opens: 121, clicks: 17, bounces: 5, unsubs: 1 }),
+  // 412 sent so far (workspace.ts): 407 delivered + 5 bounced. Was 405, which left 2 sends unaccounted for.
+  b2: m({ delivered: 407, opens: 121, clicks: 17, bounces: 5, unsubs: 1 }),
   b3: m({ delivered: 2790, opens: 1163, clicks: 205, bounces: 85, unsubs: 14, complaints: 2, forwarded: 5 }),
   b4: m({ delivered: 244, opens: 98, clicks: 21, bounces: 4, unsubs: 1 }),
   b6: m({ delivered: 305, opens: 158, clicks: 41, bounces: 7, unsubs: 2, forwarded: 1 }),
@@ -121,7 +135,7 @@ function rng(seed: number) {
 }
 
 // Older sends so the Overview has a year of history. Fictional, placed inside each campaign's period; the first
-// months went out from the shared sender, before the workspace verified its own domain (2026-03-03).
+// months went out from the shared sender, before the workspace verified its own domain.
 type HistorySpec = { templateId: string; date: string; recipients: number; senderId: string; tags: string[] };
 const HISTORY: HistorySpec[] = [
   { templateId: "t6", date: "2025-11-18T00:00:00Z", recipients: 420, senderId: "s0", tags: ["distributor"] },
@@ -145,7 +159,7 @@ const HISTORY: HistorySpec[] = [
   { templateId: "t2", date: "2026-10-16T02:00:00Z", recipients: 210, senderId: "s1", tags: ["hotel"] },
   { templateId: "t1", date: "2026-10-20T02:00:00Z", recipients: 380, senderId: "s1", tags: ["hotel"] },
   { templateId: "t2", date: "2026-10-23T02:00:00Z", recipients: 260, senderId: "s1", tags: ["hotel"] },
-  // Filler for the 30 days before, so the Overview's dashed "previous period" lines have data too (2026-10-29).
+  // Filler for the 30 days before, so the Overview's dashed "previous period" lines have data too.
   { templateId: "t6", date: "2026-08-29T02:00:00Z", recipients: 240, senderId: "s2", tags: ["distributor"] },
   { templateId: "t1", date: "2026-08-31T02:00:00Z", recipients: 200, senderId: "s1", tags: ["hotel"] },
   { templateId: "t5", date: "2026-09-05T01:30:00Z", recipients: 160, senderId: "s1", tags: ["fair"] },
@@ -155,19 +169,20 @@ const HISTORY: HistorySpec[] = [
   { templateId: "t1", date: "2026-09-17T02:00:00Z", recipients: 210, senderId: "s1", tags: ["hotel"] },
   { templateId: "t6", date: "2026-09-22T02:00:00Z", recipients: 230, senderId: "s2", tags: ["distributor"] },
   { templateId: "t2", date: "2026-09-24T02:00:00Z", recipients: 190, senderId: "s1", tags: ["hotel"] },
-  // Filler so the Overview trend has a send every few days across the last 30 (user request 2026-10-29: fake data
-  // that shows the chart well). Mixed templates, so the rates move the way real sends do.
+  // Mock filler so the Overview trend has a send every few days across the last 30. Mixed templates, so the rates move
+  // the way real sends do.
   { templateId: "t6", date: "2026-09-27T02:00:00Z", recipients: 260, senderId: "s2", tags: ["distributor"] },
   { templateId: "t4", date: "2026-09-29T01:30:00Z", recipients: 150, senderId: "s1", tags: ["fair"] },
   { templateId: "t1", date: "2026-10-01T02:00:00Z", recipients: 220, senderId: "s1", tags: ["hotel"] },
-  { templateId: "t5", date: "2026-10-03T01:30:00Z", recipients: 170, senderId: "s1", tags: ["fair"] },
+  // Trade fair Bangkok 2026 (t4, t5) ended Sep 30: its October sends moved to campaigns still running.
+  { templateId: "t1", date: "2026-10-03T02:00:00Z", recipients: 170, senderId: "s1", tags: ["hotel"] },
   { templateId: "t6", date: "2026-10-07T02:00:00Z", recipients: 310, senderId: "s2", tags: ["distributor"] },
-  { templateId: "t4", date: "2026-10-10T01:30:00Z", recipients: 160, senderId: "s1", tags: ["fair"] },
+  { templateId: "t6", date: "2026-10-10T02:00:00Z", recipients: 160, senderId: "s2", tags: ["distributor"] },
   { templateId: "t6", date: "2026-10-14T02:00:00Z", recipients: 280, senderId: "s2", tags: ["distributor"] },
-  { templateId: "t5", date: "2026-10-17T01:30:00Z", recipients: 190, senderId: "s1", tags: ["fair"] },
+  { templateId: "t1", date: "2026-10-17T02:00:00Z", recipients: 190, senderId: "s1", tags: ["hotel"] },
   { templateId: "t6", date: "2026-10-18T02:00:00Z", recipients: 240, senderId: "s2", tags: ["distributor"] },
   { templateId: "t1", date: "2026-10-21T02:00:00Z", recipients: 230, senderId: "s1", tags: ["hotel"] },
-  { templateId: "t4", date: "2026-10-25T01:30:00Z", recipients: 140, senderId: "s1", tags: ["fair"] },
+  { templateId: "t2", date: "2026-10-25T02:00:00Z", recipients: 140, senderId: "s1", tags: ["hotel"] },
 ];
 
 // Base rates per template (open and click over delivered, bounce over recipients).
@@ -189,11 +204,10 @@ const historyBatches: ReportBatch[] = HISTORY.map((h, i) => {
   const delivered = h.recipients - bounces;
   const opens = Math.round(delivered * base.open * (0.85 + r() * 0.3));
   const clicks = Math.round(delivered * base.click * (0.8 + r() * 0.4));
-  const tpl = findTemplate(h.templateId);
   return {
     id: `h${i + 1}`,
     templateId: h.templateId,
-    campaignId: tpl?.campaign.id ?? "",
+    campaignId: seedCampaignOf(h.templateId) ?? "",
     senderId: h.senderId,
     tags: h.tags,
     status: "sent",
@@ -296,7 +310,7 @@ export function summarizeAudience(
   tags: string[],
   excludeTags: string[],
   templateId: string | undefined,
-  /** Contacts picked one by one (New batch › Self-upload table, 2026-11-13): used instead of the tag match. */
+  /** Contacts picked one by one (New batch › Self-upload table): used instead of the tag match. */
   ids?: ReadonlySet<string>
 ): AudienceSummary {
   const lower = (xs: string[]) => new Set(xs.map((t) => t.toLowerCase()));
@@ -364,18 +378,25 @@ export function defaultSenderFor(templateId: string | undefined, pool: Sender[])
   return allowed.find((s) => s.id === last?.senderId) ?? allowed.find((s) => !s.shared) ?? allowed[0];
 }
 
-/** Honest send-time estimate (live app EmailBatchWizard): the drip rate while it fits today's allowance, whole
- *  days once it spills over. */
-export function sendEstimate(recipients: number, sentToday = SENT_TODAY) {
-  const leftToday = Math.max(0, DAILY_ALLOWANCE - sentToday);
+/** Honest send-time estimate (live app EmailBatchWizard): the drip rate while it fits what is left of the sender
+ *  domain's daily cap today, whole days once it spills over. */
+export function sendEstimate(recipients: number, sender: Pick<Sender, "email"> | undefined) {
+  const cap = dailyCapFor(sender);
+  const leftToday = Math.max(0, cap - sentTodayFor(sender));
   const overflow = Math.max(0, recipients - leftToday);
-  if (recipients <= 0) return { label: "–", days: 0, leftToday, overflow: 0 };
+  if (recipients <= 0) return { label: "–", days: 0, cap, leftToday, overflow: 0 };
   if (overflow > 0) {
-    const days = (leftToday > 0 ? 1 : 0) + Math.ceil(overflow / DAILY_ALLOWANCE);
-    return { label: `About ${days} days`, days, leftToday, overflow };
+    const days = (leftToday > 0 ? 1 : 0) + Math.ceil(overflow / cap);
+    return { label: `About ${days} days`, days, cap, leftToday, overflow };
   }
   const minutes = Math.ceil(recipients / (SEND_PER_HOUR / 60));
-  return { label: minutes < 60 ? `About ${minutes} min` : `About ${(minutes / 60).toFixed(1)} hours`, days: 0, leftToday, overflow };
+  return {
+    label: minutes < 60 ? `About ${minutes} min` : `About ${(minutes / 60).toFixed(1)} hours`,
+    days: 0,
+    cap,
+    leftToday,
+    overflow,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -461,15 +482,17 @@ const COMPANIES: { name: string; domain: string }[] = [
 ];
 const MAILBOX = ["gmail.com", "outlook.com", "yahoo.com"];
 
-/** One row per recipient, consistent with the batch counts (same seed → same rows). */
+/** One row per recipient, consistent with the batch counts (same seed → same rows): the filter counts of the
+ *  Recipients tab equal the KPIs. Events are ranked over the rows that went out only (sending, paused and failed
+ *  batches stop part way), so bounced = metrics.bounces, opened = metrics.opens, and so on. */
 export function recipientRows(b: ReportBatch): RecipientRow[] {
   const n = b.recipients;
   const met = b.metrics;
-  const sent = b.status === "sending" ? b.sent : b.status === "sent" ? n : 0;
-  // Spread events over a permutation so bounces, opens and clicks are not the first rows of the table.
+  const sent = b.status === "sent" ? n : Math.min(n, b.sent);
+  // Spread events over a permutation of the sent rows so bounces, opens and clicks are not the first rows.
   let step = 7919;
   const gcd = (a: number, c: number): number => (c === 0 ? a : gcd(c, a % c));
-  while (n > 1 && gcd(step, n) !== 1) step += 2;
+  while (sent > 1 && gcd(step, sent) !== 1) step += 2;
   const base = new Date(b.sentAt ?? `${b.createdOn}T02:00:00Z`).getTime();
   const rows: RecipientRow[] = [];
   for (let i = 0; i < n; i++) {
@@ -480,8 +503,8 @@ export function recipientRows(b: ReportBatch): RecipientRow[] {
     const personal = r() < 0.45;
     const domain = personal ? MAILBOX[Math.floor(r() * 2.4)] : company.domain;
     const email = `${first}.${last}${i % 97}@${domain}`.toLowerCase();
-    const k = (i * step) % Math.max(1, n); // rank in the permutation
     const isSent = i < sent;
+    const k = isSent ? (i * step) % sent : -1; // rank among the sent rows
     const bounced = isSent && !!met && k < met.bounces;
     const delivered = isSent && !bounced;
     const e = k - (met?.bounces ?? 0); // rank among delivered

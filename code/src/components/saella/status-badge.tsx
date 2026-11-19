@@ -1,14 +1,26 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-// Status badges, always a dot + a word, never color alone. Three families (2026-10-27, per PRD-02 and the live app):
+// Status badges, always a dot + a word, never color alone. Three families (per PRD-02 and the live app):
 // - campaign: derived from the campaign period (starts_on / ends_on) or archived. Campaigns have no send status.
 // - template: active / inactive (only active templates can send).
 // - batch: one send run. Uses the status-* tokens (DESIGN.md §4.2).
+// - schedule: running / waiting for credits / paused / completed, on the schedule cards.
+// - recipient: one recipient of a batch, on every row of the report's Recipients table. Neutral for the plain
+//   outcomes (queued, delivered), soft tones for what the user acts on.
 export type CampaignStatus = "not-started" | "active" | "ended" | "archived";
 export type TemplateStatus = "template-active" | "template-inactive";
 export type BatchStatus = "draft" | "scheduled" | "sending" | "sent" | "paused" | "failed";
-export type Status = CampaignStatus | TemplateStatus | BatchStatus;
+export type ScheduleCardStatus = "schedule-running" | "schedule-waiting" | "schedule-paused" | "schedule-completed";
+export type RecipientStatus =
+  | "recipient-queued"
+  | "recipient-delivered"
+  | "recipient-opened"
+  | "recipient-clicked"
+  | "recipient-bounced"
+  | "recipient-unsubscribed"
+  | "recipient-complained";
+export type Status = CampaignStatus | TemplateStatus | BatchStatus | ScheduleCardStatus | RecipientStatus;
 
 const statusStyles: Record<Status, { label: string; className: string }> = {
   "not-started": { label: "Not started", className: "bg-info-soft text-info-soft-foreground" },
@@ -23,6 +35,17 @@ const statusStyles: Record<Status, { label: string; className: string }> = {
   sent: { label: "Sent", className: "bg-status-sent text-status-sent-foreground" },
   paused: { label: "Paused", className: "bg-status-paused text-status-paused-foreground" },
   failed: { label: "Failed", className: "bg-status-failed text-status-failed-foreground" },
+  "schedule-running": { label: "Running", className: "bg-success-soft text-success-soft-foreground" },
+  "schedule-waiting": { label: "Waiting for credits", className: "bg-warning-soft text-warning-soft-foreground" },
+  "schedule-paused": { label: "Paused", className: "bg-status-paused text-status-paused-foreground" },
+  "schedule-completed": { label: "Completed", className: "bg-muted text-muted-foreground" },
+  "recipient-queued": { label: "Queued", className: "bg-muted text-muted-foreground" },
+  "recipient-delivered": { label: "Delivered", className: "bg-muted text-muted-foreground" },
+  "recipient-opened": { label: "Opened", className: "bg-info-soft text-info-soft-foreground" },
+  "recipient-clicked": { label: "Clicked", className: "bg-success-soft text-success-soft-foreground" },
+  "recipient-bounced": { label: "Bounced", className: "bg-destructive-soft text-destructive-soft-foreground" },
+  "recipient-unsubscribed": { label: "Unsubscribed", className: "bg-warning-soft text-warning-soft-foreground" },
+  "recipient-complained": { label: "Marked as spam", className: "bg-destructive-soft text-destructive-soft-foreground" },
 };
 
 export function statusLabel(status: Status) {

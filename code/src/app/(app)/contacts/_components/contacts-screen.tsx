@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -39,7 +40,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
@@ -51,8 +51,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { fmt, formatDate } from "@/lib/mock/contacts";
+import { contactKey, fmt, formatDate } from "@/lib/mock/contacts";
 import { slowDelay, slowModeOf } from "@/lib/mock/delay";
 import { ImportDialog } from "@/components/features/import-dialog";
 import { type BookContact, addContact, deleteContact, editContact, invalidReason, isInvalid, useContactBook } from "./contact-book";
@@ -61,34 +60,35 @@ import { type ActivityState, ContactSheet } from "./contact-sheet";
 import { CONTACT_SKELETON_ROWS, contactSkeletonCell } from "./contacts-skeleton";
 import { ContactsBulkBar } from "./contacts-bulk";
 import { ContactsTableView, useContactsTable } from "./contacts-table";
-import { InvalidBadge, ValidBadge } from "./email-safety";
+import { InvalidBadge } from "./email-safety";
 import {
   ContactFiltersPopover,
   NO_CONTACT_FILTERS,
   type ContactFilters,
   activeChips,
-  filterCount,
   filtersFromParams,
   filtersToParams,
   matchesFilters,
 } from "./contact-filters";
 
-// Self-upload, tab label and card title since 2026-11-12 (PRD Contacts "Self-upload", live app /dashboard/email/contacts "Individuals"): the workspace's own
-// contact book, grouped by tag, no named lists (decisions.md "Leads › Contacts", 2026-11-05).
-// - Search: one box over first/last name, email, company, position and tags (AC-CON-L-01; tags added 2026-11-12).
-// - Filter popover (2026-11-12): tags (several, a contact must carry all of them; 2026-11-14), email status, last sent,
-//   company. Tags come from the whole book, case-insensitive and sorted (CON-SEQ-002). A tag chip in a row filters
-//   by it (live app). ?tag=a&tag=b&status=invalid&sent=7d&company=... on load.
+// Self-upload (PRD Contacts "Self-upload", live app /dashboard/email/contacts "Individuals"): the workspace's own
+// contact book, grouped by tag, no named lists (decisions.md "Leads › Contacts").
+// - Search: one box over first/last name, email, company, position and tags (AC-CON-L-01; tags added).
+// - Filter popover: tags (several; a contact must carry all of them), email status, last sent, company. Tags come
+//   from the whole book, case-insensitive and sorted (CON-SEQ-002). A tag chip in a row filters by it (live app).
+//   ?tag=a&tag=b&status=invalid&sent=7d&company=... on load; &match=any keeps contacts carrying any of the tags (a
+//   batch's audience, linked from its report's "Sent to").
 // - Add / edit (AC-CON-M-01..03), delete with confirmation (AC-CON-D-01/02), Excel/CSV upload with review
 //   (AC-CON-I-01..04), profile in a Sheet with the email activity (decisions.md).
 // - Email status Valid / Invalid with reason, only Invalid shown (live app contact-status.ts, DESIGN.md §2).
 // Preview: ?state=loading | empty | error; ?import=review | done; ?contact=<id> (&activity=loading | empty | error).
 // Loading (PATTERNS.md §9.17): header, tabs, search and buttons render at once; the count and tags load first, the
 // table on its own. ?slow=1 simulates a large book (count 1.5s, table 8s); ?slow=fail fails the table once.
-// Layout from Studio Admin /dashboard/users (2026-11-10): one Card; header = title + count, search and Filter (as
-// Find companies); filter chips; the table flush in the card with numbered paging. Add / Upload in the page header.
+// Layout from Studio Admin /dashboard/users: one Card; header = title + count, search and Filter; filter chips; the
+// table flush in the card with numbered paging. Add / Upload in the page header.
 
-const PAGE_SIZES = [20, 50, 100];
+/** 50 a page, no Rows per page. */
+const PAGE_SIZES = [50];
 // Column icons as on Find companies (Studio Admin products header).
 const HEADER_ICONS = { name: UserRoundIcon, company: Building2Icon, status: CircleCheckIcon, tags: TagIcon, lastSent: SendIcon };
 
@@ -102,7 +102,7 @@ export function ContactsScreen() {
   const importPreview = (["review", "done"] as const).find((s) => s === params.get("import"));
   const [importing, setImporting] = useState(false);
   // A preview-opened dialog opens a tick after load: opened during hydration, Radix marks the still-hydrating
-  // agent launcher aria-hidden and React reports a hydration mismatch (2026-10-29).
+  // agent launcher aria-hidden and React reports a hydration mismatch.
   useEffect(() => {
     if (!importPreview) return;
     const t = window.setTimeout(() => setImporting(true), 0);
@@ -158,9 +158,9 @@ export function ContactsScreen() {
       cell: ({ row: { original: c } }) => {
         const name = `${c.firstName} ${c.lastName}`.trim();
         return (
-          // Name, then the email: two lines like Find companies' name + location, no avatar (designer 2026-11-13:
-          // the Leads tables match). Cut text keeps title= (PATTERNS 9.13).
-          <div className="flex min-w-0 max-w-56 flex-col gap-0.5">
+          // Name, then the email: two lines like Find companies' name + location, no avatar. Cut text keeps title=
+          // (PATTERNS 9.13).
+          <div className="flex min-w-0 max-w-48 flex-col gap-0.5 min-[1440px]:max-w-56">
             <Button
               variant="link"
               className="h-auto max-w-full justify-start border-0 p-0 font-medium text-foreground hover:no-underline"
@@ -182,7 +182,7 @@ export function ContactsScreen() {
       header: "Company",
       accessorFn: (c) => c.company,
       cell: ({ row: { original: c } }) => (
-        <div className="flex min-w-0 max-w-48 flex-col gap-0.5">
+        <div className="flex min-w-0 max-w-40 flex-col gap-0.5 min-[1440px]:max-w-48">
           <span className="truncate">{c.company}</span>
           {c.position && <span className="truncate text-sm text-muted-foreground">{c.position}</span>}
         </div>
@@ -192,18 +192,13 @@ export function ContactsScreen() {
       id: "status",
       header: "Email status",
       accessorFn: (c) => (isInvalid(c) ? 0 : 1),
-      // Every row carries a badge, Valid by default, so the column reads the same down the page (PATTERNS 9.1).
+      // Only Invalid carries a badge: a label only when the status differs from normal (DESIGN.md §2).
       cell: ({ row: { original: c } }) =>
         isInvalid(c) ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <InvalidBadge tabIndex={0} />
-            </TooltipTrigger>
-            <TooltipContent className="max-w-64">{invalidReason(c)}</TooltipContent>
-          </Tooltip>
-        ) : (
-          <ValidBadge />
-        ),
+          <Hint label={invalidReason(c)}>
+            <InvalidBadge tabIndex={0} />
+          </Hint>
+        ) : null,
     },
     {
       id: "tags",
@@ -211,15 +206,16 @@ export function ContactsScreen() {
       enableSorting: false,
       cell: ({ row: { original: c } }) => {
         // One line (DESIGN.md §2: two text lines per row at most): two tags, the rest behind "+N". Tags being filtered
-        // on come first and in the brand tint (designer 2026-11-14: a "vip" filter must show "vip", not hide it in +N).
+        // on come first and in the brand tint (a "vip" filter must show "vip", not hide it in +N).
         const picked = new Set(filters.tags.map((t) => t.toLowerCase()));
         const isPicked = (t: string) => picked.has(t.toLowerCase());
         const tags = [...c.tags.filter(isPicked), ...c.tags.filter((t) => !isPicked(t))];
         return (
         <div className="flex items-center gap-1">
-          {tags.slice(0, 2).map((t) => (
+          {/* Below 1440 (1280–1366 laptops) one tag + "+N", so the table fits without sideways scroll. */}
+          {tags.slice(0, 2).map((t, i) => (
             <Hint key={t} label={`Show contacts tagged “${t}”`}>
-              <Badge variant={isPicked(t) ? "brand" : "secondary"} asChild>
+              <Badge variant={isPicked(t) ? "brand" : "secondary"} className={cn(i === 1 && "max-[1439px]:hidden")} asChild>
                 <Link
                   href={`/contacts?tag=${encodeURIComponent(t)}`}
                   onClick={(e) => {
@@ -232,9 +228,16 @@ export function ContactsScreen() {
               </Badge>
             </Hint>
           ))}
+          {tags.length > 1 && (
+            <Hint label={tags.slice(1).join(", ")}>
+              <Badge variant="outline" tabIndex={0} className="tabular-nums min-[1440px]:hidden">
+                +{tags.length - 1}
+              </Badge>
+            </Hint>
+          )}
           {tags.length > 2 && (
             <Hint label={tags.slice(2).join(", ")}>
-              <Badge variant="outline" tabIndex={0} className="tabular-nums">
+              <Badge variant="outline" tabIndex={0} className="tabular-nums max-[1439px]:hidden">
                 +{tags.length - 2}
               </Badge>
             </Hint>
@@ -296,7 +299,6 @@ export function ContactsScreen() {
   const selectedIds = table.state.rowSelection as Record<string, boolean>;
   const selected = rows.filter((c) => selectedIds[c.id]);
 
-  const filtered = Boolean(query.trim() || filterCount(filters));
   const chips = activeChips(filters);
   const addButton = (
     <Button size="sm" variant="outline" onClick={() => setEditing("new")}>
@@ -312,11 +314,9 @@ export function ContactsScreen() {
   );
 
   return (
-    // Full height like Find companies: 100svh minus header 3rem, page padding 2 × 1.5rem, and 2.5rem so the
-    // paging footer ends above the floating "Ask the agent" button.
-    <div className="flex h-[calc(100svh-8.5rem)] min-h-[560px] flex-col gap-4 md:gap-6">
-      {/* The tab's main actions sit in the page header (2026-11-12).
-          An empty book shows them in its empty state instead, so the page keeps one solid button. */}
+    // Full height like Find companies (companies-screen.tsx); only the table scrolls.
+    <div className="-mb-8 flex h-[calc(100svh-8.5rem)] min-h-[560px] flex-col gap-4 md:gap-6">
+      {/* An empty book shows the main actions in its empty state instead, so the page keeps one solid button. */}
       <PageHeader
         title={LEADS_TITLE}
         description={LEADS_DESCRIPTION}
@@ -359,15 +359,9 @@ export function ContactsScreen() {
       ) : (
         <Card className="min-h-0 flex-1 gap-0 pb-0">
           <CardHeader className="border-b has-data-[slot=card-action]:grid-cols-1 md:has-data-[slot=card-action]:grid-cols-[1fr_auto]">
+            {/* No count here: the table's footer says it. */}
             <CardTitle className="text-xl leading-none">Self-upload</CardTitle>
-            <CardDescription className="flex flex-wrap items-center gap-x-2 tabular-nums">
-              {!summaryReady ? (
-                <Skeleton className="my-0.5 h-4 w-24" />
-              ) : filtered ? (
-                `${fmt(rows.length)} of ${fmt(all.length)} contacts`
-              ) : (
-                `${fmt(all.length)} contacts`
-              )}
+            <CardDescription className="flex flex-wrap items-center gap-x-2 tabular-nums empty:hidden">
               <UpdatedIndicator {...combineLoads([summaryLoad, tableLoad])} />
             </CardDescription>
             <CardAction className="col-start-1 row-start-auto flex w-full flex-wrap justify-start gap-2 justify-self-stretch md:col-start-2 md:row-span-2 md:row-start-1 md:w-auto md:flex-nowrap md:justify-end md:justify-self-end">
@@ -384,7 +378,7 @@ export function ContactsScreen() {
                   onChange={(e) => setQuery(e.target.value)}
                 />
               </InputGroup>
-              {/* Next to search, as on Find companies (2026-11-12). Disabled while the tags load (PATTERNS.md 9.17). */}
+              {/* Next to search, as on Find companies. Disabled while the tags load (PATTERNS.md 9.17). */}
               <ContactFiltersPopover
                 contacts={all}
                 tags={book.tags}
@@ -395,7 +389,6 @@ export function ContactsScreen() {
             </CardAction>
           </CardHeader>
           <CardContent className="flex min-h-0 flex-1 flex-col px-0">
-            {/* Active filters as chips under the header, same as Find companies. */}
             <FilterChips
               className="shrink-0 border-b px-4 py-3"
               chips={chips.map((chip) => ({ ...chip, onRemove: () => applyFilters(chip.remove) }))}
@@ -418,7 +411,6 @@ export function ContactsScreen() {
                   label="Contacts"
                   headerIcons={HEADER_ICONS}
                   loading
-                  pageSizeOptions={PAGE_SIZES}
                   skeletonCell={contactSkeletonCell}
                   skeletonRows={CONTACT_SKELETON_ROWS}
                 />
@@ -428,7 +420,6 @@ export function ContactsScreen() {
               table={table}
               label="Contacts"
               headerIcons={HEADER_ICONS}
-              pageSizeOptions={PAGE_SIZES}
               onRowClick={(c) => setViewingId(c.id)}
               activeRowId={viewingId}
               emptyState={
@@ -483,6 +474,11 @@ export function ContactsScreen() {
         open={editing !== null}
         contact={editing && editing !== "new" ? editing : undefined}
         tagSuggestions={book.tags}
+        // Edit can't turn a contact into another one already saved (email + company is unique, BR-RULE-CON-05; the
+        // live app refuses the save): the form shows a field error instead of creating a duplicate.
+        takenBy={(draft) =>
+          editing && editing !== "new" ? book.contacts.find((c) => c.id !== editing.id && contactKey(c) === contactKey(draft)) : undefined
+        }
         onOpenChange={(o) => !o && setEditing(null)}
         onSave={(draft) => {
           if (editing && editing !== "new") {

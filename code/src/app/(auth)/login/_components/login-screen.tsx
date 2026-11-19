@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { type Locale } from "@/components/saella/language-picker";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldSeparator } from "@/components/ui/field";
+import { Field, FieldError, FieldGroup, FieldLabel, FieldSeparator } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { Spinner } from "@/components/ui/spinner";
@@ -25,11 +25,11 @@ import {
 import { AuthFrame } from "../../_components/auth-frame";
 import { SaellaCharacter } from "../../_components/saella-character";
 
-// Sign-in and sign-up (PRD Authentication; live app components/auth/LoginForm.tsx on origin/master 2026-11-03).
+// Sign-in and sign-up (PRD Authentication; live app components/auth/LoginForm.tsx on origin/master).
 // Layout: Studio Admin auth v2 login (title, provider buttons, "or" divider, labelled form, full-width submit); the
 // switch to the other tab sits under the form.
-// - Any email works, personal ones included (designer decision 2026-11-13; PRD BR-AU-01 / AC-AU-S-01 and the live app
-//   refuse free-mail: decisions.md "Chưa chốt"). Only the format is checked, after blur or submit.
+// - Any email works, personal ones included (PRD BR-AU-01 / AC-AU-S-01 and the live app refuse free-mail:
+//   decisions.md "Chưa chốt"). Only the format is checked, after blur or submit.
 // - Sign-up asks for full name and email; the name is required (live msg.login.fullname).
 // - Passwordless: Google, Microsoft or a 6-digit email code (BR-AU-02). Resend unlocks after 60s.
 // - Sign-in never creates an account: an unknown email is told to sign up first, on the code and the OAuth path
@@ -274,8 +274,8 @@ export function LoginScreen() {
       card={
         signup
           ? {
-              title: "Almost there",
-              body: "One email. Your agent does the rest.",
+              title: "Start with one email",
+              body: "Your agent finds buyers for you.",
             }
           : {
               title: "Welcome to Saella",
@@ -283,159 +283,156 @@ export function LoginScreen() {
             }
       }
     >
-      <div className="relative flex w-full flex-col gap-8 sm:w-88">
-        {/* Brand character beside the form, pointing at it (user decision 2026-11-12). Absolute: no layout shift. */}
+      {/* Brand character beside the form, pointing at it. In the column's flow, so the pair is centred in the form
+          column and the character never runs off its left edge. Shown from xl, where the column fits both. */}
+      <div className="flex w-full items-center justify-center gap-6">
         <SaellaCharacter
           entrance
           pose="point"
           mood={emailError || formError || nameError || codeError ? "error" : fieldFocus ? "focus" : "idle"}
           cheerKey={intent}
-          className="absolute top-1/2 right-full mr-6 hidden w-36 -translate-y-1/2 lg:block"
+          className="hidden w-36 shrink-0 xl:block"
         />
-        {mode === "code" ? (
-          <CodeStep
-            email={email}
-            code={code}
-            error={codeError}
-            busy={busy}
-            resendIn={resendIn}
-            onChange={(v) => {
-              setCode(v);
-              setCodeError(null);
-              if (v.length === 6) verify(v);
-            }}
-            onVerify={() => verify()}
-            onResend={resend}
-            onBack={() => setMode(intent)}
-          />
-        ) : (
-          <>
-            <div className="flex flex-col gap-2 text-center">
-              <h1 className="font-heading text-3xl font-medium tracking-title">
+        <div className="relative flex w-full flex-col gap-8 sm:w-88">
+          {mode === "code" ? (
+            <CodeStep
+              email={email}
+              code={code}
+              error={codeError}
+              busy={busy}
+              resendIn={resendIn}
+              onChange={(v) => {
+                setCode(v);
+                setCodeError(null);
+                if (v.length === 6) verify(v);
+              }}
+              onVerify={() => verify()}
+              onResend={resend}
+              onBack={() => setMode(intent)}
+            />
+          ) : (
+            <>
+              <h1 className="text-center font-heading text-3xl font-medium tracking-title">
                 {signup ? "Create your account" : "Sign in"}
               </h1>
-              <p className="text-sm text-muted-foreground">
-                {signup ? "Start with your email" : "Use your email"}
-              </p>
-            </div>
 
-            <div className="flex flex-col gap-4">
-              {banner && BannerIcon && (
-                <Alert variant={banner.tone}>
-                  <BannerIcon />
-                  <AlertTitle>{banner.title}</AlertTitle>
-                  <AlertDescription>
-                    <p>
-                      {banner.body}
-                      {banner.switchTo && (
-                        <>
-                          {" "}
-                          <Button
-                            variant="link"
-                            className="h-auto border-0 p-0"
-                            onClick={() => switchIntent(banner.switchTo!)}
-                          >
-                            {banner.switchTo === "signup" ? "Sign up instead" : "Sign in instead"}
-                          </Button>
-                        </>
-                      )}
-                    </p>
-                  </AlertDescription>
-                </Alert>
-              )}
+              <div className="flex flex-col gap-4">
+                {banner && BannerIcon && (
+                  <Alert variant={banner.tone}>
+                    <BannerIcon />
+                    <AlertTitle>{banner.title}</AlertTitle>
+                    <AlertDescription>
+                      <p>
+                        {banner.body}
+                        {banner.switchTo && (
+                          <>
+                            {" "}
+                            <Button
+                              variant="link"
+                              className="h-auto border-0 p-0"
+                              onClick={() => switchIntent(banner.switchTo!)}
+                            >
+                              {banner.switchTo === "signup" ? "Sign up instead" : "Sign in instead"}
+                            </Button>
+                          </>
+                        )}
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
 
-              <div className="flex flex-col gap-2">
-                <Button variant="outline" className="w-full" disabled={busy !== null} onClick={() => oauth("google")}>
-                  {busy === "google" ? <Spinner data-icon="inline-start" /> : <GoogleMark />}
-                  {signup ? "Sign up with Google" : "Sign in with Google"}
-                </Button>
-                <Button variant="outline" className="w-full" disabled={busy !== null} onClick={() => oauth("microsoft")}>
-                  {busy === "microsoft" ? <Spinner data-icon="inline-start" /> : <MicrosoftMark />}
-                  {signup ? "Sign up with Microsoft" : "Sign in with Microsoft"}
-                </Button>
-              </div>
+                <div className="flex flex-col gap-2">
+                  <Button variant="outline" className="w-full" disabled={busy !== null} onClick={() => oauth("google")}>
+                    {busy === "google" ? <Spinner data-icon="inline-start" /> : <GoogleMark />}
+                    {signup ? "Sign up with Google" : "Sign in with Google"}
+                  </Button>
+                  <Button variant="outline" className="w-full" disabled={busy !== null} onClick={() => oauth("microsoft")}>
+                    {busy === "microsoft" ? <Spinner data-icon="inline-start" /> : <MicrosoftMark />}
+                    {signup ? "Sign up with Microsoft" : "Sign in with Microsoft"}
+                  </Button>
+                </div>
 
-              <FieldSeparator>or</FieldSeparator>
+                <FieldSeparator>or</FieldSeparator>
 
-              <form
-                onSubmit={submitEmail}
-                noValidate
-                className="flex flex-col gap-4"
-                onFocus={() => setFieldFocus(true)}
-                onBlur={() => setFieldFocus(false)}
-              >
-                <FieldGroup className="gap-4">
-                  {signup && (
-                    <Field className="gap-1.5" data-invalid={nameError ? true : undefined}>
-                      <FieldLabel htmlFor="login-name">Full name</FieldLabel>
+                <form
+                  onSubmit={submitEmail}
+                  noValidate
+                  className="flex flex-col gap-4"
+                  onFocus={() => setFieldFocus(true)}
+                  onBlur={() => setFieldFocus(false)}
+                >
+                  <FieldGroup className="gap-4">
+                    {signup && (
+                      <Field className="gap-1.5" data-invalid={nameError ? true : undefined}>
+                        <FieldLabel htmlFor="login-name">Full name</FieldLabel>
+                        <Input
+                          ref={nameRef}
+                          id="login-name"
+                          autoComplete="name"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          onBlur={() => setNameTouched(true)}
+                          aria-invalid={nameError ? true : undefined}
+                        />
+                        {nameError && <FieldError>{nameError}</FieldError>}
+                      </Field>
+                    )}
+                    <Field className="gap-1.5" data-invalid={emailError || formError ? true : undefined}>
+                      <FieldLabel htmlFor="login-email">Email</FieldLabel>
                       <Input
-                        ref={nameRef}
-                        id="login-name"
-                        autoComplete="name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        onBlur={() => setNameTouched(true)}
-                        aria-invalid={nameError ? true : undefined}
+                        ref={emailRef}
+                        id="login-email"
+                        type="email"
+                        autoComplete="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          setFormError(null);
+                        }}
+                        onBlur={() => setTouched(true)}
+                        aria-invalid={emailError || formError ? true : undefined}
+                        aria-describedby="login-email-help"
                       />
-                      {nameError && <FieldError>{nameError}</FieldError>}
+                      {/* No hint line: "Send code" and the panel's "No password" note already say a code comes by email. */}
+                      <div id="login-email-help" aria-live="polite">
+                        {(emailError || formError) && (
+                          <FieldError>
+                            {emailError ?? formError}
+                            {formError && (
+                              <>
+                                {" "}
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  className="h-auto border-0 p-0"
+                                  onClick={() => switchIntent(formError.startsWith("No account") ? "signup" : "signin")}
+                                >
+                                  {formError.startsWith("No account") ? "Sign up instead" : "Sign in instead"}
+                                </Button>
+                              </>
+                            )}
+                          </FieldError>
+                        )}
+                      </div>
                     </Field>
-                  )}
-                  <Field className="gap-1.5" data-invalid={emailError || formError ? true : undefined}>
-                    <FieldLabel htmlFor="login-email">Email</FieldLabel>
-                    <Input
-                      ref={emailRef}
-                      id="login-email"
-                      type="email"
-                      autoComplete="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        setFormError(null);
-                      }}
-                      onBlur={() => setTouched(true)}
-                      aria-invalid={emailError || formError ? true : undefined}
-                      aria-describedby="login-email-help"
-                    />
-                    <div id="login-email-help" aria-live="polite">
-                      {emailError || formError ? (
-                        <FieldError>
-                          {emailError ?? formError}
-                          {formError && (
-                            <>
-                              {" "}
-                              <Button
-                                type="button"
-                                variant="link"
-                                className="h-auto border-0 p-0"
-                                onClick={() => switchIntent(formError.startsWith("No account") ? "signup" : "signin")}
-                              >
-                                {formError.startsWith("No account") ? "Sign up instead" : "Sign in instead"}
-                              </Button>
-                            </>
-                          )}
-                        </FieldError>
-                      ) : (
-                        <FieldDescription>We&apos;ll email you a one-time code.</FieldDescription>
-                      )}
-                    </div>
-                  </Field>
-                </FieldGroup>
-                <Button type="submit" className="w-full" disabled={busy !== null} aria-busy={busy === "email" || undefined}>
-                  {busy === "email" && <Spinner data-icon="inline-start" />}
-                  {signup ? "Create account" : "Send code"}
+                  </FieldGroup>
+                  <Button type="submit" className="w-full" disabled={busy !== null} aria-busy={busy === "email" || undefined}>
+                    {busy === "email" && <Spinner data-icon="inline-start" />}
+                    {signup ? "Create account" : "Send code"}
+                  </Button>
+                </form>
+              </div>
+              {/* Switch to the other tab, under the form (Studio Admin v2 puts it in the header). */}
+              <p className="text-center text-sm text-muted-foreground">
+                {signup ? "Already have an account? " : "Don't have an account? "}
+                <Button variant="link" className="h-auto border-0 p-0" onClick={() => switchIntent(signup ? "signin" : "signup")}>
+                  {signup ? "Sign in" : "Sign up"}
                 </Button>
-              </form>
-            </div>
-            {/* Switch to the other tab, under the form (designer 2026-11-12; Studio Admin v2 puts it in the header). */}
-            <p className="text-center text-sm text-muted-foreground">
-              {signup ? "Already have an account? " : "Don't have an account? "}
-              <Button variant="link" className="h-auto border-0 p-0" onClick={() => switchIntent(signup ? "signin" : "signup")}>
-                {signup ? "Sign in" : "Sign up"}
-              </Button>
-            </p>
-          </>
-        )}
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </AuthFrame>
   );

@@ -1,5 +1,6 @@
 "use client";
 
+import { SCROLL_DIALOG_TABLE } from "@/lib/scroll";
 import { useRef, useState } from "react";
 import { ArrowLeftIcon, CircleCheckIcon, DownloadIcon, FileSpreadsheetIcon, TriangleAlertIcon, UploadIcon } from "lucide-react";
 import { TagInput } from "@/components/saella/tag-input";
@@ -35,16 +36,19 @@ import {
   templateCsv,
 } from "@/components/features/import";
 
-// Upload contacts: choose file → match columns → review → import (2026-10-28). Nothing is written until the
-// review is confirmed (PRD Contacts AC-CON-I-02, BR-RULE-CON-06). Tags apply to the whole upload and are never a
+// Upload contacts: choose file → match columns → review → import. Nothing is written until the review is confirmed
+// (PRD Contacts AC-CON-I-02, BR-RULE-CON-06). Tags apply to the whole upload and are never a
 // column in the file, so an existing sheet imports unchanged (live app: lib/email/contact-tags.ts).
-// Review (refined 2026-11-12, PATTERNS 9.15): one summary in the description (new + updated), one warning with the
-// error count + error file, then the rows with problems first. People already in the contact book are always
+// Review (PATTERNS 9.15): one summary in the description (new + updated), one warning with the error count + error
+// file, then the rows with problems first. People already in the contact book are always
 // updated, matched by email + company across the whole book (AC-CON-I-04, BR-RULE-CON-05; live app upserts the
 // same way, there is no "skip" choice). Repeats inside the file are merged (EC-CON-05) and marked in the table only.
-// The import ends on a result screen New / Updated / Skipped / Errors with the error rows as a CSV.
+// The import ends on a result screen New / Updated / Merged / Errors with the error rows as a CSV. Repeats are
+// "Merged" on both steps; the error count is said once, in its tile.
 // Preview: ?import=review | done opens the dialog on that step with the sample file.
 type Step = "file" | "map" | "review" | "done";
+/** Rows listed on the review step (problems first); the summary above counts them all. */
+const REVIEW_LIMIT = 50;
 
 export type ImportResult = { added: number; updated: number; skipped: number; errors: number };
 
@@ -52,7 +56,7 @@ export type ImportResult = { added: number; updated: number; skipped: number; er
 const VERDICT: Partial<Record<RowVerdict, { label: string; variant: "info" | "destructive" | "outline" }>> = {
   update: { label: "Updates saved contact", variant: "info" },
   invalid: { label: "Invalid email", variant: "destructive" },
-  repeat: { label: "Repeat, merged", variant: "outline" },
+  repeat: { label: "Merged", variant: "outline" },
 };
 
 export function ImportDialog({
@@ -82,7 +86,6 @@ export function ImportDialog({
   const [step, setStep] = useState<Step>(openOn ?? "file");
   const [fileName, setFileName] = useState<string | undefined>(sample && SAMPLE_FILE.name);
   const [fileError, setFileError] = useState<string>();
-  const [excelNote, setExcelNote] = useState(false);
   const [rows, setRows] = useState<string[][]>(sample?.rows ?? []);
   const [mapping, setMapping] = useState<FieldKey[]>(sample?.mapping ?? []);
   const [tags, setTags] = useState<string[]>([]);
@@ -109,7 +112,6 @@ export function ImportDialog({
     setStep("file");
     setFileName(undefined);
     setFileError(undefined);
-    setExcelNote(false);
     setRows([]);
     setMapping([]);
     setTags([]);
@@ -131,15 +133,13 @@ export function ImportDialog({
   }
 
   function pickFile(file: File) {
-    setExcelNote(false);
     // Refused before parsing (EC-CON-04).
     if (file.size > MAX_FILE_BYTES) {
       setFileError(`“${file.name}” is ${(file.size / 1024 / 1024).toFixed(1)} MB. Files can be up to 5 MB.`);
       return;
     }
     if (/\.xlsx?$/i.test(file.name)) {
-      // Excel is parsed on the server in the live app; this prototype has no parser, so it previews sample rows.
-      setExcelNote(true);
+      // Excel is parsed on the server in the live app; this mock has no parser, so it previews sample rows.
       load(file.name, SAMPLE_FILE.text);
       return;
     }
@@ -194,12 +194,19 @@ export function ImportDialog({
     <Dialog
       open={open}
       onOpenChange={(o) => {
+        // Not while rows are being written: closing would hide whether the import finished (PATTERNS 9.14).
+        if (!o && importing) return;
         onOpenChange(o);
         if (!o) reset();
       }}
     >
-      {/* Review needs the 5-column table in full (bug 2026-10-30: Result column cut off), so that step is wider. */}
-      <DialogContent className={cn(step === "review" ? "sm:max-w-4xl" : "sm:max-w-3xl")}>
+      {/* Review needs the 5-column table in full, so that step is wider. */}
+      <DialogContent
+        className={cn(step === "review" ? "sm:max-w-4xl" : "sm:max-w-3xl")}
+        showCloseButton={!importing}
+        onEscapeKeyDown={(e) => importing && e.preventDefault()}
+        onInteractOutside={(e) => importing && e.preventDefault()}
+      >
         <DialogHeader>
           {step !== "done" && <p className="text-sm text-muted-foreground tabular-nums">Step {stepIndex} of 3</p>}
           <DialogTitle>
@@ -272,11 +279,6 @@ export function ImportDialog({
                   </Button>
                 </FieldDescription>
               )}
-              {excelNote && (
-                <FieldDescription>
-                  Excel files are read by the server in the live app. This preview fills in sample rows.
-                </FieldDescription>
-              )}
             </Field>
 
             <Field>
@@ -288,7 +290,7 @@ export function ImportDialog({
 
         {step === "map" && (
           <div className="flex flex-col gap-3">
-            <div className="max-h-96 overflow-auto rounded-lg border">
+            <div className={cn("overflow-hidden rounded-lg border", SCROLL_DIALOG_TABLE)}>
               <Table aria-label="Column matching">
                 <TableHeader>
                   <TableRow>
@@ -348,7 +350,7 @@ export function ImportDialog({
               <Alert variant="warning">
                 <TriangleAlertIcon />
                 <AlertTitle className="tabular-nums">
-                  {fmt(errorCount)} {errorCount === 1 ? "row has an error and is" : "rows have errors and are"} skipped
+                  {fmt(errorCount)} {errorCount === 1 ? "row has an error and won't be" : "rows have errors and won't be"} imported
                 </AlertTitle>
                 <AlertDescription>
                   <Button variant="link" className="h-auto p-0" onClick={() => download(errorFileName, errorCsv(rows, preview))}>
@@ -369,9 +371,9 @@ export function ImportDialog({
             )}
             {/* The table's own container scrolls, so the header can stick to it while the rows scroll. Separate borders keep
                 the header line while it sticks. */}
-            <div className="overflow-hidden rounded-lg border [&>[data-slot=table-container]]:max-h-72 [&>[data-slot=table-container]]:overflow-auto">
+            <div className={cn("overflow-hidden rounded-lg border", SCROLL_DIALOG_TABLE)}>
               <Table aria-label="Rows to import" className="border-separate border-spacing-0 text-dense [&_tbody_td]:border-b [&_tbody_tr:last-child_td]:border-b-0">
-                <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:border-b [&_th]:bg-background [&_tr]:border-b-0">
+                <TableHeader className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:border-b [&_th]:bg-table-head [&_tr]:border-b-0">
                   <TableRow>
                     <TableHead className="w-12">Row</TableHead>
                     <TableHead>Name</TableHead>
@@ -381,7 +383,7 @@ export function ImportDialog({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {reviewRows.slice(0, 50).map((r) => {
+                  {reviewRows.slice(0, REVIEW_LIMIT).map((r) => {
                     const verdict = r.issue === "missing_email" ? { label: "No email", variant: "destructive" as const } : VERDICT[r.verdict];
                     return (
                       <TableRow key={r.line}>
@@ -395,6 +397,11 @@ export function ImportDialog({
                   })}
                 </TableBody>
               </Table>
+              {reviewRows.length > REVIEW_LIMIT && (
+                <p className="border-t px-3 py-2 text-sm text-muted-foreground tabular-nums">
+                  Showing {fmt(REVIEW_LIMIT)} of {fmt(reviewRows.length)} rows
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -404,23 +411,18 @@ export function ImportDialog({
             <dl className="grid grid-cols-2 divide-x overflow-hidden rounded-lg border sm:grid-cols-4">
               <Count label="New" value={result.added} />
               <Count label="Updated" value={result.updated} />
-              <Count label="Skipped" value={result.skipped} muted />
+              <Count label="Merged" value={result.skipped} muted />
               <Count label="Errors" value={result.errors} tone={result.errors > 0 ? "destructive" : undefined} />
             </dl>
             {result.errors > 0 ? (
-              <Alert variant="warning">
-                <TriangleAlertIcon />
-                <AlertTitle className="tabular-nums">
-                  {fmt(result.errors)} {result.errors === 1 ? "row wasn't" : "rows weren't"} imported
-                </AlertTitle>
-                <AlertDescription>
-                  <p>The error file has those rows as they were in your file, with the reason in an Error column. Fix them and upload it again.</p>
-                  <Button variant="link" className="h-auto p-0" onClick={() => download(errorFileName, result.errorFile)}>
-                    <DownloadIcon data-icon="inline-start" />
-                    Download error file
-                  </Button>
-                </AlertDescription>
-              </Alert>
+              // The count is in the Errors tile: one line with the way to fix them.
+              <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                Fix those rows and upload the file again.
+                <Button variant="link" className="h-auto min-h-6 p-0" onClick={() => download(errorFileName, result.errorFile)}>
+                  <DownloadIcon data-icon="inline-start" />
+                  Download error file
+                </Button>
+              </p>
             ) : (
               <p className="flex items-center gap-2 text-sm">
                 <CircleCheckIcon className="size-4 text-success" aria-hidden />

@@ -68,15 +68,19 @@ const Beam = ({
         ease: "linear",
       }}
     >
-      {/* Saella: optional element riding the beam's leading tip, stood up to face the viewer. */}
+      {/* Saella: optional element riding the beam's leading tip, stood up to face the viewer. It fades in over the
+          first part of each run instead of popping in at the far end, and never shrinks below 12px. */}
       {head && (
-        <div
-          className="absolute top-0 left-1/2 flex w-[130%] -translate-x-1/2 -translate-y-1/2 items-center justify-center"
+        <motion.div
+          className="absolute top-0 left-1/2 flex w-[130%] min-w-3 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
           // Stand up to face the viewer, then undo the side face's turn so the head stays upright on every side.
           style={{ transform: `rotateX(90deg) rotateZ(${headTurn}deg)` }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0, 1, 1] }}
+          transition={{ duration, delay, repeat: Infinity, ease: "linear", times: [0, 0.2, 1] }}
         >
           {head}
-        </div>
+        </motion.div>
       )}
     </motion.div>
   )

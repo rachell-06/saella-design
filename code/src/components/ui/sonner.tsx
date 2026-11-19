@@ -11,6 +11,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      // Top centre (like the shadcn Sonner demo): bottom-right sat under the "Ask the agent" pill.
+      position="top-center"
       icons={{
         success: (
           <CircleCheckIcon className="size-4 text-success" />

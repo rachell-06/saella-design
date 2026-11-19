@@ -57,18 +57,21 @@ import { HealthRing, configOf, scoreHealth } from "../../_components/health-scor
 import { last7Days } from "../../sending/_components/sending-health";
 import { DnsInfo, DnsRecordsTable, RecordHealthList } from "./domain-records";
 
-// Settings → Domain: the one place to verify the workspace's domain and check it stays healthy (2026-11-11).
+// Settings → Domain: the one place to verify the workspace's domain and check it stays healthy.
 // PRD-02 US-EC-D / US-EC-DV, PRD Master (one domain, monitoring of verified domains, v1.4.2 "Unverified");
-// live app EmailDomainsManager.tsx + api/email/domains + lib/email/domain-recheck.ts (Repo origin/development).
+// live app EmailDomainsManager.tsx + api/email/domains + lib/email/domain-recheck.ts.
 // - ONE domain per workspace (MAX_DOMAINS_PER_COMPANY = 1). Whoever verifies it first becomes the admin (BR-ORG-01);
 //   before that there is no admin, so anyone can set it up.
 // - States as the live app buckets them (SES): Verified; Verification pending (72-hour window, then Expired:
-//   remove and add again); Unverified (verified once, then a record went missing: nothing sends until it's back).
+//   Start again = remove and add the same domain with new records); Unverified (verified once, then a record went
+    //   missing: nothing sends until it's back).
 // - Opening the page re-checks in the background (AC-EC-D-03); Verify / Check again re-checks now (AC-EC-D-04).
 //   Verify is open to everyone; removing the domain is the admin's.
 // - The DNS host is detected from nameservers; "couldn't read them" is never shown as "no API" (AC-EC-DV-04).
 //   Automatic record writing is off in the live app (AUTO_DNS_ENABLED), so it isn't offered.
 // - Removing lists the senders that go with it, "Remove anyway" / "Keep it" (AC-EC-D-06, PATTERNS 9.10).
+// - DNS can take up to 48 hours (live app dm4.helpbody; it also says 24 in dom2.dnswait): one number, said once a
+//   screen. The 72-hour verify window is a deadline, shown as a date.
 // Preview with ?state= loading | error | empty | member | unclaimed | pending | expired | unverified
 const ADMIN = initialMembers.find((m) => m.role === "admin");
 
@@ -76,7 +79,7 @@ export function DomainScreen() {
   const preview = useSearchParams().get("state") ?? "";
   const unclaimed = preview === "unclaimed";
   const canManage = preview !== "member";
-  const adminOnly = `Only the admin${ADMIN ? ` (${ADMIN.name})` : ""} can change this.`;
+  const adminOnly = ADMIN ? `Only ${ADMIN.name} (admin) can change this.` : "Only the admin can change this.";
 
   const [loading, setLoading] = useState(preview === "loading");
   const [loadError, setLoadError] = useState(preview === "error");
@@ -155,10 +158,7 @@ export function DomainScreen() {
         toast.success(`${d.domain} is verified`, {
           description: unclaimed ? "Sending is on, and you're now the workspace admin." : "Sending from it is on.",
         });
-      else
-        toast("Not verified yet", {
-          description: `${missing} record${missing > 1 ? "s" : ""} still missing. DNS changes can take minutes to hours.`,
-        });
+      else toast("Not verified yet", { description: `${missing} record${missing > 1 ? "s" : ""} not found yet.` });
     }, 900);
   }
 
@@ -171,7 +171,7 @@ export function DomainScreen() {
     return null;
   }
 
-  function addDomain(raw: string) {
+  function addDomain(raw: string, again = false) {
     const d = normaliseDomain(raw);
     setDomain({
       domain: d,
@@ -181,7 +181,18 @@ export function DomainScreen() {
       dnsHost: d.endsWith(".vn") ? "PA Vietnam" : d.endsWith(".com") ? "Cloudflare" : null,
       checkedAt: `${TODAY}T05:00:00Z`,
     });
-    toast.success(`${d} added`, { description: "Add the DNS records, then press Verify." });
+    toast.success(again ? `New records for ${d}` : `${d} added`, { description: "Add the DNS records, then press Verify." });
+  }
+
+  // Expired: one step instead of Remove then Add. Same domain, new records and a new deadline.
+  function startAgain(d: DomainRow) {
+    setConfirmList([]);
+    setConfirm({
+      title: `Start again with ${d.domain}?`,
+      description: "You get new DNS records and a new deadline. Replace the old records at your DNS host, then press Verify.",
+      confirmLabel: "Start again",
+      onConfirm: () => addDomain(d.domain, true),
+    });
   }
 
   function removeDomain(d: DomainRow) {
@@ -247,14 +258,14 @@ export function DomainScreen() {
   const pending = d.status === "pending" && !expired;
   const missing = d.records.filter((r) => !r.ok).length;
   const busy = checking || autoChecking;
-  const deadline = new Date(Date.parse(`${d.addedOn}T12:00:00Z`) + VERIFY_WINDOW_H * 3600_000).toISOString();
+  const deadline = new Date(Date.parse(`${d.addedOn}T05:00:00Z`) + VERIFY_WINDOW_H * 3600_000).toISOString();
 
   return (
     <>
       <section className="flex flex-col gap-4" aria-labelledby="domain-title">
         <SectionHeader id="domain-title" title="Domain" info={<DomainRule />} />
 
-        <Item variant="outline" className="gap-x-3 rounded-card px-4 py-3 text-[length:inherit]">
+        <Item variant="outline" className="gap-x-3 rounded-card px-4 py-3 text-base">
           {verified ? (
             <HealthRing report={health} />
           ) : (
@@ -278,17 +289,28 @@ export function DomainScreen() {
                 <Badge variant="warning">Verification pending</Badge>
               )}
             </ItemTitle>
-            <ItemDescription className="tabular-nums">
-              {unclaimed ? (
-                <span className="text-warning-soft-foreground">No admin yet</span>
-              ) : (
-                <>
-                  Claimed · Admin {ADMIN?.name ?? "none"} · since {formatDay(ORG.claimedOn, true)}
-                </>
-              )}
-            </ItemDescription>
+            {/* The claim line only once the domain is (or was) verified; pending and expired say nothing, or "No admin yet"
+                when nobody has claimed it. */}
+            {unclaimed && !verified ? (
+              <ItemDescription className="text-warning-soft-foreground">No admin yet</ItemDescription>
+            ) : verified || lost ? (
+              <ItemDescription className="tabular-nums">
+                {unclaimed ? (
+                  // Verified just now: whoever verified is the admin from today (BR-ORG-01).
+                  <>
+                    Claimed · Admin {ADMIN?.name ?? "you"} (you) · since {formatDay(TODAY, true)}
+                  </>
+                ) : (
+                  <>
+                    Claimed · Admin {ADMIN?.name ?? "none"} · since {formatDay(ORG.claimedOn, true)}
+                  </>
+                )}
+              </ItemDescription>
+            ) : null}
           </ItemContent>
           <ItemActions>
+            {/* Expired isn't checked any more, so no stale "Checked … ago". */}
+            {!expired && (
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground tabular-nums" aria-live="polite">
               {busy ? (
                 <>
@@ -309,6 +331,7 @@ export function DomainScreen() {
                 </>
               )}
             </span>
+            )}
             {/* Only while the domain isn't verified; a verified one re-checks from the ⋯ menu (records can change later). */}
             {!expired && !verified && (
               <Button
@@ -358,7 +381,9 @@ export function DomainScreen() {
                   Copy the records below into {d.dnsHost ? `your ${d.dnsHost} DNS settings` : "your DNS host"}, Ownership
                   first.
                 </li>
-                <li>Press Verify{unclaimed ? " to become the workspace admin" : ""}. Nothing sends until it passes.</li>
+                <li>
+                  Press Verify{unclaimed ? " to become the workspace admin" : ""}. DNS changes can take up to 48 hours.
+                </li>
               </ol>
             </AlertDescription>
           </Alert>
@@ -367,13 +392,14 @@ export function DomainScreen() {
         {expired && (
           <Alert variant="destructive">
             <CircleAlertIcon />
-            <AlertTitle>The {VERIFY_WINDOW_H}-hour window has closed</AlertTitle>
-            <AlertDescription>Remove the domain and add it again to get new records.</AlertDescription>
+            <AlertTitle className="tabular-nums">Time to verify ran out on {formatDay(deadline)}</AlertTitle>
+            <AlertDescription>Start again to get new DNS records.</AlertDescription>
             <AlertAction>
               <Hint label={addHint}>
                 <span tabIndex={addHint ? 0 : undefined}>
-                  <Button variant="outline" size="sm" disabled={!canManage} onClick={() => removeDomain(d)}>
-                    Remove domain
+                  <Button size="sm" disabled={!canManage} onClick={() => startAgain(d)}>
+                    <RefreshCwIcon data-icon="inline-start" />
+                    Start again
                   </Button>
                 </span>
               </Hint>
@@ -385,10 +411,11 @@ export function DomainScreen() {
           <Alert variant="destructive">
             <CircleAlertIcon />
             <AlertTitle>
-              {missing} record{missing > 1 ? "s" : ""} missing: sending is off
+              {missing} record{missing > 1 ? "s" : ""} not found: sending is off
             </AlertTitle>
             <AlertDescription>
-              Add {missing > 1 ? "them" : "it"} again at your DNS host, then press Verify.
+              Add {missing > 1 ? "them" : "it"} again at your DNS host, then press Verify. DNS changes can take up to 48
+              hours.
             </AlertDescription>
           </Alert>
         )}
@@ -407,13 +434,14 @@ export function DomainScreen() {
                 <DnsInfo />
               </div>
               <p className="text-muted-foreground tabular-nums">
-                {missing} of {d.records.length} missing
+                {missing} of {d.records.length} not found yet
                 {d.dnsHost ? "" : ". We couldn't read the nameservers, so add them at your DNS host."}
               </p>
             </div>
           )}
           {verified || lost ? (
-            <RecordHealthList records={d.records} domain={d.domain} />
+            // Unverified: the Alert above already says what's missing, so no summary line.
+            <RecordHealthList records={d.records} domain={d.domain} summary={!lost} />
           ) : (
             <DnsRecordsTable records={d.records} />
           )}

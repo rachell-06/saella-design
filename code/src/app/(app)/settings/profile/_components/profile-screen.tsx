@@ -5,8 +5,6 @@ import { CameraIcon, TrashIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { ME } from "../../_components/data";
 import { SectionHeader } from "../../_components/section-header";
@@ -78,17 +76,13 @@ export function ProfileScreen() {
           <p className="text-sm text-muted-foreground">PNG, JPG, GIF or WebP, up to 2 MB.</p>
         </div>
       </div>
-      <FieldGroup className="max-w-lg">
-        <Field>
-          <FieldLabel htmlFor="me-name">Name</FieldLabel>
-          <Input id="me-name" value={ME.name} readOnly disabled />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="me-email">Email</FieldLabel>
-          <Input id="me-email" value={ME.email} readOnly disabled />
-          <FieldDescription>You sign in with this address, so it can&apos;t be changed here.</FieldDescription>
-        </Field>
-      </FieldGroup>
+      {/* Name and email come from sign-in: plain text, not disabled inputs. */}
+      <dl className="grid max-w-lg grid-cols-[6rem_minmax(0,1fr)] gap-x-4 gap-y-3">
+        <dt className="text-muted-foreground">Name</dt>
+        <dd className="min-w-0 truncate">{ME.name}</dd>
+        <dt className="text-muted-foreground">Email</dt>
+        <dd className="min-w-0 truncate">{ME.email}</dd>
+      </dl>
     </section>
   );
 }

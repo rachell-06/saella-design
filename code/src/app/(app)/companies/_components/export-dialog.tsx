@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { CircleAlertIcon, DownloadIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -11,15 +10,16 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { type Company, STATUSES, formatDate, isicLabel } from "@/lib/mock/companies";
 import { spendCredits } from "@/lib/mock/credits";
+import { TopUpDialog } from "@/components/features/top-up-dialog";
 
-// Export from Leads › Unlocked (PM proposal, designer approved 2026-11-14), after the live app's
-// CompaniesExportButton.tsx + api/export/companies (#116):
+// Export from Leads › Unlocked, after the live app's CompaniesExportButton.tsx + api/export/companies (#116):
 // - One file, one row per company, the live columns: Company Name, Representative, Phone, Email, Status, Date Founded,
 //   Main Industry, Tax Code, Address. Live writes .xlsx (ExcelJS); the mock writes CSV (no package), UTF-8 with BOM so
 //   Excel opens Vietnamese names right.
 // - At most 10,000 rows a call (live EXPORT_MAX_ROWS); the dialog asks how many, capped (PATTERNS 9.14).
 // - Cost (PRD-05 "Export a record": 1 credit, plus 1 to unlock if not unlocked yet): every row here is unlocked, so
-//   1 credit a row. Priced before, all or nothing; short → say so and point to Billing (live 402).
+//   1 credit a row. Priced before, all or nothing; short → say so (live 402) with Top up credits, which opens the top-up
+//   dialog over this one: once paid, the balance covers it and Export is ready, the count kept.
 // - Downloads at once, toast with the result; no "we'll notify you" (PATTERNS 9.14).
 export const EXPORT_MAX_ROWS = 10_000;
 const DEFAULT_ROWS = 1_000;
@@ -33,7 +33,7 @@ export function ExportDialog({
   balance,
   onOpenChange,
 }: {
-  /** The companies to export, in table order; null = closed. */
+  /** The companies to export, in the table's current sort; null = closed. */
   rows: Company[] | null;
   /** True when `rows` is the user's selection (exported as is, no row count to choose). */
   selection: boolean;
@@ -67,6 +67,7 @@ function ExportForm({
   const invalid = !selection && (!Number.isFinite(parsed) || parsed < 1 || parsed > cap);
   const cost = count;
   const short = cost > balance;
+  const [topUp, setTopUp] = useState(false);
 
   const run = () => {
     const picked = rows.slice(0, count);
@@ -92,7 +93,7 @@ function ExportForm({
         <DialogDescription>
           {selection
             ? `${n(rows.length)} selected ${rows.length === 1 ? "company" : "companies"}, one row each.`
-            : "The current list, newest first, one row per company."}
+            : "The list in the table's order, one row per company."}
         </DialogDescription>
       </DialogHeader>
       {!selection && (
@@ -125,9 +126,14 @@ function ExportForm({
           <AlertTitle>Not enough credits</AlertTitle>
           <AlertDescription>
             This export needs {credits(cost)}. You have {n(balance)}.{" "}
-            <Link href="/settings/billing" className="underline underline-offset-3">
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto border-0 p-0 text-inherit underline underline-offset-3"
+              onClick={() => setTopUp(true)}
+            >
               Top up credits
-            </Link>
+            </Button>
           </AlertDescription>
         </Alert>
       )}
@@ -140,6 +146,7 @@ function ExportForm({
           Export for {credits(cost)}
         </Button>
       </DialogFooter>
+      <TopUpDialog open={topUp} onOpenChange={setTopUp} need={Math.max(0, cost - balance)} balance={balance} />
     </form>
   );
 }

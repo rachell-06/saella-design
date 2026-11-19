@@ -5,7 +5,8 @@ import {
   campaignStatus,
   sampleCampaigns,
 } from "@/lib/mock/campaigns";
-import { allBatches } from "@/lib/mock/batches";
+import { type ReportBatch, allBatches, linkStats } from "@/lib/mock/batches";
+import { applyCampaignStore, campaignStore, isArchived } from "@/lib/mock/campaign-store";
 import { blocksToHtml } from "@/lib/mock/templates-html";
 import { members, senders, type Sender } from "@/lib/mock/workspace";
 import { type ActivityEntry, type TemplateStoreState, templateStore } from "@/lib/mock/template-store";
@@ -16,7 +17,7 @@ import { type ActivityEntry, type TemplateStoreState, templateStore } from "@/li
 export type TemplateKind = "letter" | "design";
 
 // ---------------------------------------------------------------------------------------------------------
-// Body blocks. A first build of the editor (2026-10-28): a template is a list of blocks instead of free HTML.
+// Body blocks. A first build of the editor: a template is a list of blocks instead of free HTML.
 // Letter = rich text read top to bottom; design (poster) = the same list rendered as centred poster sections
 // plus a hero block. AC-EC-T-01: the kind can be switched per template.
 // ---------------------------------------------------------------------------------------------------------
@@ -42,7 +43,7 @@ export const BLOCK_LABEL: Record<BlockType, string> = {
   hero: "Hero",
 };
 
-/** Blocks offered per kind, in menu order (designer 2026-11-14: Text first; a Design may have headings too). */
+/** Blocks offered per kind, in menu order (Text first; a Design may have headings too). */
 export const BLOCKS_FOR: Record<TemplateKind, BlockType[]> = {
   letter: ["heading", "paragraph", "image", "button", "divider"],
   design: ["paragraph", "heading", "image", "button", "divider", "hero"],
@@ -123,14 +124,17 @@ export type TemplateDetails = {
   senderId?: string;
   /** Design body. For a Letter: the same content as blocks, derived from `html` (lists, checks, the agent). */
   blocks: Block[];
-  /** Letter body: rich-text HTML (live app body_html, TipTap; designer 2026-11-14). Seed letters get it from blocks. */
+  /** Letter body: rich-text HTML (live app body_html; TipTap). Seed letters get it from blocks. */
   html?: string;
   replies: number;
   updatedAt: string;
   /** Members the owner shared it with (BR-RULE-EC-41), by email. */
   sharedWith: string[];
-  /** Click totals per link, across every send (live app TemplateLinkStat). */
+  /** Click totals per link, across every send (live app TemplateLinkStat). A template with sent batches reads its
+   *  links from them instead (templateLinks), so they add up to its Click KPI. */
   links: { url: string; clicks: number }[];
+  /** Files sent with every email (AC-EC-T-04, 10 MB each); the mock keeps name and size only. */
+  attachments?: { name: string; size: number }[];
 };
 
 const signature = (name = "Linh Tran"): Block => ({
@@ -302,8 +306,10 @@ export const templateDetails: Record<string, TemplateDetails> = {
 export function detailsFor(id: string): TemplateDetails {
   const s = templateStore();
   const found = s.copies.find((c) => c.template.id === id)?.details ?? baseDetails(id);
+  // What the editor saved this session wins over the seed / created content.
+  const edited = s.content[id] ? { ...found, ...s.content[id] } : found;
   // Seed letters were written as blocks: their HTML is made once from them.
-  const base = found.kind === "letter" && found.html === undefined ? { ...found, html: blocksToHtml(found.blocks) } : found;
+  const base = edited.kind === "letter" && edited.html === undefined ? { ...edited, html: blocksToHtml(edited.blocks) } : edited;
   const shares = s.shares[id];
   return shares ? { ...base, sharedWith: [...shares] } : base;
 }
@@ -326,7 +332,7 @@ function baseDetails(id: string): TemplateDetails {
 /**
  * How a Design starts (live app StarterPicker, poster step): blank, or one of the four prebuilt posters
  * (Repo src/lib/email/posters/presets.ts). Images are empty placeholders to upload, as in the live presets.
- * `description` is the purpose in a few words (designer 2026-11-14): the gallery cards have one short line for it.
+ * `description` is the purpose in a few words: the gallery cards have one short line for it.
  */
 export const DESIGN_STARTS = [
   { key: "blank", name: "Blank", untitled: "Untitled poster", description: "Start empty" },
@@ -415,19 +421,24 @@ export type TemplateRow = Template & {
   replies: number;
 };
 
+/** The template's sent batches (shared, history and newly created): the one set its totals, last send, links and the
+ *  template page's Performance all read (PATTERNS 9.7 "one data source"). */
+export function templateBatches(id: string): ReportBatch[] {
+  return allBatches().filter((b) => b.templateId === id && b.sent > 0 && b.metrics);
+}
+
 /**
  * Counts as the Batches screen has them: a template with batches in the shared batch mock takes its numbers from
- * those batches (sent so far, delivered, opens, clicks, bounces, unsubs), so a batch still sending (Follow-up 1:
- * 412 of 640) reads the same here, on the batch report and in the agent. Templates without such a batch keep the
- * Campaigns mock numbers.
+ * those batches (sent so far, delivered, opens, clicks, bounces, unsubs, last send), so a batch still sending
+ * (Follow-up 1: 412 of 640) reads the same on Campaigns, Templates, the batch report and in the agent. Templates
+ * without such a batch keep the Campaigns mock numbers.
  */
 export function withBatchTotals(t: Template): Template {
-  // Every batch of the template (shared, history and newly created), the same set the detail page sums, so the
-  // list and the detail show the same totals.
-  const own = allBatches().filter((b) => b.templateId === t.id && b.sent > 0 && b.metrics);
+  const own = templateBatches(t.id);
   if (own.length === 0) return t;
   const sum = (k: "delivered" | "opens" | "clicks" | "bounces" | "unsubs") =>
     own.reduce((n, b) => n + (b.metrics![k] ?? 0), 0);
+  const lastSent = own.map((b) => b.sentAt).filter((x): x is string => Boolean(x)).sort().at(-1);
   return {
     ...t,
     recipients: own.reduce((n, b) => n + b.sent, 0),
@@ -436,32 +447,59 @@ export function withBatchTotals(t: Template): Template {
     clicks: sum("clicks"),
     bounces: sum("bounces"),
     unsubs: sum("unsubs"),
+    lastSent: lastSent ?? t.lastSent,
   };
+}
+
+/** Clicks per link (unique, machine traffic out) summed over the template's sent batches, the same batches as its
+ *  Click KPI; a template without them keeps its mock list. Most clicked first. */
+export function templateLinks(id: string): { url: string; clicks: number }[] {
+  const own = templateBatches(id);
+  if (own.length === 0) return detailsFor(id).links;
+  const byUrl = new Map<string, number>();
+  for (const b of own) for (const l of linkStats(b)) byUrl.set(l.url, (byUrl.get(l.url) ?? 0) + l.uniqueClicks);
+  return [...byUrl].map(([url, clicks]) => ({ url, clicks })).sort((a, b) => b.clicks - a.clicks);
 }
 
 /**
  * Campaigns with this session's template changes applied (lib/mock/template-store.ts): status and owner, share
- * list, copies filed into them, deleted templates gone. Screens pass the store snapshot from useTemplateStore().
+ * list, copies filed into them, moves between campaigns, deleted templates gone; numbers from the template's batches
+ * (withBatchTotals). Templates of an ended campaign read inactive: the live end-of-campaign sweep switches them off
+ * (PRD Master v1.1.9, Repo campaign-expiry.ts). An archived campaign's templates read inactive too, from the
+ * campaign store's flag, so unarchiving brings back their own status. Screens pass the store
+ * snapshot from useTemplateStore().
  */
 export function applyTemplateStore(campaigns: Campaign[], s: TemplateStoreState = templateStore()): Campaign[] {
-  if (!s.copies.length && !s.deleted.length && !Object.keys(s.patch).length && !Object.keys(s.shares).length)
-    return campaigns;
   const gone = new Set(s.deleted);
-  return campaigns.map((c) => ({
-    ...c,
-    templates: [...c.templates, ...s.copies.filter((x) => x.campaign.id === c.id).map((x) => x.template)]
-      .filter((t) => !gone.has(t.id))
-      .map((t) => {
-        const shares = s.shares[t.id];
-        return { ...t, ...s.patch[t.id], shared: shares ? shares.includes(CURRENT_USER) : t.shared };
-      }),
-  }));
+  // Every template the list holds (or a copy anywhere), with the campaign it sits in now.
+  const pool = new Map<string, { t: Template; home: string }>();
+  for (const c of campaigns) for (const t of c.templates) pool.set(t.id, { t, home: c.id });
+  for (const x of s.copies) if (!pool.has(x.template.id)) pool.set(x.template.id, { t: x.template, home: x.campaign.id });
+  const entries = [...pool.values()].filter((p) => !gone.has(p.t.id));
+  return campaigns.map((c) => {
+    const ended = campaignStatus(c) === "ended" || isArchived(c.id);
+    return {
+      ...c,
+      templates: entries
+        .filter((p) => (s.moves[p.t.id] ?? p.home) === c.id)
+        .map(({ t }) => {
+          const shares = s.shares[t.id];
+          const live = { ...withBatchTotals(t), ...s.patch[t.id], shared: shares ? shares.includes(CURRENT_USER) : t.shared };
+          return ended ? { ...live, status: "inactive" as const } : live;
+        }),
+    };
+  });
 }
 
-export function allTemplates(campaigns: Campaign[] = applyTemplateStore(sampleCampaigns)): TemplateRow[] {
+/** Campaigns and their templates as of now: the seed list (or a preview's) with this session's campaign and template
+ *  changes. */
+export function currentCampaigns(seed: Campaign[] = sampleCampaigns): Campaign[] {
+  return applyTemplateStore(applyCampaignStore(seed));
+}
+
+export function allTemplates(campaigns: Campaign[] = currentCampaigns()): TemplateRow[] {
   return campaigns.flatMap((c) =>
-    c.templates.map((raw) => {
-      const t = withBatchTotals(raw);
+    c.templates.map((t) => {
       const d = detailsFor(t.id);
       return {
         ...t,
@@ -477,18 +515,34 @@ export function allTemplates(campaigns: Campaign[] = applyTemplateStore(sampleCa
   );
 }
 
-export function findTemplate(id: string, campaigns?: Campaign[]) {
+/** A template and the campaign it sits in now, with this session's changes (status, owner, moves, renames; ended
+ *  campaign → inactive). Null when there is no id, or the template or its campaign was deleted. The one lookup for
+ *  every screen (PATTERNS 9.7 "one data source"). */
+export function findTemplate(id: string | null | undefined, campaigns?: Campaign[]) {
   const s = templateStore();
-  if (s.deleted.includes(id)) return null;
-  for (const c of campaigns ?? applyTemplateStore(sampleCampaigns, s)) {
+  if (!id || s.deleted.includes(id)) return null;
+  for (const c of campaigns ?? currentCampaigns()) {
     const t = c.templates.find((x) => x.id === id);
-    if (t) return { template: withBatchTotals(t), campaign: c };
+    if (t) return { template: t, campaign: c };
   }
-  // A copy filed into a campaign made this session (not in the seed list).
+  // A copy filed into a campaign the list doesn't hold; gone with its campaign.
   const copy = s.copies.find((x) => x.template.id === id);
-  if (!copy) return null;
+  if (!copy || campaignStore().deleted.includes(copy.campaign.id)) return null;
   const [campaign] = applyTemplateStore([{ ...copy.campaign, templates: [] }], s);
   return { template: campaign.templates.find((x) => x.id === id) ?? copy.template, campaign };
+}
+
+/** The template's campaign has ended: it can't be sent, scheduled or marked active (live campaign-expiry sweep). */
+export function campaignEndedFor(id: string) {
+  const found = findTemplate(id);
+  return found ? campaignStatus(found.campaign) === "ended" : false;
+}
+
+/** The template's campaign is archived: like an ended one, it can't be sent, scheduled or marked active until the
+ *  campaign is unarchived. */
+export function campaignArchivedFor(id: string) {
+  const found = findTemplate(id);
+  return found ? isArchived(found.campaign.id) : false;
 }
 
 /** Session-made ids (copies, templates created in the editor) have no prerendered page; their routes must not 404 on the server. */
@@ -575,7 +629,9 @@ export function senderOptions(viewerEmail: string): Sender[] {
   return senders.filter((s) => s.status === "confirmed" && (s.shared || s.ownerId === me?.id));
 }
 
-export const DEFAULT_SENDER_ID = "s0";
+/** The workspace default sender: the admin's own-domain address, as in Settings › Sending. The shared instant sender
+ *  only becomes the default when there is no other (live api/email/senders/instant). */
+export const DEFAULT_SENDER_ID = "s1";
 
 export function senderById(id?: string) {
   return senders.find((s) => s.id === id);

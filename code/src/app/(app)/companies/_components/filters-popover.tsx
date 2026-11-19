@@ -3,29 +3,32 @@
 import { TreeSelect } from "@/components/saella/tree-select";
 import { COUNTRIES, FOUNDED, ISIC, STATUSES, isicLabel } from "@/lib/mock/companies";
 import { FilterCheckList, FilterField, FilterPopover, FilterSelect } from "@/components/saella/filter-popover";
-import { EMPTY_FILTERS, type Filters, QUALITY } from "./searches";
+import { DEFAULT_FILTERS, DEFAULT_STATUS, type Filters, QUALITY } from "./searches";
 
-// Find companies' five filters in the shared Filter popover (user request 2026-11-12), reusing the controls the
-// toolbar had: Country, Industry, Status, Founded and Data. Active values show as chips under the card header.
-// Compact (designer rule 2026-11-12): 4+ options → one control row (Select; the ISIC tree as its tree-select),
-// 2–3 options → inline checkboxes (Data).
+// Find companies' five filters in the shared Filter popover: Country, Industry, Status, Founded and Data. Active
+// values show as chips under the card header. 4+ options → one control row (Select; the ISIC tree as its
+// tree-select), 2–3 options → inline checkboxes (Data).
 
 export function FiltersPopover({
   filters,
   onChange,
+  hasEmailOption = true,
 }: {
   filters: Filters;
   onChange: (next: Filters | ((f: Filters) => Filters)) => void;
+  /** Off on Unlocked: every unlocked company has an email (only those can be unlocked), so it filters nothing. */
+  hasEmailOption?: boolean;
 }) {
   const count =
     (filters.country ? 1 : 0) +
     filters.isic.length +
-    (filters.status ? 1 : 0) +
+    // Only the Active default is silent: "Any status" counts too (searches.ts DEFAULT_STATUS).
+    (filters.status !== DEFAULT_STATUS ? 1 : 0) +
     (filters.founded ? 1 : 0) +
     filters.quality.length;
 
   return (
-    <FilterPopover count={count} onClearAll={() => onChange({ ...EMPTY_FILTERS, isic: [], quality: [] })}>
+    <FilterPopover count={count} onClearAll={() => onChange({ ...DEFAULT_FILTERS, isic: [], quality: [] })}>
       {/* Order (PATTERNS 9.1): status first, other single choices, then the multi-pick tree, inline checks last. */}
       <FilterSelect
         label="Status"
@@ -64,7 +67,7 @@ export function FiltersPopover({
       </FilterField>
       <FilterCheckList
         label="Data"
-        options={QUALITY}
+        options={hasEmailOption ? QUALITY : QUALITY.filter((q) => q.value !== "email")}
         value={filters.quality}
         onChange={(quality) => onChange((f) => ({ ...f, quality: quality as Filters["quality"] }))}
       />

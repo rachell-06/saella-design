@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronsUpDownIcon,
-  CircleAlertIcon,
+  CirclePauseIcon,
   InboxIcon,
   PlusIcon,
   SearchIcon,
@@ -21,10 +21,12 @@ import {
   sampleCampaigns,
   totals,
 } from "@/lib/mock/campaigns";
-import { addCampaign, useCreatedCampaigns } from "@/lib/mock/created-campaigns";
+import { campaignActions, isArchived } from "@/lib/mock/campaign-store";
+import { addCampaign, useCampaignStore, useCreatedCampaigns, useCurrentCampaigns } from "@/lib/mock/created-campaigns";
+import { templateActions } from "@/lib/mock/template-store";
 import { useTemplateStore } from "@/lib/mock/use-template-store";
 import { manyCampaigns } from "@/lib/mock/many-campaigns";
-import { applyTemplateStore, viewerFor } from "@/lib/mock/templates";
+import { viewerFor } from "@/lib/mock/templates";
 import { type CampaignStarter, NewCampaignDialog, starterHref } from "@/components/features/new-campaign-dialog";
 import { NewTemplateDialog } from "@/components/features/new-template-dialog";
 import { PageHeader } from "@/components/layout/page-header";
@@ -47,12 +49,10 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { type CampaignFields, EditCampaignDialog } from "./edit-campaign-dialog";
 import { CampaignGroup } from "./campaign-group";
 
-// Campaigns (decisions.md "Campaigns", chosen 2026-11-11 over the master–detail option): every campaign is a
-// collapsible card with its templates inside. Presentation: Studio Admin /dashboard/infrastructure, as first ported
-// on the Templates list: a wide search (no facet filters or Expand all: user request
-// 2026-11-12), one card per campaign with a table inside (campaign-group.tsx). Status is the first section of
-// Filter (user request 2026-11-12, replaced the status tabs): All (default, everything but Archived), then each status
-// incl. Archived (PRD AC-EC-C-02), with counts. Edit, Archive/Unarchive.
+// Campaigns (decisions.md "Campaigns"): every campaign is a collapsible card with its templates inside.
+// Presentation: Studio Admin /dashboard/infrastructure: a wide search, one card per campaign with a table inside
+// (campaign-group.tsx). Status is the first section of Filter: All (default, everything but Archived), then each
+// status incl. Archived (PRD AC-EC-C-02), with counts. Edit, Archive/Unarchive.
 // URL: ?c=<id> opens that campaign; ?new=1 opens New campaign; preview states ?state=paused | locked | empty | member
 // | many (60 campaigns).
 
@@ -72,13 +72,13 @@ type StatusPick = (typeof STATUS_OPTIONS)[number]["status"];
 // Campaigns shown per tab before "Show N more".
 const GROUP_LIMIT = 10;
 
-// Filter (one button at the right of the search, as on Templates; user request 2026-11-12): Status (one choice,
-// default All), then targeting: Country and Industry, several values each (any of them matches). A campaign with no countries or
-// no industries targets any, so it matches every value. Campaigns have no owner, so no "Created by".
+// Filter (as on Templates): Status (one choice, default All), then Country and Industry, several values each (any
+// of them matches). A campaign with no countries or no industries targets any, so it matches every value.
+// Campaigns have no owner, so no "Created by".
 type Filters = { status: StatusPick; country: string[]; industry: string[] };
 const NO_FILTERS: Filters = { status: "all", country: [], industry: [] };
-// Filter › Industry is by ISIC section (campaigns store classes, 2026-11-14): a campaign matches a section when it
-// targets any class of it.
+// Filter › Industry is by ISIC section (campaigns store classes): a campaign matches a section when it targets any
+// class of it.
 const INDUSTRY_SECTION_LABELS = INDUSTRY_TREE.map((g) => g.label);
 const SECTION_LABEL = new Map(INDUSTRY_TREE.map((g) => [g.value, g.label]));
 const industrySectionLabels = (codes: string[]) => industrySections(codes).map((s) => SECTION_LABEL.get(s) ?? s);
@@ -96,31 +96,21 @@ export function CampaignsBoard() {
   const [initial] = useState<Campaign[]>(() =>
     previewState === "empty" ? [] : previewState === "many" ? manyCampaigns : sampleCampaigns
   );
-  // Board list = campaigns created this session from any screen (shared store, e.g. Overview's "+ New campaign")
-  // + the board's own list. The first edit of a created campaign copies it into the local list; a deleted one is
-  // remembered so the store can't bring it back.
+  // Board list = the shared campaign store (lib/mock/campaign-store.ts: created from any screen, e.g. Overview's
+  // "+ New campaign", edits, archive, deletes) over the seed list, so Templates, New template and Copy to… see the
+  // same campaigns. Template changes (status, owner, copies, moves, deletes) are in the shared template store.
   const created = useCreatedCampaigns();
-  const [local, setLocal] = useState<Campaign[]>(initial);
-  const [removedIds, setRemovedIds] = useState<ReadonlySet<string>>(() => new Set());
-  // Template changes from the ⋯ menu (status, owner, copies, deletes) are in the shared template store.
+  const campaignState = useCampaignStore();
   const templateStore = useTemplateStore();
-  const campaigns = useMemo(() => {
-    const localIds = new Set(local.map((c) => c.id));
-    return applyTemplateStore(
-      [...created.filter((c) => !localIds.has(c.id) && !removedIds.has(c.id)), ...local],
-      templateStore
-    );
-  }, [created, local, removedIds, templateStore]);
+  const campaigns = useCurrentCampaigns(initial);
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
-  // Archive is a flag on the campaign (live is_archived); the mock Campaign type has none, so the board keeps it.
-  const [archivedIds, setArchivedIds] = useState<ReadonlySet<string>>(() => new Set());
-  const statusOf = (c: Campaign): CampaignStatus => (archivedIds.has(c.id) ? "archived" : campaignStatus(c));
+  // Archive is a flag on the campaign (live is_archived), kept in the campaign store.
+  const statusOf = (c: Campaign): CampaignStatus => (isArchived(c.id, campaignState) ? "archived" : campaignStatus(c));
   // ?c=<id> (links from the agent and the template page) opens that campaign: its card expanded, scrolled into view
   // and briefly highlighted. It is always under Status All, the default.
   const [focus] = useState(() => [...created, ...initial].find((c) => c.id === params.get("c")));
-  // Every card starts collapsed (user request 2026-11-12); the user opens one by clicking it. Only a linked
-  // campaign (?c=<id>) and one just created start open.
+  // Every card starts collapsed; only a linked campaign (?c=<id>) and one just created start open.
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set(focus ? [focus.id] : []));
   // A linked campaign past the first GROUP_LIMIT: show the whole list for that status.
   const [fullTabs, setFullTabs] = useState<Set<string>>(() => new Set(focus ? ["all"] : []));
@@ -195,8 +185,8 @@ export function CampaignsBoard() {
     })),
   ];
 
-  // Templates can only be copied into campaigns on the board (live app: Copy to… skips archived ones).
-  const copyTargets = campaigns.filter((c) => !archivedIds.has(c.id));
+  // Copy to… targets: the menu leaves out ended and archived campaigns (template-menu.tsx).
+  const copyTargets = campaigns;
 
   const inTab = (c: Campaign, tab: StatusPick) => (tab === "all" ? statusOf(c) !== "archived" : statusOf(c) === tab);
   // Counts beside each Status choice follow search, Country and Industry.
@@ -211,7 +201,6 @@ export function CampaignsBoard() {
       (a, b) =>
         (createdRank.get(a.id) ?? Infinity) - (createdRank.get(b.id) ?? Infinity) || byLastSent(a, b)
     );
-  // Empty-state copy: "No archived campaigns", or plain "No campaigns" under All.
   const tabNoun = statusPicked
     ? `${STATUS_OPTIONS.find((g) => g.status === statusTab)?.label.toLowerCase()} campaigns`
     : "campaigns";
@@ -225,13 +214,6 @@ export function CampaignsBoard() {
       if (open) next.add(id);
       else next.delete(id);
       return next;
-    });
-
-  const updateCampaign = (id: string, fn: (c: Campaign) => Campaign) =>
-    setLocal((list) => {
-      if (list.some((c) => c.id === id)) return list.map((c) => (c.id === id ? fn(c) : c));
-      const fromStore = created.find((c) => c.id === id);
-      return fromStore ? [fn(fromStore), ...list] : list;
     });
 
   function clearFilters() {
@@ -255,28 +237,33 @@ export function CampaignsBoard() {
     setOpen(id, true);
     clearFilters();
     // Live app: "Campaign created" and the new campaign on top of the board; its empty row surfaces Add template.
-    // The action is the next step, so no description repeats it.
     toast.success(`Created “${c.name}”`, {
       action: { label: "Add template", onClick: () => setAddingTo(id) },
     });
   }
 
-  // Archived campaigns leave the board (AC-EC-C-02) for the Archived tab; unarchive is the same flag back
-  // (live PATCH /api/email/campaigns/:id { is_archived }).
+  // Archived campaigns leave the board (AC-EC-C-02), shown again under Filter › Status › Archived; unarchive is the
+  // same flag back (live PATCH /api/email/campaigns/:id { is_archived }).
   function setArchived(c: Campaign, archived: boolean) {
-    setArchivedIds((ids) => {
-      const next = new Set(ids);
-      if (archived) next.add(c.id);
-      else next.delete(c.id);
-      return next;
-    });
+    campaignActions.setArchived(c.id, archived);
     toast.success(archived ? `Archived “${c.name}”` : `Restored “${c.name}”`, {
-      description: archived ? "It's under the Archived tab." : undefined,
+      description: archived ? "Pick Archived under Filter to see it." : undefined,
+      action: { label: "Undo", onClick: () => campaignActions.setArchived(c.id, !archived) },
     });
   }
 
   function saveEdit(id: string, fields: CampaignFields) {
-    updateCampaign(id, (c) => ({ ...c, ...fields }));
+    const before = campaigns.find((c) => c.id === id);
+    // An ended campaign moved back into its period stays off (live campaign-expiry: reviving doesn't switch the
+    // templates back on; whoever extends it chooses what runs again).
+    if (before && campaignStatus(before) === "ended" && campaignStatus({ ...before, ...fields }) !== "ended")
+      for (const t of before.templates) {
+        const own =
+          templateStore.patch[t.id]?.status ??
+          [...initial.flatMap((x) => x.templates), ...templateStore.copies.map((x) => x.template)].find((x) => x.id === t.id)?.status;
+        if (own !== "inactive") templateActions.setStatus(t.id, "inactive", viewer.email);
+      }
+    campaignActions.update(id, fields);
     setEditing(null);
     toast.success("Campaign updated");
   }
@@ -290,26 +277,32 @@ export function CampaignsBoard() {
 
   return (
     <>
-      <PageHeader title="Campaigns" description="Group templates by who you target and track how each one does." actions={newCampaignButton} />
+      <PageHeader title="Campaigns" description="Organise emails by audience and compare their results." actions={newCampaignButton} />
 
       {paused && (
-        <Alert variant="destructive">
-          <CircleAlertIcon />
+        // Same alert as Overview and the batch report (warning, matches the "Auto-paused" badge).
+        <Alert variant="warning">
+          <CirclePauseIcon />
           <AlertTitle>Sending is paused for this workspace</AlertTitle>
           <AlertDescription>
-            Sending was paused automatically because too many messages bounced or were marked as spam. Clean your
-            recipient list, then ask an admin to resume sending.
+            Too many messages bounced or were marked as spam. Remove those addresses. Saella reviews and lifts the
+            pause; unsent emails go out then.
           </AlertDescription>
+          <AlertAction>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/settings/sending">Sending health</Link>
+            </Button>
+          </AlertAction>
         </Alert>
       )}
       {locked && (
         <Alert variant="warning">
           <TriangleAlertIcon />
           <AlertTitle>Sending is locked</AlertTitle>
-          <AlertDescription>To send batches, verify a sending domain and confirm a sender first.</AlertDescription>
+          <AlertDescription>Verify a sending domain and confirm a sender to send batches.</AlertDescription>
           <AlertAction>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/settings">Go to Settings</Link>
+              <Link href="/settings/domain">Go to Domain</Link>
             </Button>
           </AlertAction>
         </Alert>
@@ -326,7 +319,13 @@ export function CampaignsBoard() {
               Create a campaign to group templates by country and industry, or ask the agent to set one up.
             </EmptyDescription>
           </EmptyHeader>
-          <EmptyContent>{newCampaignButton}</EmptyContent>
+          {/* One solid orange button per page (DESIGN.md §2): the header's; this one is outline. */}
+          <EmptyContent>
+            <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+              <PlusIcon data-icon="inline-start" />
+              New campaign
+            </Button>
+          </EmptyContent>
         </Empty>
       ) : (
         <div className="flex flex-col gap-4">
@@ -334,7 +333,6 @@ export function CampaignsBoard() {
             <div className="flex items-center gap-2">
               <Toolbar query={query} onQueryChange={setQuery} />
               <FilterPopover size="default" count={filterCount} onClearAll={() => setFilters(NO_FILTERS)}>
-                {/* Compact: one labelled control per section (designer 2026-11-12), not inline lists. */}
                 <FilterSelect
                   label="Status"
                   allLabel="All"
@@ -449,20 +447,23 @@ export function CampaignsBoard() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete campaign “{deleteCampaign?.name}”?</AlertDialogTitle>
+            {/* Same wording as Delete template (template-menu.tsx): what goes with it, then what stays. */}
             <AlertDialogDescription>
-              This deletes the campaign and every template inside it. They disappear from the board, overview,
-              leaderboard and metrics. Past batches and reports are kept.
+              Its templates are deleted with it. Sent batches keep their reports.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep</AlertDialogCancel>
+            <AlertDialogCancel>Keep campaign</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               onClick={() => {
-                const id = deleteCampaign?.id;
-                setLocal((all) => all.filter((c) => c.id !== id));
-                if (id) setRemovedIds((ids) => new Set(ids).add(id));
-                toast.success("Campaign and its templates deleted");
+                // Soft delete that cascades to its templates (PRD-02 AC-EC-C-03); sent batches keep their reports.
+                const c = deleteCampaign && campaigns.find((x) => x.id === deleteCampaign.id);
+                if (c) {
+                  for (const t of c.templates) templateActions.remove(t.id, viewer.email);
+                  campaignActions.remove(c.id);
+                }
+                if (deleteCampaign) toast.success(`Deleted “${deleteCampaign.name}”`);
                 setDeleteCampaign(null);
               }}
             >
@@ -476,8 +477,7 @@ export function CampaignsBoard() {
   );
 }
 
-// Search (Infrastructure header): stretches across the row; Filter sits at its right. Both h-8 (FilterPopover
-// size="default"), as on Templates.
+// Search (Infrastructure header) stretches across the row; Filter sits at its right. Both h-8, as on Templates.
 function Toolbar({ query, onQueryChange }: { query: string; onQueryChange: (q: string) => void }) {
   return (
     <InputGroup className="flex-1">

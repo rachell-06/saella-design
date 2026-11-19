@@ -31,7 +31,7 @@ import { type Block, SAMPLE_VALUES, type TemplateKind, newBlockId, resolveTags }
 
 // "Write with Saella" (PRD-02 AC-EC-G-01..06), as the live app's Agent modal (EmailTemplateEditor "Write with AI"):
 // a button on the editor toolbar opens a dialog; the brief on the left, the draft on the right; nothing reaches the
-// editor until "Use this draft", and nothing is saved until Save (designer 2026-11-14, replacing the box at the top).
+// editor until "Use this draft", and nothing is saved until Save.
 // - Empty/new email: write a fresh one (subject, preheader and email; the name too while it's "Untitled …").
 // - Email with text: change it ("Make it shorter"…), keeping the subject, or write a new one.
 // - Once a draft is shown: Try again (from the brief), change one thing (refine the draft), Use this draft, Discard.
@@ -136,7 +136,7 @@ export function WriteWithSaellaDialog({
     }
   }
 
-  // One box at a time (designer 2026-11-14). "brief" = live app aiPrompt: writes a fresh draft. "change" = live app
+  // One box at a time. "brief" = live app aiPrompt: writes a fresh draft. "change" = live app
   // "Refine — describe one change" (aiRefinePrompt): edits the draft on screen, or the email as it is when the
   // template already has text. With a draft, the brief folds to one line with Edit.
   const box: "brief" | "change" = briefOpen || (!draft && !editing) ? "brief" : "change";
@@ -179,7 +179,7 @@ export function WriteWithSaellaDialog({
                 />
                 <div className="flex flex-wrap gap-1.5" aria-label="Suggestions">
                   {STARTERS.map((s) => (
-                    <Button key={s} type="button" size="xs" variant="outline" disabled={writing} onClick={() => setPrompt(s)}>
+                    <Button key={s} type="button" size="sm" variant="outline" disabled={writing} onClick={() => setPrompt(s)}>
                       {s}
                     </Button>
                   ))}
@@ -214,7 +214,7 @@ export function WriteWithSaellaDialog({
                 />
                 <div className="flex flex-wrap gap-1.5" aria-label="Quick changes">
                   {REFINES.map((r) => (
-                    <Button key={r} type="button" size="xs" variant="outline" disabled={writing} onClick={() => write(false)}>
+                    <Button key={r} type="button" size="sm" variant="outline" disabled={writing} onClick={() => write(false)}>
                       {r}
                     </Button>
                   ))}
@@ -274,8 +274,8 @@ export function WriteWithSaellaDialog({
               <Button variant="outline" onClick={() => close(false)} disabled={writing}>
                 Cancel
               </Button>
-              {/* Solid orange (designer 2026-11-13): an exception to "AI actions are tinted" (button.meta.ts). */}
-              <Button onClick={() => write(true)} disabled={writing || !prompt.trim()}>
+              {/* An AI action: variant ai, never solid (button.meta.ts). */}
+              <Button variant="ai" onClick={() => write(true)} disabled={writing || !prompt.trim()}>
                 <SparklesIcon data-icon="inline-start" />
                 {draft ? "Write it again" : "Write the email"}
               </Button>
@@ -313,7 +313,7 @@ export function WriteWithSaellaDialog({
               <Button variant="outline" onClick={() => close(false)} disabled={writing}>
                 Cancel
               </Button>
-              <Button onClick={() => write(false)} disabled={writing || !change.trim()}>
+              <Button variant="ai" onClick={() => write(false)} disabled={writing || !change.trim()}>
                 <SparklesIcon data-icon="inline-start" />
                 Change the email
               </Button>
@@ -326,7 +326,7 @@ export function WriteWithSaellaDialog({
 }
 
 /**
- * The brief / change box, chat-composer style (designer 2026-11-14; same parts as the agent's ChatComposer): the
+ * The brief / change box, chat-composer style (same parts as the agent's ChatComposer): the
  * text on top, the style reference inside the box (pick with the image button, paste ⌘/Ctrl+V, or drop it on the box,
  * as the live app's "attach or paste an image"), and one reference shared by both boxes.
  */
@@ -437,7 +437,7 @@ function Composer({
               <ImageIcon />
             </InputGroupButton>
           </Hint>
-          {!reference && <InputGroupText className="text-xs text-subtle-foreground">PNG, JPEG, GIF or WebP, up to 4 MB</InputGroupText>}
+          {!reference && <InputGroupText className="text-xs text-muted-foreground">PNG, JPEG, GIF or WebP, up to 4 MB</InputGroupText>}
         </InputGroupAddon>
       </InputGroup>
       {error && <FieldError>{error}</FieldError>}

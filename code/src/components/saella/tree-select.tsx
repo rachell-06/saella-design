@@ -1,5 +1,6 @@
 "use client";
 
+import { SCROLL_POPOVER_LIST } from "@/lib/scroll";
 import { useMemo, useState } from "react";
 import { ChevronDownIcon, ChevronRightIcon, SearchIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +10,8 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/in
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-// Two-level multi-select in a popover (2026-10-28), for the ISIC industry tree on Companies and anywhere an
-// audience is built by industry. Checking a group selects every option under it (live app: CompaniesFilters
+// Two-level multi-select in a popover, for the ISIC industry tree on Companies and anywhere an audience is built by
+// industry. Checking a group selects every option under it (live app: CompaniesFilters
 // TreeSelect, SHOW_CHILD); a partly checked group shows the dash. Search matches group and option labels and
 // opens the matching groups. `value` holds option values only.
 export type TreeGroup = { value: string; label: string; options: { value: string; label: string }[] };
@@ -90,7 +91,7 @@ export function TreeSelect({
           </InputGroupAddon>
           <InputGroupInput aria-label={searchPlaceholder} placeholder={searchPlaceholder} value={query} onChange={(e) => setQuery(e.target.value)} />
         </InputGroup>
-        <div role="tree" aria-label={label} aria-multiselectable className="flex max-h-80 flex-col overflow-y-auto">
+        <div role="tree" aria-label={label} aria-multiselectable className={cn("flex flex-col", SCROLL_POPOVER_LIST)}>
           {shown.length === 0 && <p className="px-2 py-6 text-center text-sm text-muted-foreground">{emptyText}</p>}
           {shown.map((g) => {
             const all = g.options.every((o) => selected.has(o.value));
@@ -123,7 +124,7 @@ export function TreeSelect({
                       >
                         <Checkbox checked={selected.has(o.value)} onCheckedChange={(v) => setOption(o.value, v === true)} />
                         <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                        <span className="text-xs text-subtle-foreground tabular-nums">{o.value}</span>
+                        <span className="text-xs text-muted-foreground tabular-nums">{o.value}</span>
                       </label>
                     ))}
                   </div>

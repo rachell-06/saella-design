@@ -44,7 +44,7 @@ export { CURRENT_USER, TODAY };
 
 // Markets a campaign targets (free text in the live app), not the company-registry COUNTRIES.
 export const MARKETS = ["Vietnam", "Thailand", "Indonesia", "Malaysia", "Philippines", "Singapore"];
-// Campaign industries (designer 2026-11-14, live app EmailCampaignBoard "Industry": a TreeSelect over isic_ref, SHOW_CHILD).
+// Campaign industries (live app EmailCampaignBoard "Industry": a TreeSelect over isic_ref, SHOW_CHILD).
 // A campaign stores ISIC classes (4-digit codes, live target_industry_codes); checking a section checks all its classes.
 // The tree has all 21 ISIC sections (live ISIC_SECTION_LABELS), sorted by label, classes sorted by label (live
 // isicOptions). Each section mocks a few real classes; the sections the company registry mock covers (ISIC in
@@ -107,7 +107,7 @@ export function industryLabels(codes: string[]) {
   ).concat(codes.filter((c) => !KNOWN_CLASSES.has(c)));
 }
 
-// Campaign targeting as company-registry filters (2026-11-12): a batch to Saella companies starts from the campaign's
+// Campaign targeting as company-registry filters: a batch to Saella companies starts from the campaign's
 // countries and industries (live app EmailBatchWizard seeds its audience filter from target_countries +
 // target_industry_codes). MARKETS stay the labels every screen shows; MARKET_CODE maps them to the registry's ISO-2
 // codes. A market the registry doesn't serve (Thailand) has no code and drops out. Industries are ISIC classes already.
@@ -219,9 +219,10 @@ export const sampleCampaigns: Campaign[] = [
     industries: industryClasses("I"),
     templates: [
       t({ id: "t1", name: "Intro – ceramics catalog", recipients: 1240, delivered: 1218, opens: 466, clicks: 74, bounces: 22, unsubs: 6, lastSent: "2026-10-26T02:00:00Z" }),
-      // Same totals as its only batch b2, still sending (SHARED_METRICS in batches/_components/data.ts), so Campaigns,
-      // Templates, the batch report and the agent agree (2026-11-05). Not derived here: batches data imports this file.
-      t({ id: "t2", name: "Follow-up 1 – catalog reminder", followUp: { of: "t1", trigger: "no_engagement", delayHours: 72 }, recipients: 412, delivered: 405, opens: 121, clicks: 17, bounces: 5, unsubs: 1, lastSent: "2026-10-27T02:00:00Z" }),
+      // Seed only: every screen reads it through applyTemplateStore, which takes the numbers from its batches (b2 still
+      // sending, 412 sent: 407 delivered + 5 bounced; lib/mock/batches.ts). Kept equal to them; not derived here because
+      // batches.ts imports this file.
+      t({ id: "t2", name: "Follow-up 1 – catalog reminder", followUp: { of: "t1", trigger: "no_engagement", delayHours: 72 }, recipients: 412, delivered: 407, opens: 121, clicks: 17, bounces: 5, unsubs: 1, lastSent: "2026-10-27T02:00:00Z" }),
       t({ id: "t3", name: "Holiday pricing note", status: "inactive" }),
     ],
   },

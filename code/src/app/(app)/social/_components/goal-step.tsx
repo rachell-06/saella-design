@@ -18,9 +18,9 @@ import { mockDraft, TONES, type Tone } from "./draft";
 import { brand, NETWORK_RULES, textLength, UPLOAD_TYPES } from "./rules";
 import { NetworkIcon } from "./network-icon";
 
-// Agent-led start of a new post (designer request 2026-11-13, a trial): the user says what they want to post, the
-// agent (mocked here, deterministic) suggests the connected accounts that fit, with a reason each, and flags those
-// that don't. It only suggests: the user picks, and publishing still needs the user's own click on the Send step.
+// Agent-led start of a new post: the user says what they want to post, the agent (mocked here, deterministic)
+// suggests the connected accounts that fit, with a reason each, and flags those that don't. It only suggests: the
+// user picks, and publishing still needs the user's own click on the Send step.
 
 export type GoalMedia = {
   kind: "image" | "video";
@@ -231,7 +231,7 @@ This post: ${goal.trim()}`
             )}
             <Button variant="ai" size="sm" disabled={!goal.trim() || phase === "thinking"} onClick={() => ask()}>
               <SparklesIcon data-icon="inline-start" />
-              {phase === "done" ? "Ask again" : "Ask Saella"}
+              {phase === "done" ? "Ask again" : "Ask the agent"}
             </Button>
           </div>
           {/* Hidden file input opened by "Attach photo or video" (DESIGN.md §2 Control exception). */}

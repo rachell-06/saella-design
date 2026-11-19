@@ -1,6 +1,6 @@
 import type { Block } from "@/lib/mock/templates";
 
-// A Letter's body is rich-text HTML (live app body_html, edited with TipTap; designer 2026-11-14). A Design keeps
+// A Letter's body is rich-text HTML (live app body_html; edited with TipTap). A Design keeps
 // the block model. These helpers move between the two without losing text, sanitise what gets rendered, and fill or
 // mark merge tags. Pure string work (no DOM), so server pages can use them too.
 
@@ -86,12 +86,13 @@ export function htmlToBlocks(html: string): Block[] {
  * Mock only: images have no storage, so an <img> whose src is a bare file name (or empty) shows as a placeholder box
  * with the name, like the block editor's image placeholder. Real URLs (http, blob, data) render as images.
  */
-export function placeholderImages(html: string, boxClass: string) {
+export function placeholderImages(html: string, boxClass: string, opts?: { icon?: string; emptyClass?: string }) {
   return html.replace(/<img\b[^>]*>/gi, (tag) => {
     const src = attr(tag, "src") ?? "";
     if (/^(https?:|blob:|data:image\/)/i.test(src)) return tag;
     const alt = attr(tag, "alt") ?? "";
-    return `<span role="img" aria-label="${escapeHtml(alt || "Image without alt text")}" class="${boxClass}">${escapeHtml(src || "No image yet")}</span>`;
+    const cls = src ? boxClass : `${boxClass} ${opts?.emptyClass ?? ""}`;
+    return `<span role="img" aria-label="${escapeHtml(alt || "Image without alt text")}" class="${cls}">${opts?.icon ?? ""}<span>${escapeHtml(src || "No image yet")}</span></span>`;
   });
 }
 
@@ -130,4 +131,52 @@ export function renderTags(html: string, values?: Record<string, string>, tagCla
     if (el) return fill(el);
     return values && tag! in values ? escapeHtml(values[tag!]) : `<span class="${tagClass(tag!)}">${escapeHtml(tag!)}</span>`;
   });
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Design ⇄ HTML (the editor's HTML view, live app "Visual | HTML"): every block type round-trips; a hero keeps its
+// tone and a button stays a button. Text formatting typed into the HTML is reduced to text when it goes back.
+// ---------------------------------------------------------------------------------------------------------------
+
+/** Design blocks → HTML for the HTML view. */
+export function designToHtml(blocks: Block[]): string {
+  return blocks
+    .map((b) => {
+      if (b.type === "hero")
+        return `<div data-block="hero" data-tone="${b.tone}">\n  <h1>${escapeHtml(b.headline)}</h1>\n${b.subline ? `  <p>${escapeHtml(b.subline)}</p>\n` : ""}</div>`;
+      if (b.type === "button") return `<p data-block="button"><a href="${escapeHtml(b.url)}">${escapeHtml(b.label)}</a></p>`;
+      return blocksToHtml([b]);
+    })
+    .join("\n");
+}
+
+/** HTML from the HTML view → Design blocks (heroes by their marker; everything else as in htmlToBlocks). */
+export function htmlToDesign(html: string): Block[] {
+  const out: Block[] = [];
+  const re = /<div\b[^>]*data-block=["']hero["'][^>]*>([\s\S]*?)<\/div>/gi;
+  let last = 0;
+  for (const m of html.matchAll(re)) {
+    out.push(...htmlToBlocks(html.slice(last, m.index)));
+    const tone = (m[0].match(/data-tone=["'](soft|muted|ink)["']/i)?.[1] ?? "soft") as "soft" | "muted" | "ink";
+    const h = m[1].match(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/i);
+    const p = m[1].match(/<p\b[^>]*>([\s\S]*?)<\/p>/i);
+    out.push({ id: id(), type: "hero", headline: htmlText(h?.[1] ?? ""), subline: htmlText(p?.[1] ?? ""), tone });
+    last = m.index + m[0].length;
+  }
+  out.push(...htmlToBlocks(html.slice(last)));
+  return out;
+}
+
+// A Letter's optional HTML block (live app: "HTML block — sent as an image", below the text). Stored after the body
+// inside one marked wrapper, so every view that renders the letter shows it.
+const BLOCK_OPEN = '<div data-html-block="true">';
+
+export function joinHtmlBlock(body: string, block: string) {
+  return block.trim() ? `${body}${BLOCK_OPEN}${block}</div>` : body;
+}
+
+export function splitHtmlBlock(html: string): { body: string; block: string } {
+  const i = html.lastIndexOf(BLOCK_OPEN);
+  if (i < 0 || !html.endsWith("</div>")) return { body: html, block: "" };
+  return { body: html.slice(0, i), block: html.slice(i + BLOCK_OPEN.length, -"</div>".length) };
 }

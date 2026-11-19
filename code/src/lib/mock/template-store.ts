@@ -23,15 +23,21 @@ export type TemplateCopy = {
 };
 
 export type TemplateStoreState = {
-  patch: Readonly<Record<string, Partial<Pick<Template, "status" | "owner">>>>;
+  patch: Readonly<Record<string, Partial<Pick<Template, "status" | "owner" | "name">>>>;
+  /** Content saved in the editor this session (seed and created templates alike); read through detailsFor. */
+  content: Readonly<Record<string, EditedContent>>;
   /** Share list (emails) once someone changed it; otherwise the mock's. */
   shares: Readonly<Record<string, readonly string[]>>;
   deleted: readonly string[];
   copies: readonly TemplateCopy[];
+  /** Templates moved to another campaign in the editor (live PATCH campaign_id, TPL-UPDATE-001): id → campaign id. */
+  moves: Readonly<Record<string, string>>;
   log: Readonly<Record<string, readonly ActivityEntry[]>>;
 };
 
-const INITIAL: TemplateStoreState = { patch: {}, shares: {}, deleted: [], copies: [], log: {} };
+export type EditedContent = Pick<TemplateDetails, "kind" | "subject" | "preheader" | "senderId" | "blocks" | "html" | "attachments">;
+
+const INITIAL: TemplateStoreState = { patch: {}, content: {}, shares: {}, deleted: [], copies: [], moves: {}, log: {} };
 let state = INITIAL;
 const listeners = new Set<() => void>();
 export const subscribeTemplateStore = (l: () => void) => {
@@ -105,7 +111,7 @@ export const templateActions = {
   create(
     campaign: Campaign,
     fields: Pick<Template, "name" | "status">,
-    content: Pick<TemplateDetails, "kind" | "subject" | "preheader" | "senderId" | "blocks" | "html">,
+    content: EditedContent,
     actor: string
   ) {
     const id = `tpl-${Date.now().toString(36)}${(seq++).toString(36)}`;
@@ -118,6 +124,28 @@ export const templateActions = {
     };
     set(withLog({ ...state, copies: [...state.copies, created] }, id, { action: "edit", actor, detail: "Created" }));
     return id;
+  },
+  /**
+   * Save an existing template from the editor: name, status, content and campaign, so the lists, the template page,
+   * New batch and the ⋯ menu see it in this session (live PATCH /api/email/templates/[id]). `move` = the campaign it
+   * moves to, when the editor changed it.
+   */
+  update(id: string, fields: Pick<Template, "name" | "status">, content: EditedContent, actor: string, move?: { id: string; name: string }) {
+    const prev = state.patch[id]?.status;
+    const s = {
+      ...state,
+      patch: { ...state.patch, [id]: { ...state.patch[id], ...fields } },
+      content: { ...state.content, [id]: content },
+      moves: move ? { ...state.moves, [id]: move.id } : state.moves,
+    };
+    const detail = move
+      ? `Moved to ${move.name}`
+      : prev !== undefined && prev !== fields.status
+        ? fields.status === "active"
+          ? "Marked active"
+          : "Marked inactive"
+        : "Edited";
+    set(withLog(s, id, { action: "edit", actor, detail }));
   },
   /** Soft delete (AC-EC-T-07): gone from lists and metrics; sent batches keep their report. */
   remove(id: string, actor: string) {

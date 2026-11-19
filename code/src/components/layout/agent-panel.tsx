@@ -1,5 +1,6 @@
 "use client";
 
+import { SCROLL_POPOVER_LIST } from "@/lib/scroll";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { CheckIcon, HistoryIcon, Maximize2Icon, Minimize2Icon, SquarePenIcon, XIcon } from "lucide-react";
 import { useAgentChat } from "@/components/features/agent-chat/agent-chat-provider";
@@ -36,12 +37,11 @@ import { cn } from "@/lib/utils";
 const TRANSCRIPT_VIEWPORT_FOCUS =
   "outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring";
 
-// Agent chat (PRD-03 AC-AG-C-01..05): a floating window bottom-right by default (designer trial 2026-11-13), or the
-// right-hand panel docked and resizable 320–900px with ?agent=dock (app-shell.tsx). Same content in both.
-// The only home of the agent since the full page /agent was removed (designer 2026-11-13, decisions.md); what the
-// page had moved here in compact form. History menu: every conversation (AC-AG-T-01/02). Approvals happen on the
-// cards in the conversation (the header's Approvals menu was removed, designer 2026-11-13); an auto-approved card
-// offers "Ask me again" to take back "Always allow" (AC-AG-P-02). The one-tap rating shows under the transcript (AC-AG-Q-05). Live AgentChatCore in its compact form.
+// Agent chat (PRD-03 AC-AG-C-01..05): a floating window bottom-right by default, or the right-hand panel docked and
+// resizable 320–900px with ?agent=dock (app-shell.tsx). Same content in both. The agent's only home (no /agent page,
+// decisions.md). History menu: every conversation (AC-AG-T-01/02). Approvals happen on the cards in the
+// conversation; an auto-approved card offers "Ask me again" to take back "Always allow" (AC-AG-P-02). The one-tap
+// rating shows under the transcript (AC-AG-Q-05). Live AgentChatCore in its compact form.
 export function AgentPanel({
   onClose,
   expanded,
@@ -89,7 +89,8 @@ export function AgentPanel({
         <SaellaMini size={28} state={busy ? "thinking" : "idle"} />
         <div className="ml-1 flex min-w-0 flex-1 flex-col leading-tight">
           <h2 className="font-heading text-sm font-semibold">Agent</h2>
-          {thread?.title && <p className="truncate text-xs text-subtle-foreground">{thread.title}</p>}
+          {/* The name the agent gave the conversation; none until its first answer. 14px: a title. */}
+          {thread?.title && <p className="truncate text-sm text-muted-foreground">{thread.title}</p>}
         </div>
         <HistoryMenu current={thread?.id} threads={chat.threads} onPick={open} />
         <HeaderButton label="New chat" onClick={() => open(undefined)}>
@@ -109,7 +110,8 @@ export function AgentPanel({
       <MessageScrollerProvider defaultScrollPosition="start">
         <MessageScroller className="relative flex-1">
           <MessageScrollerViewport className={TRANSCRIPT_VIEWPORT_FOCUS}>
-            <MessageScrollerContent className="flex flex-col gap-5 px-4 py-4">
+            {/* pb-14: room under the last message for the scroll-to-latest button, so it never sits on text at the end. */}
+            <MessageScrollerContent className="flex flex-col gap-5 px-4 pt-4 pb-14">
               {!thread || thread.messages.length === 0 ? (
                 <AgentWelcome onSuggestion={(s) => send(s)} />
               ) : (
@@ -132,7 +134,9 @@ export function AgentPanel({
               )}
             </MessageScrollerContent>
           </MessageScrollerViewport>
-          <MessageScrollerButton className="absolute bottom-3 left-1/2 -translate-x-1/2" />
+          {/* A floating control: border, card shadow and a ring of the window colour as a gap, so it reads as above the
+              text it passes over. */}
+          <MessageScrollerButton aria-label="Scroll to latest" className="absolute bottom-3 left-1/2 -translate-x-1/2 border shadow-card ring-4 ring-popover" />
         </MessageScroller>
         <OpenAtLatest threadId={thread?.id} lastId={thread?.messages.findLast((m) => m.role === "user")?.id} />
       </MessageScrollerProvider>
@@ -142,6 +146,12 @@ export function AgentPanel({
       </div>
     </section>
   );
+}
+
+/** A conversation the agent hasn't named yet is listed by what was asked. */
+function firstPrompt(t: Thread) {
+  const first = t.messages.find((m) => m.role === "user")?.parts.find((p) => p.kind === "text");
+  return first?.kind === "text" ? first.text : undefined;
 }
 
 /** Every conversation, newest first, up to 50 (AC-AG-T-01/02: title, visibility, last active). */
@@ -160,14 +170,14 @@ function HistoryMenu({ current, threads, onPick }: { current?: string; threads: 
       </Tooltip>
       <DropdownMenuContent align="end" className="w-72">
         <DropdownMenuLabel className="text-xs text-muted-foreground">Chats</DropdownMenuLabel>
-        <DropdownMenuGroup className="max-h-96 overflow-y-auto">
+        <DropdownMenuGroup className={SCROLL_POPOVER_LIST}>
           {threads.length === 0 ? (
             <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
           ) : (
             threads.slice(0, 50).map((t) => (
               <DropdownMenuItem key={t.id} onSelect={() => onPick(t.id)} className="gap-2">
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate">{t.title || "New chat"}</span>
+                  <span className="truncate">{t.title || firstPrompt(t) || "New chat"}</span>
                   <span className="text-xs text-muted-foreground">
                     {t.visibility === "private" ? "Private" : "Company"} · {timeAgo(t.updatedAt)}
                   </span>
@@ -209,11 +219,13 @@ function HeaderButton({
 const FLOAT_WIDTH = { normal: 400, expanded: 560 } as const;
 const MIN_W = 340;
 const MIN_H = 360;
-/** Top bar 3rem + 0.5rem, bottom 1rem: the tallest the window gets, as before (it starts that tall). */
+/** Top bar 3rem + 0.5rem, bottom 1rem: the tallest the window gets (it starts that tall). */
 const TOP_GAP = 56;
 const BOTTOM_GAP = 16;
 const SIZE_KEY = "saella.agentFloat.size";
 type FloatSize = { w: number; h: number | null };
+/** The tallest the window can be in this browser window (the window only renders on the client). */
+const maxHeight = () => (typeof window === "undefined" ? undefined : window.innerHeight - TOP_GAP - BOTTOM_GAP);
 
 const DEFAULT_SIZE: FloatSize = { w: FLOAT_WIDTH.normal, h: null };
 // The saved size as an external store: the server and first paint use the default, then the saved one (no mismatch).
@@ -248,13 +260,13 @@ function writeSize(next: FloatSize) {
 }
 
 /**
- * The agent as a floating chat window (designer trial 2026-11-13, decisions.md "Chưa chốt"): anchored bottom-right
+ * The agent as a floating chat window (decisions.md "Chưa chốt"): anchored bottom-right
  * where the launcher was, over the page (the page does not shrink), below dialogs and sheets (z-40 < z-50). Grows
  * from the corner in 150ms and shrinks back on close; instant with reduced motion. Esc closes it while focus is
  * inside (an open menu takes Esc first). Toasts move to its left while it is open, so neither covers the other.
  */
 export function AgentFloat({ open, onClose }: { open: boolean; onClose: () => void }) {
-  // Width and height the user dragged to (designer 2026-11-14: "let users size it freely"), remembered per browser.
+  // Width and height the user dragged to ("let users size it freely"), remembered per browser.
   // h = null: full height (top bar to bottom), the default.
   const saved = parseSize(useSyncExternalStore(subscribeSize, savedSizeRaw, () => ""));
   // The live size while dragging, and the last size set this visit (kept if storage is blocked).
@@ -366,6 +378,10 @@ export function AgentFloat({ open, onClose }: { open: boolean; onClose: () => vo
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize width"
+          aria-valuenow={size.w}
+          aria-valuemin={MIN_W}
+          aria-valuemax={960}
+          aria-valuetext={`${size.w} pixels wide`}
           tabIndex={0}
           onPointerDown={startDrag("x")}
           onKeyDown={keyResize("x")}
@@ -375,6 +391,10 @@ export function AgentFloat({ open, onClose }: { open: boolean; onClose: () => vo
           role="separator"
           aria-orientation="horizontal"
           aria-label="Resize height"
+          aria-valuenow={size.h ?? maxHeight()}
+          aria-valuemin={MIN_H}
+          aria-valuemax={maxHeight()}
+          aria-valuetext={size.h === null ? "Full height" : `${size.h} pixels tall`}
           tabIndex={0}
           onPointerDown={startDrag("y")}
           onKeyDown={keyResize("y")}
@@ -394,7 +414,7 @@ export function AgentFloat({ open, onClose }: { open: boolean; onClose: () => vo
 }
 
 // First-run content of the panel: greeting + suggested actions (guided start, AC-AG-GS-01).
-// Saella mini is the agent's face (user request 2026-10-28); the full-body character stays on sign-in and the onboarding welcome.
+// Saella mini is the agent's face; the full-body character stays on sign-in and the onboarding welcome.
 function AgentWelcome({
   suggestions = ["Find buyers for my products", "Write my first campaign", "Verify my sending domain"],
   onSuggestion,
@@ -424,14 +444,26 @@ function AgentWelcome({
   );
 }
 
-// Floating entry point on every dashboard route (AC-AG-C-01; there is no agent page to hide it on). The agent is one of
-// Saella's main features, so the launcher is large and high-contrast (user request 2026-11-11): an ink pill, 48px
-// tall, with the Saella mini face. Ink, not solid orange: the page's own primary action keeps the only solid orange
-// button (DESIGN.md). Floats, so it has the float shadow.
-export function AgentLauncher({ onClick, className }: { onClick?: () => void; className?: string }) {
+// Floating entry point on every dashboard route (AC-AG-C-01). Large and high-contrast: an ink pill, 48px tall, with
+// the Saella mini face. Ink, not solid orange: the page's own primary action keeps the only solid orange button
+// (DESIGN.md). Floats, so it has the float shadow.
+export function AgentLauncher({
+  ref,
+  onClick,
+  className,
+  style,
+}: {
+  ref?: React.Ref<HTMLButtonElement>;
+  onClick?: () => void;
+  className?: string;
+  /** Inline position, e.g. lifted above a sticky action bar (app-shell.tsx). */
+  style?: React.CSSProperties;
+}) {
   return (
     <Button
+      ref={ref}
       onClick={onClick}
+      style={style}
       className={cn(
         "h-12 gap-2.5 rounded-full border-0 bg-foreground pr-5 pl-1.5 text-[length:var(--text-sm)] font-semibold text-background shadow-float transition-transform hover:-translate-y-0.5 hover:bg-foreground/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:hover:translate-y-0",
         className

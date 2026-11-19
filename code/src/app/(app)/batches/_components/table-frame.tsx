@@ -1,17 +1,16 @@
 "use client";
 
+import { SCROLL_TABLE_FILL } from "@/lib/scroll";
 import { useState } from "react";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-// The recipient tables of New batch › Recipients, built like the Leads tables (designer 2026-11-14: "consistent with
-// the other data tables"; companies-table.tsx): a bordered frame that fills the space left, the selection line on top,
-// rows scrolling under a sticky header, and the Leads footer ("1 – 50 of 36 companies", Rows per page, page buttons).
-// Local because DataTable has no "select all matching" and no exported pager (asked of the coordinator).
+// The recipient tables of New batch › Recipients, built like the Leads tables (companies-table.tsx): a bordered
+// frame that fills the space left, the selection line on top, rows scrolling under a sticky header, and the Leads
+// footer ("1 – 50 of 36 companies", page buttons; no Rows per page).
+// Local because DataTable has no "select all matching" and no exported pager.
 
-const PAGE_SIZES = [20, 50, 100];
 const n = (x: number) => x.toLocaleString("en-US");
 
 /** Header cell, body cell and table classes shared with Leads (companies-table.tsx). */
@@ -80,8 +79,10 @@ export function TableFrame<T>({
   return (
     <div
       className={cn(
-        "flex min-h-80 flex-1 flex-col overflow-hidden rounded-lg border",
-        "*:data-[slot=table-container]:min-h-0 *:data-[slot=table-container]:flex-1 *:data-[slot=table-container]:overflow-auto",
+        // Low floor (min-h-48): on a laptop with an alert above, the rows scroll inside instead of the frame spilling over
+        // Back / Continue.
+        "flex min-h-48 flex-1 flex-col overflow-hidden rounded-lg border",
+        SCROLL_TABLE_FILL,
         className
       )}
     >
@@ -92,6 +93,8 @@ export function TableFrame<T>({
         {status}
       </div>
       {children}
+      {/* Only with 2+ pages: on one page "1 – 8 of 8" repeats the selection line above. */}
+      {pageCount > 1 && (
       <footer className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-3 border-t bg-background px-4 py-2 text-sm">
         <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
           {total > 0 && (
@@ -99,25 +102,7 @@ export function TableFrame<T>({
               {n(pageIndex * pageSize + 1)} – {n(Math.min((pageIndex + 1) * pageSize, total))} of {n(total)} {noun}
             </span>
           )}
-          {total > PAGE_SIZES[0] && (
-            <div className="flex items-center gap-2">
-              <span id={`${label}-page-size`}>Rows per page</span>
-              <Select value={String(pageSize)} onValueChange={(v) => paging.setPageSize(Number(v))}>
-                <SelectTrigger size="sm" className="w-18" aria-labelledby={`${label}-page-size`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent side="top">
-                  <SelectGroup>
-                    {PAGE_SIZES.map((size) => (
-                      <SelectItem key={size} value={String(size)}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {/* No Rows per page here: 50 a page and Select all N matching are enough; the Leads tables keep it. */}
         </div>
         {pageCount > 1 && (
           <nav aria-label={label} className="flex items-center gap-1">
@@ -155,6 +140,7 @@ export function TableFrame<T>({
           </nav>
         )}
       </footer>
+      )}
     </div>
   );
 }

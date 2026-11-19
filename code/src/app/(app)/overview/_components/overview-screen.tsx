@@ -1,16 +1,17 @@
 "use client";
 
-// Overview: the email metrics dashboard, matched to what the dev team built (Repo origin/development 2026-11-05,
-// app/dashboard/email/metrics/page.tsx + components/email/EmailMetricsDashboard.tsx), in Saella's look.
+// Overview: the email metrics dashboard, matched to the live app (app/dashboard/email/metrics/page.tsx +
+// components/email/EmailMetricsDashboard.tsx), in Saella's look.
 //   Gate: until every Get started step is done (by data or by a tick) the page shows the checklist, not numbers.
 //   Toolbar: Campaign / Template / Sender view on the left; campaign and period on the right (default all, 30 days).
-//   Campaign view: 4 KPIs (2×2) + See more (6) beside the Funnel (Sent → Replied), a bounce warning when a recipient domain is flagged, Send volume, Campaign
-//   leaderboard, Template leaderboard (top 3), or with a campaign picked its details and Templates in this campaign.
-//   Template view: 4 KPIs + See more, a chart of the leaderboard's top 3 (same order and metric), then the full
-//   Template leaderboard (user decision 2026-11-13).
-//   Sender view: 4 KPIs + See more, Sender board, Deliverability by recipient domain (only here, user decision
-//   2026-11-12; the live app shows it on the Campaign view too). The Campaign view links to it when a domain's
-//   bounce rate is flagged (RATE_BANDS: 5% or more, 20+ sent; PATTERNS 9.1).
+//   Campaign view: 4 KPIs (2×2) + See more (6) beside the Funnel (Sent → Replied), a bounce warning when a recipient
+//   domain is flagged, Send volume, Campaign leaderboard (every campaign, up to 10, no chart), or with a campaign picked
+//   its details and Templates in this campaign. No template leaderboard here.
+//   Template view: 4 KPIs + See more, a chart of the same ranked rows as the leaderboard (same order and metric), then
+//   the full Template leaderboard.
+//   Sender view: 4 KPIs + See more, Sender board, Deliverability by recipient domain (only here; the live app shows
+//   it on the Campaign view too). The Campaign view links to it when a domain's bounce rate is flagged (RATE_BANDS:
+//   5% or more, 20+ sent; PATTERNS 9.1).
 // URL: ?view=campaign|template|sender &window=7|14|30|90|180|year|range (&from=&to=) &campaign=<id>.
 // Preview states (?state=): new (fresh workspace), empty (set up, nothing sent: checklist on its last step),
 // paused (workspace auto-paused), bounce (two recipient domains past the bounce warning), loading, error (Saella
@@ -18,15 +19,15 @@
 // Loading (PATTERNS.md §9.17): the header and toolbar render at once; KPIs, Send volume and the boards each load on
 // their own (SectionLoader). ?slow=1 simulates a slow workspace (KPIs 1.5s, chart 4s, boards 8s); ?slow=fail makes
 // Send volume fail and the boards pass 15s on the first try, Retry then works.
-// Saella over the live app (user decision 2026-11-11): the paused alert, Send volume gaps
-// instead of 0, Template view rates pooled over all templates.
+// Saella over the live app: the paused alert, Template view rates pooled over all templates.
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronDownIcon, ChevronUpIcon, CircleAlertIcon, InboxIcon, PlusIcon, RotateCwIcon, TriangleAlertIcon } from "lucide-react";
-import { TODAY, sampleCampaigns } from "@/lib/mock/campaigns";
-import { addCampaign } from "@/lib/mock/created-campaigns";
+import { ChevronDownIcon, ChevronUpIcon, CircleAlertIcon, CirclePauseIcon, InboxIcon, PlusIcon, RotateCwIcon, TriangleAlertIcon } from "lucide-react";
+import { type Campaign, TODAY } from "@/lib/mock/campaigns";
+import { isArchived } from "@/lib/mock/campaign-store";
+import { addCampaign, useCampaignStore, useCurrentCampaigns } from "@/lib/mock/created-campaigns";
 import { WORKSPACE, senders } from "@/lib/mock/workspace";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
@@ -42,7 +43,7 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CampaignPicker } from "./campaign-picker";
 import { FunnelCard } from "./funnel-card";
 import {
@@ -83,7 +84,6 @@ const PRESETS = WINDOWS.filter((w) => w.value !== "range");
 
 const n = (x: number) => x.toLocaleString("en-US");
 const pct = (r: number | null) => (r === null ? undefined : `${(r * 100).toFixed(1)}%`);
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** Fewer than 20 sends: too few to judge (DESIGN §2), so such rows can't be "best". */
 const LOW = 20;
 
@@ -127,7 +127,12 @@ export function OverviewScreen() {
     : "30";
   const from = params.get("from");
   const to = params.get("to");
-  const campaign = sampleCampaigns.find((c) => c.id === params.get("campaign"));
+  // Campaigns as of now (this session's creates, edits, archive, deletes, template moves and status; PATTERNS 9.7 one
+  // data source). Archived ones stay for their sends (a board row reads Archived) but leave the picker and the lists.
+  const campaigns = useCurrentCampaigns();
+  const campaignState = useCampaignStore();
+  const listed = useMemo(() => campaigns.filter((c) => !isArchived(c.id, campaignState)), [campaigns, campaignState]);
+  const campaign = campaigns.find((c) => c.id === params.get("campaign"));
 
   function setParam(patch: Record<string, string | null>) {
     const next = new URLSearchParams(params.toString());
@@ -146,16 +151,16 @@ export function OverviewScreen() {
   const neverSent = state === "new" || state === "empty";
 
   const span = useMemo(() => resolveSpan(windowKey, from, to), [windowKey, from, to]);
-  const list = useMemo(() => (neverSent ? [] : sentIn(span, campaign?.id)), [neverSent, span, campaign]);
+  const list = useMemo(() => (neverSent ? [] : sentIn(campaigns, span, campaign?.id)), [neverSent, campaigns, span, campaign]);
   const totals = sum(list);
   const loading = state === "loading";
   const failed = state === "error";
   const [series, setSeries] = useState<SeriesKey[]>(DEFAULT_SERIES);
   const [more, setMore] = useState(false);
 
-  const campaignRows = useMemo(() => groupBy(list, "campaign"), [list]);
-  const templateRows = useMemo(() => groupBy(list, "template"), [list]);
-  const senderRows = useMemo(() => groupBy(list, "sender"), [list]);
+  const campaignRows = useMemo(() => groupBy(list, "campaign", campaigns, campaignState.archived), [list, campaigns, campaignState]);
+  const templateRows = useMemo(() => groupBy(list, "template", campaigns), [list, campaigns]);
+  const senderRows = useMemo(() => groupBy(list, "sender", campaigns), [list, campaigns]);
   const points = useMemo(() => trend(list, span), [list, span]);
   // Recipient-level rows are heavy: only built on the views that show them.
   const domains = useMemo(() => {
@@ -194,7 +199,7 @@ export function OverviewScreen() {
   if (gated) {
     return (
       <>
-        <PageHeader title="Overview" description="How your emails are doing across campaigns, templates and senders." />
+        <PageHeader title="Overview" description="Your email performance at a glance." />
         <SetupGuide
           workspace={WORKSPACE.company}
           proven={proven}
@@ -218,15 +223,15 @@ export function OverviewScreen() {
 
   return (
     <>
-      {/* No header action (user decision 2026-11-12); New campaign sits in the filter row. */}
-      <PageHeader title="Overview" description="How your emails are doing across campaigns, templates and senders." />
+      {/* New campaign sits in the filter row, not the header. */}
+      <PageHeader title="Overview" description="Your email performance at a glance." />
       <NewCampaignDialog
         open={creating}
         onOpenChange={setCreating}
         onCreate={(c, starter) => {
           const id = addCampaign(c);
           setCreating(false);
-          // With a starter (designer 2026-11-14, live finishCampaign): straight into the editor on its first template.
+          // With a starter (live finishCampaign): straight into the editor on its first template.
           if (starter) {
             toast.success("Campaign created");
             router.push(starterHref(id, starter));
@@ -237,26 +242,29 @@ export function OverviewScreen() {
         }}
       />
 
-      {/* Workspace auto-pause (PRD-02 BR-RULE-EC-18; Saella, user decision 2026-11-11). */}
+      {/* Workspace auto-pause (PRD-02 BR-RULE-EC-18; Saella). No Resume: Saella lifts it and
+          the held emails go out then. The same alert as the batch report (warning, as the amber
+          "Auto-paused" badge); its action is what the user can do: remove the bounced addresses (decisions.md). */}
       {state === "paused" && (
-        <Alert variant="destructive">
-          <CircleAlertIcon />
+        <Alert variant="warning">
+          <CirclePauseIcon />
           <AlertTitle>Sending is paused for this workspace</AlertTitle>
           <AlertDescription>
-            Bounces reached 10.4% over the last 7 days. Check the contacts your latest batches went to, then ask an
-            admin to resume sending.
+            Bounces reached 10.4% over the last 7 days. Remove the addresses that bounced; Saella reviews and lifts the
+            pause.
           </AlertDescription>
           <AlertAction>
             <Button variant="outline" size="sm" asChild>
-              <Link href="/settings/sending">Sending health</Link>
+              <Link href="/contacts">Review lists</Link>
             </Button>
           </AlertAction>
         </Alert>
       )}
 
+      {/* The views are the tabs' panels (TabsContent below), so each tab's aria-controls points at a real region. */}
+      <Tabs value={view} onValueChange={(v) => setParam({ view: v === "campaign" ? null : v })} className="gap-4 md:gap-6">
       {/* Toolbar (live app): view tabs on the left, aligned with the filters on the right. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={view} onValueChange={(v) => setParam({ view: v === "campaign" ? null : v })}>
           <TabsList aria-label="View">
             {VIEWS.map((v) => (
               <TabsTrigger key={v.value} value={v.value} className="px-4">
@@ -264,11 +272,11 @@ export function OverviewScreen() {
               </TabsTrigger>
             ))}
           </TabsList>
-        </Tabs>
         <div className="flex flex-wrap items-center gap-2">
           <UpdatedIndicator {...updating} className="mr-2" />
           <CampaignPicker
-            campaigns={sampleCampaigns}
+            // An archived campaign opened from its board row stays named in the picker.
+            campaigns={campaign && !listed.includes(campaign) ? [...listed, campaign] : listed}
             value={campaign?.id ?? null}
             onChange={(id) => setParam({ campaign: id })}
           />
@@ -283,8 +291,8 @@ export function OverviewScreen() {
             onPreset={(v) => setParam({ window: v === "30" ? null : v, from: null, to: null })}
             onRange={(f, t) => setParam({ window: "range", from: f, to: t })}
           />
-          {/* The page's one solid button (user decision 2026-11-13), in the filter row on every tab. Creating adds the
-              campaign to the shared session store and opens it on Campaigns (/campaigns?c=<id>). */}
+          {/* The page's one solid button, in the filter row on every tab. Creating adds the campaign to the shared session
+              store and opens it on Campaigns (/campaigns?c=<id>). */}
           <Button size="sm" onClick={() => setCreating(true)}>
             <PlusIcon data-icon="inline-start" />
             New campaign
@@ -292,6 +300,7 @@ export function OverviewScreen() {
         </div>
       </div>
 
+      <TabsContent value={view} className="flex flex-col gap-4 text-base md:gap-6">
       {failed ? (
         <Alert variant="destructive">
           <CircleAlertIcon />
@@ -307,7 +316,7 @@ export function OverviewScreen() {
       ) : (
         <>
           {view === "campaign" && campaign && (
-            <CampaignDetailCard campaignId={campaign.id} templateCount={templateRows.length} />
+            <CampaignDetailCard campaign={campaign} />
           )}
 
           {kpiLoad.status === "ready" && !hasData ? (
@@ -317,7 +326,7 @@ export function OverviewScreen() {
                   <InboxIcon />
                 </EmptyMedia>
                 <EmptyTitle>No batches in the selected window</EmptyTitle>
-                <EmptyDescription>Nothing was sent {span.label}. Pick a longer period or another campaign.</EmptyDescription>
+                <EmptyDescription>Nothing was sent {span.key === "range" ? `from ${span.label.replace(" – ", " to ")}` : `in the ${span.label}`}. Pick a longer period or another campaign.</EmptyDescription>
               </EmptyHeader>
             </Empty>
           ) : (
@@ -329,9 +338,9 @@ export function OverviewScreen() {
                     load={kpiLoad}
                     label="Key numbers"
                     status="Calculating delivery and open rates…"
-                    skeleton={<Kpis view={view} totals={totals} templates={templateRows} senders={senderRows} loading more={more} />}
+                    skeleton={<Kpis view={view} totals={totals} templates={templateRows} senders={senderRows} campaigns={listed} loading more={more} />}
                   >
-                    <Kpis view={view} totals={totals} templates={templateRows} senders={senderRows} loading={false} more={more} />
+                    <Kpis view={view} totals={totals} templates={templateRows} senders={senderRows} campaigns={listed} loading={false} more={more} />
                   </SectionLoader>
                   <div className="flex justify-center">
                     <Button variant="ghost" size="sm" className="text-muted-foreground" aria-expanded={more} onClick={() => setMore((v) => !v)}>
@@ -376,9 +385,9 @@ export function OverviewScreen() {
                       </AlertAction>
                     </Alert>
                   )}
+                  {/* No period line under the title: the period picker above already says it. */}
                   <ChartCard
                     title="Send volume"
-                    description={cap(span.label)}
                     action={
                       <SeriesPicker
                         value={series}
@@ -411,7 +420,7 @@ export function OverviewScreen() {
                               title="Campaign leaderboard"
                               columns={BOARD_COLUMNS.campaignLeaderboard}
                               // Every campaign shows, up to 10 (CampaignLeaderboard lists idle ones too).
-                              rows={Math.min(sampleCampaigns.length, 10)}
+                              rows={Math.min(listed.length, 10)}
                               ranked
                               controls
                               footer
@@ -422,9 +431,9 @@ export function OverviewScreen() {
                     }
                   >
                     {!campaign && campaignRows.length > 0 && (
-                      <CampaignLeaderboard rows={campaignRows} onPick={(id) => setParam({ campaign: id })} />
+                      <CampaignLeaderboard rows={campaignRows} campaigns={listed} onPick={(id) => setParam({ campaign: id })} />
                     )}
-                    {/* No template leaderboard here (designer 2026-11-13): the Template tab has the full one. */}
+                    {/* No template leaderboard here: the Template tab has the full one. */}
                     {campaign && templateRows.length > 0 && <TemplatesInCampaign rows={templateRows} />}
                   </SectionLoader>
                 </>
@@ -464,12 +473,12 @@ export function OverviewScreen() {
                   statusAt="top"
                   skeleton={
                     <div className="flex flex-col gap-4 md:gap-6">
-                      <BoardSkeleton title="Sender board" subtitle={cap(span.label)} columns={BOARD_COLUMNS.senders} rows={senderRows.length} pie />
+                      <BoardSkeleton title="Sender board" columns={BOARD_COLUMNS.senders} rows={senderRows.length} pie />
                       <BoardSkeleton title="Deliverability by recipient domain" columns={BOARD_COLUMNS.deliverability} rows={domains.length} />
                     </div>
                   }
                 >
-                  <SenderBoard rows={senderRows} domains={SENDER_DOMAINS} span={span} />
+                  <SenderBoard rows={senderRows} domains={SENDER_DOMAINS} />
                   <DeliverabilityCard rows={domains} />
                 </SectionLoader>
               )}
@@ -477,6 +486,8 @@ export function OverviewScreen() {
           )}
         </>
       )}
+      </TabsContent>
+      </Tabs>
     </>
   );
 }
@@ -484,9 +495,9 @@ export function OverviewScreen() {
 type Cell = { label: string; value?: string; note?: string; muted?: boolean; tone?: "warning" | "danger"; detail?: string };
 
 /** KPI cells per view, as the live app lists them: four on top, the rest under "See more". */
-function kpiCells(view: View, t: Totals, templates: GroupRow[], senders: GroupRow[]): [Cell[], Cell[]] {
+function kpiCells(view: View, t: Totals, templates: GroupRow[], senders: GroupRow[], campaigns: Campaign[]): [Cell[], Cell[]] {
   if (view === "campaign") {
-    const c = workspaceCounts(templates);
+    const c = workspaceCounts(templates, campaigns);
     return [
       [
         { label: "Delivery rate", ...rateKpi("delivery", t.delivered, t.sends) },
@@ -505,7 +516,7 @@ function kpiCells(view: View, t: Totals, templates: GroupRow[], senders: GroupRo
     ];
   }
   if (view === "template") {
-    // Pooled over all templates (sum of parts ÷ sum of wholes, PATTERNS 9.7; user decision 2026-11-11), not the
+    // Pooled over all templates (sum of parts ÷ sum of wholes; PATTERNS 9.7), not the
     // live app's mean of each template's rate.
     const judged = templates.filter((r) => r.totals.delivered >= LOW);
     const best = judged.reduce<GroupRow | null>(
@@ -515,7 +526,8 @@ function kpiCells(view: View, t: Totals, templates: GroupRow[], senders: GroupRo
     const sends = templates.reduce((x, r) => x + r.totals.sends, 0);
     return [
       [
-        { label: "Active templates", value: n(templates.length), note: `${n(sends)} sends` },
+        // Templates with a send in the period. Not "Active templates": on the Campaign tab that means status Active.
+        { label: "Templates sent", value: n(templates.length), note: `${n(sends)} sends` },
         { label: "Open rate", ...rateKpi("open", t.opens, t.delivered) },
         { label: "Click rate", ...rateKpi("click", t.clicks, t.delivered) },
         { label: "Bounce rate", ...rateKpi("bounce", t.bounces, t.sends) },
@@ -528,7 +540,6 @@ function kpiCells(view: View, t: Totals, templates: GroupRow[], senders: GroupRo
           note: `${n(t.clicks)}/${n(t.opens)} opened`,
         },
         { label: "Best open rate", value: best ? pct(ratio(best.totals.opens, best.totals.delivered)) : undefined, note: best?.name },
-        { label: "Email sent", value: n(sends) },
       ],
     ];
   }
@@ -542,7 +553,7 @@ function kpiCells(view: View, t: Totals, templates: GroupRow[], senders: GroupRo
   return [
     [
       { label: "Active senders", value: n(sendersSent), note: `${domainCount} ${domainCount === 1 ? "domain" : "domains"}` },
-      { label: "Total sent", value: n(t.sends), note: `${n(t.delivered)} delivered` },
+      { label: "Total sent", value: n(t.sends) },
       { label: "Delivery rate", ...rateKpi("delivery", t.delivered, t.sends) },
       { label: "Bounce rate", ...rateKpi("bounce", t.bounces, t.sends) },
     ],
@@ -550,7 +561,6 @@ function kpiCells(view: View, t: Totals, templates: GroupRow[], senders: GroupRo
       { label: "Open rate", ...rateKpi("open", t.opens, t.delivered) },
       { label: "Recipients", value: n(t.recipients) },
       { label: "Best delivery", value: best ? pct(ratio(best.totals.delivered, best.totals.sends)) : undefined, note: best?.name },
-      { label: "Sending domains", value: n(domainCount) },
     ],
   ];
 }
@@ -560,6 +570,7 @@ function Kpis({
   totals,
   templates,
   senders,
+  campaigns,
   loading,
   more,
 }: {
@@ -567,10 +578,12 @@ function Kpis({
   totals: Totals;
   templates: GroupRow[];
   senders: GroupRow[];
+  /** The campaigns Overview lists (as of now, archived left out), for the workspace counts. */
+  campaigns: Campaign[];
   loading: boolean;
   more: boolean;
 }) {
-  const [top, rest] = kpiCells(view, totals, templates, senders);
+  const [top, rest] = kpiCells(view, totals, templates, senders, campaigns);
   // Campaign view sits beside the Funnel: one strip in two columns, hairlines between cells and rows.
   if (view === "campaign") {
     return (

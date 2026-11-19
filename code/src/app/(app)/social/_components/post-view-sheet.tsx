@@ -1,5 +1,6 @@
 "use client";
 
+import { SCROLL_SHEET_BODY } from "@/lib/scroll";
 import { ExternalLinkIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -22,7 +23,7 @@ export function PostViewSheet({ post, onClose }: { post: SocialPost | null; onCl
               <SheetTitle className="truncate text-lg">{postName(post) || "Untitled post"}</SheetTitle>
               <SheetDescription>{when(post.scheduledAt && Date.parse(post.scheduledAt) > NOW_MS ? post.scheduledAt : post.createdAt)}</SheetDescription>
             </SheetHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto p-6">
+            <div className={cn("p-6", SCROLL_SHEET_BODY)}>
               <PreviewSwitcher key={post.id} label="Accounts in this post" items={items(post)} groupByNetwork />
             </div>
           </>

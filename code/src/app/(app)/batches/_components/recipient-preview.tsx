@@ -1,17 +1,19 @@
 "use client";
 
 import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
   CircleAlertIcon,
   MailIcon,
+  ShuffleIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { detailsFor } from "@/lib/mock/templates";
 import { EmailBody, TagText } from "@/components/features/email-body";
+import { Hint } from "@/components/saella/hint";
 import { Button } from "@/components/ui/button";
+import type { ReactNode } from "react";
 import {
   Card,
+  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
@@ -24,15 +26,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Sender } from "@/lib/mock/workspace";
 import type { CheckStatus, Handling } from "./recipient-checks";
@@ -44,14 +37,11 @@ import {
   valuesFor,
 } from "./recipient-check";
 
-// Preview with a real recipient (R3, 2026-10-29; Clay's lead-by-lead preview, Mailchimp "Preview as"). Pick a
-// person, or step through them; the subject and body fill in with their data and the fallbacks chosen in the
-// check, so "Hi there," is visible before it is sent. Recipients with gaps are listed first in the picker.
+// Preview with a real recipient (R3). Shuffle shows another; the subject and body fill in with their data and the
+// fallbacks chosen in the check, so "Hi there," is visible before it is sent.
 // The live app needs the server to render one recipient's email (same renderer as the send).
 
 const n = (x: number) => x.toLocaleString("en-US");
-/** People offered in the picker besides the flagged ones; prev/next reaches everyone. */
-const PICKER = 30;
 
 export function RecipientPreview({
   templateId,
@@ -65,6 +55,7 @@ export function RecipientPreview({
   onSelect,
   status,
   onRetry,
+  action,
 }: {
   templateId: string;
   subject: string;
@@ -78,29 +69,29 @@ export function RecipientPreview({
   onSelect: (id: string) => void;
   status: CheckStatus;
   onRetry: () => void;
+  /** Header button (Review › Edit template). */
+  action?: ReactNode;
 }) {
   const details = detailsFor(templateId);
-  const index = Math.max(
-    0,
-    people.findIndex((p) => p.id === selectedId),
-  );
-  const person = people[index];
+  // Who is still in the batch: "one of N" and Shuffle count only them, like Review's Recipients row. Someone the check
+  // leaves out shows only if picked before they were left out (marked below).
+  const leftOut = (p: Recipient) =>
+    gapsOf(p, issues).some((g) => handling[g.tag] === "skip");
+  const inBatch = people.filter((p) => !leftOut(p));
+  const person =
+    people.find((p) => p.id === selectedId) ?? inBatch[0] ?? people[0];
   const gaps = person ? gapsOf(person, issues) : [];
   const skipped = gaps.some((g) => handling[g.tag] === "skip");
+  const others = inBatch.filter((p) => p.id !== person?.id);
   const values = person ? valuesFor(person, sender, fallbacks) : {};
-
-  const flagged = new Set(
-    issues.flatMap((i) => (i.kind === "missing" ? i.people.map((p) => p.id) : [])),
-  );
-  const flaggedPeople = people.filter((p) => flagged.has(p.id)).slice(0, PICKER);
-  const others = people.filter((p) => !flagged.has(p.id)).slice(0, PICKER);
-  const offered = new Set([...flaggedPeople, ...others].map((p) => p.id));
   const label = recipientLabel;
 
   return (
-    <Card className="lg:sticky lg:top-4">
-      <CardHeader>
+    // Brand-tinted header so the Preview stands out from Review's other sections.
+    <Card className="pt-0 lg:sticky lg:top-4">
+      <CardHeader className="items-center border-b bg-peach py-3 [&>[data-slot=card-action]]:row-span-1 [&>[data-slot=card-action]]:self-center">
         <CardTitle>Preview</CardTitle>
+        {action && <CardAction>{action}</CardAction>}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {status === "checking" ? (
@@ -141,64 +132,32 @@ export function RecipientPreview({
           </Empty>
         ) : (
           <>
+            {/* Who this preview is for; Shuffle shows another (no picker or ‹ ›: with thousands of recipients a random sample
+                beats stepping from the top). */}
             <div className="flex items-center gap-2">
-              <Select value={person.id} onValueChange={onSelect}>
-                <SelectTrigger
-                  aria-label="Preview as"
-                  className="w-full min-w-0 flex-1"
+              <p className="min-w-0 flex-1 truncate text-sm" aria-live="polite">
+                <span className="font-medium">{label(person)}</span>
+                <span className="text-muted-foreground tabular-nums">
+                  {" "}
+                  {skipped ? "· left out" : `· one of ${n(inBatch.length)}`}
+                </span>
+              </p>
+              <Hint label="Show a random recipient">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Show a random recipient"
+                  disabled={others.length === 0}
+                  onClick={() =>
+                    onSelect(
+                      others[Math.floor(Math.random() * others.length)].id,
+                    )
+                  }
                 >
-                  {/* The label is given directly: Radix fills SelectValue only once the list has mounted, so the
-                      closed trigger was empty on first render. */}
-                  <SelectValue>{label(person)}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {!offered.has(person.id) && (
-                    <SelectGroup>
-                      <SelectItem value={person.id}>{label(person)}</SelectItem>
-                    </SelectGroup>
-                  )}
-                  {flaggedPeople.length > 0 && (
-                    <SelectGroup>
-                      <SelectLabel>Missing data</SelectLabel>
-                      {flaggedPeople.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {label(p)}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  )}
-                  <SelectGroup>
-                    <SelectLabel>Recipients</SelectLabel>
-                    {others.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {label(p)}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Previous recipient"
-                disabled={index === 0}
-                onClick={() => onSelect(people[index - 1].id)}
-              >
-                <ChevronLeftIcon />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                aria-label="Next recipient"
-                disabled={index >= people.length - 1}
-                onClick={() => onSelect(people[index + 1].id)}
-              >
-                <ChevronRightIcon />
-              </Button>
+                  <ShuffleIcon />
+                </Button>
+              </Hint>
             </div>
-            <p className="-mt-2 text-sm text-muted-foreground tabular-nums">
-              Recipient {n(index + 1)} of {n(people.length)}
-            </p>
 
             {gaps.length > 0 && (
               <p className="flex items-start gap-2 rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning-soft-foreground">
@@ -226,10 +185,11 @@ export function RecipientPreview({
             </dl>
 
             <div
+              // email-canvas: the email keeps its own light page in dark mode (PATTERNS 9.3).
               className={
                 skipped
-                  ? "max-h-112 overflow-y-auto rounded-lg border p-4 opacity-60"
-                  : "max-h-112 overflow-y-auto rounded-lg border p-4"
+                  ? "email-canvas max-h-112 overflow-y-auto rounded-lg border p-4 opacity-60"
+                  : "email-canvas max-h-112 overflow-y-auto rounded-lg border p-4"
               }
             >
               <EmailBody

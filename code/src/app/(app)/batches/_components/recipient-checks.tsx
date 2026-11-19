@@ -1,15 +1,17 @@
 "use client";
 
+import { SCROLL_DIALOG_TABLE } from "@/lib/scroll";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
-import Link from "next/link";
 import {
   CircleAlertIcon,
   CircleCheckIcon,
-  EyeIcon,
   TriangleAlertIcon,
   UsersIcon,
 } from "lucide-react";
 import { resolveTags } from "@/lib/mock/templates";
+import { LockedTip } from "@/components/saella/locked-tip";
+import { SubjectText } from "./subject-text";
 import {
   Alert,
   AlertAction,
@@ -50,10 +52,9 @@ import {
   TAG_LABEL,
 } from "./recipient-check";
 
-// Per-recipient check on Review (R2, 2026-10-29). For each merge tag the template uses: who has no value for it,
-// what the line would read for them, and a choice: send with a fallback word, or leave them out of this batch.
-// A tag Saella doesn't know blocks the send (it would reach every inbox as written). Learned from Clay, where a
-// wrong substitution went into the email with no warning; HubSpot shows the "won't be sent" reasons up front.
+// Per-recipient check on Review (R2). For each merge tag the template uses: who has no value for it, what the line
+// would read for them, and a choice: send with a fallback word, or leave them out of this batch. A tag Saella
+// doesn't know blocks the send (it would reach every inbox as written).
 
 export type Handling = "fallback" | "skip";
 export type CheckStatus = "ready" | "checking" | "error";
@@ -67,24 +68,26 @@ export function RecipientChecks({
   status,
   onRetry,
   recipients,
-  templateId,
+  onFixTemplate,
+  fixLock,
   handling,
   onHandling,
   fallbacks,
   onFallback,
-  onPreview,
 }: {
   check: RecipientCheck;
   status: CheckStatus;
   onRetry: () => void;
   /** People checked (before anyone is left out here). */
   recipients: number;
-  templateId: string;
+  /** Opens the template in the editor, keeping the batch's picks (the same way as Review › Edit template). */
+  onFixTemplate: () => void;
+  /** Why this viewer can't edit the template, if so. */
+  fixLock?: string;
   handling: Record<string, Handling>;
   onHandling: (tag: string, h: Handling) => void;
   fallbacks: Record<string, string>;
   onFallback: (tag: string, v: string) => void;
-  onPreview: (id: string) => void;
 }) {
   const [showing, setShowing] = useState<string | null>(null);
   const open = check.issues.find(
@@ -145,7 +148,7 @@ export function RecipientChecks({
                   className="mt-0.5 size-4 shrink-0 text-destructive"
                 />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <p className="font-medium">
+                  <p className="text-sm font-medium">
                     {`{{${issue.tag}}}`} isn&apos;t a field Saella knows
                   </p>
                   <p className="text-sm text-muted-foreground">
@@ -154,11 +157,16 @@ export function RecipientChecks({
                     come back.
                   </p>
                 </div>
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/templates/${templateId}/edit`}>
+                <LockedTip reason={fixLock}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!!fixLock}
+                    onClick={onFixTemplate}
+                  >
                     Fix the template
-                  </Link>
-                </Button>
+                  </Button>
+                </LockedTip>
               </li>
             ) : (
               <MissingRow
@@ -169,7 +177,6 @@ export function RecipientChecks({
                 fallback={fallbacks[issue.tag] ?? ""}
                 onFallback={(v) => onFallback(issue.tag, v)}
                 onShow={() => setShowing(issue.tag)}
-                onPreview={() => onPreview(issue.people[0].id)}
               />
             ),
           )}
@@ -180,10 +187,8 @@ export function RecipientChecks({
         {open && (
           <PeopleDialog
             issue={open}
-            onPreview={(id) => {
-              onPreview(id);
-              setShowing(null);
-            }}
+            handling={handling[open.tag] ?? "fallback"}
+            fallback={fallbacks[open.tag] ?? ""}
             onClose={() => setShowing(null)}
           />
         )}
@@ -199,7 +204,6 @@ function MissingRow({
   fallback,
   onFallback,
   onShow,
-  onPreview,
 }: {
   issue: Extract<DataIssue, { kind: "missing" }>;
   handling: Handling;
@@ -207,7 +211,6 @@ function MissingRow({
   fallback: string;
   onFallback: (v: string) => void;
   onShow: () => void;
-  onPreview: () => void;
 }) {
   const count = issue.people.length;
   const id = `bw-fb-${issue.tag}`;
@@ -225,24 +228,19 @@ function MissingRow({
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
           <div className="flex min-w-0 flex-col gap-1">
-            <p className="font-medium tabular-nums">
+            <p className="text-sm font-medium tabular-nums">
               {n(count)} {count === 1 ? "recipient has" : "recipients have"} no{" "}
               {issue.field}
             </p>
             <p className="text-sm text-muted-foreground">
-              Without a value, “{short(issue.line)}” reads “{reads}”.
+              {/* The line as the editor shows it: merge tags as chips, not raw {{tags}}. */}
+              Without a value, “<SubjectText subject={issue.line} />” reads “{reads}”.
             </p>
           </div>
-          <div className="flex gap-1">
-            <Button variant="ghost" size="sm" onClick={onShow}>
-              <UsersIcon data-icon="inline-start" />
-              See who
-            </Button>
-            <Button variant="ghost" size="sm" onClick={onPreview}>
-              <EyeIcon data-icon="inline-start" />
-              Preview one
-            </Button>
-          </div>
+          <Button variant="ghost" size="sm" onClick={onShow}>
+            <UsersIcon data-icon="inline-start" />
+            See who
+          </Button>
         </div>
 
         <RadioGroup
@@ -297,19 +295,31 @@ function MissingRow({
   );
 }
 
+// Who the group is, read-only: no per-row Preview (the line above shows the changed sentence) and no column that's
+// empty for everyone (e.g. Name when the first name is missing).
 function PeopleDialog({
   issue,
-  onPreview,
+  handling,
+  fallback,
   onClose,
 }: {
   issue: Extract<DataIssue, { kind: "missing" }>;
-  onPreview: (id: string) => void;
+  handling: Handling;
+  fallback: string;
   onClose: () => void;
 }) {
   const count = issue.people.length;
   const rows: Recipient[] = issue.people.slice(0, SHOWN);
+  const name = (r: Recipient) => `${r.firstName} ${r.lastName}`.trim();
+  const showName = rows.some((r) => name(r));
   // Saella companies carry no contact tags: no Tags column then.
   const showTags = issue.people.some((p) => p.tags.length > 0);
+  const note =
+    handling === "skip"
+      ? "They're left out of this batch."
+      : fallback.trim()
+        ? `They get “${short(resolveTags(issue.line, { [issue.tag]: fallback.trim() }))}” unless you leave them out.`
+        : "Type a fallback word, or leave them out of this batch.";
   return (
     <DialogContent className="sm:max-w-2xl">
       <DialogHeader>
@@ -317,27 +327,22 @@ function PeopleDialog({
           {n(count)} {count === 1 ? "recipient has" : "recipients have"} no{" "}
           {issue.field}
         </DialogTitle>
-        <DialogDescription>
-          Preview shows the email one of them gets.
-        </DialogDescription>
+        <DialogDescription>{note}</DialogDescription>
       </DialogHeader>
-      <div className="-mx-4 max-h-96 overflow-y-auto border-y">
+      <div className={cn("-mx-4 border-y", SCROLL_DIALOG_TABLE)}>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
+              {showName && <TableHead>Name</TableHead>}
               <TableHead>Email</TableHead>
               <TableHead>Company</TableHead>
               {showTags && <TableHead>Tags</TableHead>}
-              <TableHead>
-                <span className="sr-only">Preview</span>
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((r) => (
               <TableRow key={r.id}>
-                <TableCell>{`${r.firstName} ${r.lastName}`.trim()}</TableCell>
+                {showName && <TableCell>{name(r) || <span className="text-subtle-foreground">—</span>}</TableCell>}
                 <TableCell className="max-w-56 truncate">{r.email}</TableCell>
                 <TableCell className="max-w-48 truncate">{r.company}</TableCell>
                 {showTags && (
@@ -345,16 +350,6 @@ function PeopleDialog({
                     {r.tags.join(", ")}
                   </TableCell>
                 )}
-                <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onPreview(r.id)}
-                    aria-label={`Preview the email to ${r.email}`}
-                  >
-                    Preview
-                  </Button>
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>

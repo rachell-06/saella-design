@@ -141,14 +141,15 @@ export function AccountStatePanel({ initial, email }: { initial: AccountState; e
     locked: {
       icon: LockIcon,
       title: `${DOMAIN} now belongs to ${ORG}`,
-      body: `A colleague verified ${DOMAIN}, so the domain and this company's workspace are now theirs. This workspace can no longer send from it.`,
+      // What happened, then what joining costs, each said once.
+      body: `A colleague verified ${DOMAIN} for ${ORG}, so this workspace can't send from it any more. Ask to join theirs to keep working.`,
       extra: (
         <Alert variant="warning">
           <TriangleAlertIcon />
-          <AlertTitle>What happens if you join</AlertTitle>
+          <AlertTitle>If you join</AlertTitle>
           <AlertDescription>
-            Your campaigns, templates and contacts here are permanently deleted when the admin approves you. Credits
-            you purchased carry across. Nothing is deleted until they approve.
+            Once their admin approves you, your campaigns, templates and contacts here are deleted for good. Credits you
+            bought move with you.
           </AlertDescription>
         </Alert>
       ),

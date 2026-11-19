@@ -3,8 +3,8 @@
  * Mọi màu/cỡ/bo/bóng của app lấy từ file này. Component và màn hình chỉ dùng class Tailwind
  * sinh từ token (bg-primary, text-muted-foreground, bg-status-sent, rounded-card...), không viết mã màu.
  *
- * Kế thừa UI style của LP saella.ai (2026-10-26, theo yêu cầu sếp). Nguồn từng giá trị:
- *   [LP]   = có trong LP: src/index.css của Saella LP VÀ CSS đã build trên https://www.saella.ai/ (đối chiếu 2026-10-26)
+ * Kế thừa UI style của LP saella.ai. Nguồn từng giá trị:
+ *   [LP]   = có trong LP: src/index.css của Saella LP VÀ CSS đã build trên https://www.saella.ai/ (đối chiếu)
  *   [LP-src] = chỉ có trong source LP (không thấy trong CSS live vì Tailwind bỏ token không dùng)
  *   [LP-cmp] = mã màu viết thẳng trong component LP (đường dẫn ghi kèm)
  *   [ĐX]   = đề xuất cho app, LP không có, CHỜ DUYỆT
@@ -13,7 +13,7 @@
  * Tên biến theo shadcn/ui v4 (Tailwind 4). shadcn tự map biến chuẩn trong globals.css;
  * block @theme inline cuối file chỉ map biến RIÊNG Saella.
  *
- * Dark mode (chốt 2026-10-27): khối .dark ở cuối file, bật bằng class `dark` trên <html> (next-themes).
+ * Dark mode: khối .dark ở cuối file, bật bằng class `dark` trên <html> (next-themes).
  * Mỗi biến màu trong :root phải có cặp trong .dark. Biến không phải màu (radius, chữ, chuyển động) chỉ khai báo một lần.
  */
 
@@ -49,19 +49,19 @@
   --chart-3: #3d6fd8; /* [LP-cmp] mocks/shots/ShotReport.tsx (gần field-blue #3B7BD9) */
   --chart-4: #6a1d6d; /* [LP] field-plum (tông đậm) */
   --chart-5: #e0a72a; /* [LP] field-gold. 2.16:1 trên trắng: luôn kèm nhãn/legend [ĐX] */
-  --chart-6: #c0365a; /* [ĐX 2026-10-29] rose, cho Bounce trên biểu đồ (series thứ 6). 5.1:1 trên trắng */
+  --chart-6: #c0365a; /* [ĐX] rose, cho Bounce trên biểu đồ (series thứ 6). 5.1:1 trên trắng */
 
   /* Bo góc gốc. shadcn (radix-nova) tính: sm .6x, md .8x, lg 1x, xl 1.4x
-     → nút/ô nhập (lg) 8px = LP nút 8px, input 8px; item menu (md) 6.4px ≈ LP 6px; card dùng rounded-card 12px = LP (chốt 2026-10-27) */
+     → nút/ô nhập (lg) 8px = LP nút 8px, input 8px; item menu (md) 6.4px ≈ LP 6px; card dùng rounded-card 12px = LP */
   --radius: 0.5rem; /* [LP] nút trang rounded-[8px] */
 
   /* ---------- Sidebar (shadcn) ---------- */
-  --sidebar: #f5f6f4; /* [ĐX] nền fog, vùng nội dung trắng. LP không có sidebar */
-  --sidebar-foreground: #0c2124; /* [LP] ink, như Studio Admin (người dùng yêu cầu 2026-10-29; trước là ink-2). 15.6:1 trên fog */
+  --sidebar: #ffffff; /* [ĐX] trắng như vùng nội dung, tách bằng --sidebar-border */
+  --sidebar-foreground: #0c2124; /* [LP] ink, như Studio Admin. 15.6:1 trên fog */
   --sidebar-primary: #a85a02; /* [LP] primary-strong */
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #fbeee0; /* [ĐX] mục đang chọn = LP primary-soft */
-  --sidebar-hover: #ebedea; /* hover mục chưa chọn: fog đậm một bậc, khác hẳn mục chọn (2026-10-27). Chữ ink-2 6.81:1 */
+  --sidebar-hover: #f5f6f4; /* hover mục chưa chọn: fog trên nền trắng, khác hẳn mục chọn */
   --sidebar-accent-foreground: #0c2124; /* [LP] ink. 14.63:1 trên primary-soft */
   --sidebar-border: #e3e6e2; /* [LP] line */
   --sidebar-ring: #bf6603; /* [LP] */
@@ -74,7 +74,7 @@
   --primary-subtle: #fdf3e9; /* [LP] peach-soft. Dòng bảng đang chọn, chip giá trị filter */
   --peach: #fbe7d3; /* [LP] peach. ::selection, highlight */
   --cream: #fef9f3; /* [LP-src] cream. Nền onboarding/empty state */
-  --table-head: #f3ece3; /* Hàng tiêu đề bảng: trung tính ấm theo tông primary Saella, không xám (người dùng chốt 2026-11-12) */
+  --table-head: #faf6f0; /* Hàng tiêu đề bảng: kem nhạt cùng tông ấm, không xám. Không dùng peach: trùng dòng đang chọn (primary-subtle) */
   --deep: #04191c; /* [LP] deep. Dải tối (dành cho dark mode sau này) */
   --deep-2: #0a2a2e; /* [LP] deep-2 */
 
@@ -105,7 +105,7 @@
   --destructive-soft-foreground: #b4321f; /* [LP-cmp] 5.32:1 trên destructive-soft */
 
   /* ---------- Riêng Saella: trạng thái batch (một lần gửi) ----------
-     2026-10-27: trước ghi là trạng thái campaign; theo PRD-02 campaign chỉ có Not started/Active/Ended (theo ngày) nên bộ này chuyển sang batch.
+     Theo PRD-02 campaign chỉ có Not started/Active/Ended (theo ngày), nên bộ trạng thái này là của batch.
      Badge = nền + chữ; chấm trạng thái dùng màu chữ. Giá trị trỏ về họ màu ở trên */
   --status-draft: var(--muted); /* fog */
   --status-draft-foreground: var(--muted-foreground); /* ink-2, 7.40:1 */
@@ -119,7 +119,7 @@
   --status-paused-foreground: var(--warning-soft-foreground); /* 6.10:1 */
   --status-failed: var(--destructive-soft);
   --status-failed-foreground: var(--destructive-soft-foreground); /* 5.32:1 */
-  /* Đang chạy (campaign / template Active): xanh tươi hơn Sent để nổi giữa các badge xám (người dùng chốt 2026-11-12). */
+  /* Đang chạy (campaign / template Active): xanh tươi hơn Sent để nổi giữa các badge xám. */
   --status-active: #d3f6e2;
   --status-active-foreground: #0d6e3a; /* ~5.6:1 trên nền */
   --status-active-dot: #12b76a;
@@ -143,7 +143,7 @@
 
   --selection: #fbe7d3; /* [LP] ::selection = peach */
 
-  /* ---------- Riêng Saella: khung email (2026-11-05) ----------
+  /* ---------- Riêng Saella: khung email ----------
      Khung soạn/xem trước email hiện đúng như người nhận thấy: luôn nền sáng, KHÔNG đổi theo dark mode của app
      (DESIGN.md 9.3: màu template tách khỏi màu UI). Dùng qua class .email-canvas bên dưới. Cùng giá trị light */
   --email-canvas: #ffffff;
@@ -161,9 +161,9 @@
   --email-error: #b4321f; /* 5.32:1 trên error-soft */
 }
 
-/* ---------- Dark mode (2026-10-27, đổi sang nền shadcn cùng ngày) ----------
+/* ---------- Dark mode ----------
    Nền, chữ, viền lấy NGUYÊN bảng dark "neutral" của shadcn (registry ui.shadcn.com/r/colors/neutral.json):
-   xám trung tính, không dùng xanh mực LP (người dùng duyệt: nền xanh mực trông nặng).
+   xám trung tính, không dùng xanh mực LP (nền xanh mực trông nặng).
    Giữ của Saella (đã duyệt): cam làm nút chính/điểm nhấn, focus ring cam, viền ô nhập ≥ 3:1
    (shadcn white 15% chỉ ~1.4:1), màu biểu đồ Saella (shadcn dark chỉ có 5 sắc xám).
    Contrast tính trên nền trang VÀ card: xem DESIGN.md mục 4.4–4.5. */
@@ -197,10 +197,10 @@
   --chart-3: #7aa2f0;
   --chart-4: #c27ac6; /* 5.88:1 */
   --chart-5: #e0a72a;
-  --chart-6: #f07a96; /* [ĐX 2026-10-29] */
+  --chart-6: #f07a96; /* [ĐX] */
 
   --sidebar: #171717; /* [shadcn] oklch(0.205 0 0) */
-  --sidebar-foreground: #fafafa; /* [shadcn] chữ sáng, cặp với ink bản light (2026-10-29). 17.2:1 */
+  --sidebar-foreground: #fafafa; /* [shadcn] chữ sáng, cặp với ink bản light. 17.2:1 */
   --sidebar-primary: #e8892a;
   --sidebar-primary-foreground: #0a0a0a;
   --sidebar-accent: #262626; /* [shadcn] mục chọn; icon mục chọn màu brand 5.80:1 */
@@ -252,7 +252,7 @@
 
   --selection: #55340f;
 
-  /* email-*: cố ý không khai báo lại, khung email giữ bản sáng như hộp thư người nhận (2026-11-05) */
+  /* email-*: cố ý không khai báo lại, khung email giữ bản sáng như hộp thư người nhận */
 }
 
 /* Khung email: trong vùng này các token chuẩn trỏ về bảng email-* (luôn sáng), nên component bên trong

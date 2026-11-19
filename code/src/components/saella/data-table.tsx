@@ -9,26 +9,9 @@ import {
   type SortingState,
   useTable,
 } from "@tanstack/react-table";
-import {
-  ArrowDownIcon,
-  ArrowUpDownIcon,
-  ArrowUpIcon,
-  ChevronDownIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  ChevronsLeftIcon,
-  ChevronsRightIcon,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpDownIcon, ArrowUpIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, ChevronsRightIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -42,7 +25,7 @@ import { type DataTableFeatures, dataTableFeatures } from "@/lib/data-table-feat
 import { cn } from "@/lib/utils";
 
 // List table for Campaigns, Contacts, Companies (PATTERNS.md §9.1). Structure learned from Studio Admin's
-// customers table (2026-10-27), rebuilt on Saella's Table/Checkbox/Select and tokens.
+// customers table, rebuilt on Saella's Table/Checkbox/Select and tokens.
 // Filtering happens before `data` comes in (FilterBar), so this only sorts, selects and pages.
 export type DataTableColumn<TData extends RowData> = ColumnDef<DataTableFeatures, TData>;
 
@@ -54,7 +37,7 @@ export function DataTable<TData extends RowData>({
   selectable = false,
   bulkActions,
   initialSorting = [],
-  pageSizeOptions = [10, 20, 50],
+  pageSizeOptions = [50],
   loading = false,
   emptyState,
   renderExpanded,
@@ -133,6 +116,7 @@ export function DataTable<TData extends RowData>({
           <span className="font-medium tabular-nums">{selectedRows.length} selected</span>
           <div className="flex flex-wrap items-center gap-2">{bulkActions?.(selectedRows)}</div>
           <Button variant="link" size="sm" className="ml-auto" onClick={() => table.resetRowSelection()}>
+            <XIcon data-icon="inline-start" />
             Clear selection
           </Button>
         </div>
@@ -237,7 +221,7 @@ export function DataTable<TData extends RowData>({
         </Table>
       </div>
 
-      {/* Paging only when the list is longer than the smallest page; selection count lives in the bulk bar. */}
+      {/* Paging only when the list is longer than a page (50; no Rows per page). */}
       {!loading && data.length > pageSizeOptions[0] && (
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
           <p className="text-muted-foreground tabular-nums">
@@ -245,25 +229,6 @@ export function DataTable<TData extends RowData>({
               ? `${selectedRows.length} of ${data.length.toLocaleString("en-US")} selected`
               : `${data.length.toLocaleString("en-US")} rows`}
           </p>
-          <div className="ml-auto flex items-center gap-2">
-            <span id={`${label}-page-size`} className="text-muted-foreground">
-              Rows per page
-            </span>
-            <Select value={`${pagination.pageSize}`} onValueChange={(v) => table.setPageSize(Number(v))}>
-              <SelectTrigger size="sm" className="w-18" aria-labelledby={`${label}-page-size`}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent side="top">
-                <SelectGroup>
-                  {pageSizeOptions.map((size) => (
-                    <SelectItem key={size} value={`${size}`}>
-                      {size}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
           <p className="font-medium tabular-nums">
             Page {pagination.pageIndex + 1} of {Math.max(table.getPageCount(), 1)}
           </p>
@@ -308,22 +273,13 @@ function PageButton({
   );
 }
 
-/**
- * Row checkboxes: hidden until the row is hovered or focused, always shown while a selection is in progress,
- * on checked boxes, and on devices without hover. The empty select column reads as a margin, not a missing value.
- */
-const revealSelect = cn(
-  "opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100",
-  "group-data-[selecting=true]/dt:opacity-100 data-[state=checked]:opacity-100 data-[state=indeterminate]:opacity-100",
-  "[@media(hover:none)]:opacity-100"
-);
+// Row checkboxes are always shown, as in Studio Admin (DESIGN.md §2).
 
 /**
- * Row actions (the "…" menu and icon actions in the last cell) stay visible, muted, and darken on row hover.
- * Hidden actions made the column look empty and users missed them (user request 2026-11-11).
+ * Row actions (the "…" menu and icon actions in the last cell) stay visible. Available ones are full text colour so
+ * they stand apart from disabled ones, which keep the button's 50% (in dark mode muted vs muted-at-50% look the same).
  */
-export const revealOnRowHover =
-  "text-muted-foreground transition-colors group-hover/row:text-foreground group-focus-within/row:text-foreground";
+export const revealOnRowHover = "text-foreground";
 
 function selectColumn<TData extends RowData>(): DataTableColumn<TData> {
   return {
@@ -332,7 +288,6 @@ function selectColumn<TData extends RowData>(): DataTableColumn<TData> {
     header: ({ table }) => (
       <Checkbox
         aria-label="Select all rows on this page"
-        className={revealSelect}
         checked={
           table.getIsAllPageRowsSelected() ? true : table.getIsSomePageRowsSelected() ? "indeterminate" : false
         }
@@ -342,7 +297,6 @@ function selectColumn<TData extends RowData>(): DataTableColumn<TData> {
     cell: ({ row }) => (
       <Checkbox
         aria-label="Select row"
-        className={revealSelect}
         checked={row.getIsSelected()}
         onCheckedChange={(v) => row.toggleSelected(v === true)}
       />

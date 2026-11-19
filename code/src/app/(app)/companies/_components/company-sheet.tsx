@@ -1,5 +1,8 @@
 "use client";
 
+import { SCROLL_SHEET_BODY } from "@/lib/scroll";
+import { cn } from "@/lib/utils";
+import { useState } from "react";
 import { ArrowUpRightIcon, LockIcon, LockOpenIcon } from "lucide-react";
 import { toast } from "sonner";
 import { CopyButton } from "@/components/saella/copy-button";
@@ -8,13 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { type Company, STATUSES, countryLabel, formatDate, isicLabel, maskEmail, maskPhone, maskWebsite } from "@/lib/mock/companies";
+import { CompanyStatusBadge } from "./companies-columns";
+import { type Company, countryLabel, formatDate, isicLabel, maskEmail, maskPhone, maskWebsite } from "@/lib/mock/companies";
 
-// Company detail in a Sheet (DESIGN.md §8.1: Sheet for detail). Registry facts first, then contact details,
-// masked until unlocked. Unlock (PRD Contacts US-CON-U, AC-CON-U-01..03; live app #116): one click, 1 credit,
-// reveals email, phone and website for the whole workspace; the cost is on the button, so no confirm (live app
-// unlockOne). It is the sheet's one solid button while the company is locked; once unlocked the values show in
-// full with Copy, an "Unlocked" badge marks it, and the button goes. Nothing hidden → no Unlock.
+// Company detail in a Sheet (DESIGN.md §8.1). Contact details first (what the user unlocks for), masked until
+// unlocked; registry facts below. Unlock (PRD Contacts US-CON-U, AC-CON-U-01..03; live app #116): one click,
+// 1 credit, reveals email, phone and website for the whole workspace; the cost is on the button, so no confirm (live
+// app unlockOne). Once unlocked the values show in full with Copy, an "Unlocked" badge marks it, and the button goes.
 export function CompanySheet({
   company,
   unlocked,
@@ -31,7 +34,14 @@ export function CompanySheet({
   const canUnlock = c !== null && !unlocked && Boolean(c.email);
   return (
     <Sheet open={c !== null} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 sm:max-w-md">
+      <SheetContent
+        className="flex w-full flex-col gap-0 sm:max-w-md"
+        // Focus the panel, not its first control: otherwise the email's copy tooltip opens by itself.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          (e.currentTarget as HTMLElement).focus();
+        }}
+      >
         {c && (
           <>
             <SheetHeader className="border-b">
@@ -41,45 +51,12 @@ export function CompanySheet({
               </SheetDescription>
               {c.status !== "active" && (
                 <div>
-                  <Badge variant={c.status === "ceased" || c.status === "suspended" ? "destructive" : "secondary"}>
-                    {STATUSES.find((s) => s.value === c.status)?.label}
-                  </Badge>
+                  <CompanyStatusBadge status={c.status} />
                 </div>
               )}
             </SheetHeader>
 
-            <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-4">
-              <dl className="grid grid-cols-[7rem_1fr] gap-x-6 gap-y-3 text-sm">
-                {/* The name only: the ISIC code behind it is how Saella maps each country's codes, not something users
-                    read (PRODUCT.md: industry codes in plain words). */}
-                <Fact label="Industry">{isicLabel(c.isic)}</Fact>
-                {c.subIndustries.length > 0 && (
-                  <Fact label="Other industries">
-                    <ul className="flex flex-col gap-1">
-                      {c.subIndustries.map((s) => (
-                        <li key={s}>{s}</li>
-                      ))}
-                    </ul>
-                  </Fact>
-                )}
-                <Fact label="Founded">{formatDate(c.incorporatedOn)}</Fact>
-                <Fact label="Address">{c.address}</Fact>
-                {/* Free and always shown: the registry publishes it (live app never masks it). Not a contact: no email or phone. */}
-                {c.representative && <Fact label="Legal representative">{c.representative}</Fact>}
-                {c.branches && (
-                  <Fact label="Branches">
-                    <ul className="flex flex-col gap-1">
-                      {c.branches.map((b) => (
-                        <li key={b}>{b}</li>
-                      ))}
-                    </ul>
-                  </Fact>
-                )}
-                {c.fdi && <Fact label="Ownership">Foreign direct investment</Fact>}
-              </dl>
-
-              <Separator />
-
+            <div className={cn("flex flex-col gap-6 p-4", SCROLL_SHEET_BODY)}>
               <section aria-labelledby="co-contact" className="flex flex-col gap-3">
                 <div className="flex items-center gap-2">
                   <h3 id="co-contact" className="font-heading text-base font-medium">
@@ -105,16 +82,37 @@ export function CompanySheet({
                   </Fact>
                 </dl>
               </section>
+
+              <Separator />
+
+              <dl className="grid grid-cols-[7rem_1fr] gap-x-6 gap-y-3 text-sm">
+                {/* The name only: the ISIC code behind it is how Saella maps each country's codes, not something users
+                    read (PRODUCT.md: industry codes in plain words). */}
+                <Fact label="Industry">{isicLabel(c.isic)}</Fact>
+                {c.subIndustries.length > 0 && (
+                  <Fact label="Other industries">
+                    <OtherIndustries key={c.id} names={c.subIndustries} />
+                  </Fact>
+                )}
+                <Fact label="Founded">{formatDate(c.incorporatedOn)}</Fact>
+                <Fact label="Address">{c.address}</Fact>
+                {/* Free and always shown: the registry publishes it (live app never masks it). Not a contact: no email or phone. */}
+                {c.representative && <Fact label="Legal representative">{c.representative}</Fact>}
+                {c.branches && (
+                  <Fact label="Branches">
+                    <ul className="flex flex-col gap-1">
+                      {c.branches.map((b) => (
+                        <li key={b}>{b}</li>
+                      ))}
+                    </ul>
+                  </Fact>
+                )}
+                {c.fdi && <Fact label="Ownership">Foreign direct investment</Fact>}
+              </dl>
             </div>
 
-            {/* Unlock is the sheet's only action (no saving to Self-upload, designer decision 2026-11-12). */}
-            {/* Says exactly what this company's unlock gives (designer decision 2026-11-13): only the fields it has;
-                company contact details, never people. */}
             {canUnlock && (
-              <SheetFooter className="flex-col items-start gap-2 border-t">
-                <p className="text-sm text-muted-foreground">
-                  Unlock reveals: {[c.email && "email", c.phone && "phone", c.website && "website"].filter(Boolean).join(", ")}
-                </p>
+              <SheetFooter className="border-t">
                 <Button onClick={() => onUnlock(c)}>
                   <LockIcon data-icon="inline-start" />
                   Unlock · 1 credit
@@ -133,6 +131,33 @@ export function CompanySheet({
   );
 }
 
+/** Up to 3 names, then "+N more" to show the rest (some companies list 20+). */
+const INDUSTRIES_SHOWN = 3;
+function OtherIndustries({ names }: { names: string[] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? names : names.slice(0, INDUSTRIES_SHOWN);
+  const more = names.length - INDUSTRIES_SHOWN;
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <ul className="flex flex-col gap-1">
+        {shown.map((s) => (
+          <li key={s}>{s}</li>
+        ))}
+      </ul>
+      {more > 0 && (
+        <Button
+          variant="link"
+          className="h-auto min-h-6 border-0 p-0 tabular-nums"
+          aria-expanded={all}
+          onClick={() => setAll(!all)}
+        >
+          {all ? "Show less" : `+${more.toLocaleString("en-US")} more`}
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="contents">
@@ -143,10 +168,10 @@ function Fact({ label, children }: { label: string; children: React.ReactNode })
 }
 
 /** Masked until unlocked. After: email and phone copy on a click of the value, with a copy icon that shows on
- *  hover or keyboard focus (designer decision 2026-11-12); the website is a link that opens in a new tab. */
+ *  hover or keyboard focus; the website is a link that opens in a new tab. */
 function Contact({ value, masked, link }: { value?: string; masked?: string; link?: boolean }) {
   if (!value) return <span className="text-muted-foreground">Not in our data</span>;
-  // One line each (designer 2026-11-13): cut with an ellipsis, the full value on hover.
+  // One line each: cut with an ellipsis, the full value on hover.
   if (masked)
     return (
       <span className="block truncate text-muted-foreground tabular-nums" title={masked}>
@@ -156,7 +181,7 @@ function Contact({ value, masked, link }: { value?: string; masked?: string; lin
   if (link) {
     const href = /^https?:\/\//i.test(value) ? value : `https://${value}`;
     return (
-      // Body colour, underline on hover (designer 2026-11-13): an outside link, not a Saella action.
+      // Body colour, underline on hover: an outside link, not a Saella action.
       <Hint label={value}>
         <Button
           variant="link"

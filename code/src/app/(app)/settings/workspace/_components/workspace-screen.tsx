@@ -12,9 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { WORKSPACE_TZ } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import {
   AGENT_INSTRUCTIONS_MAX,
@@ -29,22 +31,43 @@ import {
   initialInstructions,
   normaliseDomain,
 } from "../../_components/data";
-import { SectionHeader } from "../../_components/section-header";
+import { InfoTip, SectionHeader } from "../../_components/section-header";
 import { useUnsavedGuard } from "../../_components/unsaved-guard";
 
-// Settings → Company: the workspace's profile and the agent's standing instructions on one page (2026-11-11; the
-// Agent tab merged in). Live app CompanyProfileSection.tsx + AgentSettingsSection.tsx, api/email/company,
+// Settings → Company: the workspace's profile and the agent's standing instructions on one page. Live app
+// CompanyProfileSection.tsx + AgentSettingsSection.tsx, api/email/company,
 // api/email/agent-context/generate; PRD Master MOD-BE-018, AC-AG-I-01, AC-EC-G-06; onboarding "Draft my setup".
 // - Name (required, 120), logo, target countries and industries, phone (60), slogan (160), address (200);
 //   instructions 4,000, never cut: over the limit the counter turns red and Save locks (PATTERNS 9.11).
 // - "Fill from your website or a file" (PDF, DOCX…) drafts every field but the logo, instructions included. Drafted
-//   values go straight into the fields, each changed one marked "Drafted" (user decision 2026-11-11: no per-field
-//   approval). Nothing saves until Save changes; Discard draft restores the pre-draft values.
-// - The live app imports a file straight into the instructions; here the file feeds the whole draft (2026-11-11).
+//   values go straight into the fields, each changed one marked "Drafted" (no per-field approval). Nothing saves
+//   until Save changes.
+// - Save and Discard sit in a bar that sticks to the bottom of the view; it also carries "N fields drafted" after a
+//   draft. One Discard: back to what's saved.
+// - The live app imports a file straight into the instructions; here the file feeds the whole draft.
 // - Any member can edit (the API only checks workspace membership). One Save for everything; leaving with unsaved
 //   edits asks Save / Discard / Keep editing (PATTERNS 9.10).
 // Preview with ?state= loading | error | save-error | drafting | drafted | draft-error | over-limit | file
-type Profile = CompanyProfile & { instructions: string };
+// - Time zone (not in PRD or the live app: both fix GMT+7): one per workspace, so every member reads the same dates
+//   in reports, "Last activity" and schedules. Saved with the rest; the mock app still shows GMT+7.
+type Profile = CompanyProfile & { instructions: string; timeZone: string };
+
+/** Saella's Southeast Asian markets first, then the rest of the world east to west (mock list; the real one is every
+ *  IANA zone). */
+const TIME_ZONES = [
+  { value: "Asia/Ho_Chi_Minh", label: "(GMT+7) Ho Chi Minh City, Bangkok, Jakarta" },
+  { value: "Asia/Singapore", label: "(GMT+8) Singapore, Kuala Lumpur, Manila" },
+  { value: "Australia/Sydney", label: "(GMT+11) Sydney, Melbourne" },
+  { value: "Asia/Tokyo", label: "(GMT+9) Tokyo, Seoul" },
+  { value: "Asia/Shanghai", label: "(GMT+8) Beijing, Hong Kong, Taipei" },
+  { value: "Asia/Kolkata", label: "(GMT+5:30) Mumbai, New Delhi" },
+  { value: "Asia/Dubai", label: "(GMT+4) Dubai, Abu Dhabi" },
+  { value: "Europe/Berlin", label: "(GMT+1) Berlin, Paris, Amsterdam" },
+  { value: "Europe/London", label: "(GMT+0) London, Lisbon" },
+  { value: "America/New_York", label: "(GMT−5) New York, Toronto" },
+  { value: "America/Chicago", label: "(GMT−6) Chicago, Mexico City" },
+  { value: "America/Los_Angeles", label: "(GMT−8) Los Angeles, Vancouver" },
+];
 type DraftKey = "name" | "countries" | "industries" | "phone" | "slogan" | "address" | "instructions";
 const DRAFT_KEYS: DraftKey[] = ["name", "countries", "industries", "phone", "slogan", "address", "instructions"];
 type Draft = { before: Profile; filled: DraftKey[]; count: number };
@@ -55,7 +78,8 @@ const equal = (a: string | string[], b: string | string[]) =>
   Array.isArray(a) && Array.isArray(b)
     ? a.length === b.length && a.every((x) => b.includes(x))
     : typeof a === "string" && typeof b === "string" && a.trim() === b.trim();
-const same = (a: Profile, b: Profile) => a.logo === b.logo && DRAFT_KEYS.every((k) => equal(a[k], b[k]));
+const same = (a: Profile, b: Profile) =>
+  a.logo === b.logo && a.timeZone === b.timeZone && DRAFT_KEYS.every((k) => equal(a[k], b[k]));
 
 /** Puts a draft into the form; every field it changes is marked. */
 function applyDraft(form: Profile, prev: Draft | null, values: Partial<Record<DraftKey, string | string[]>>) {
@@ -73,7 +97,7 @@ function applyDraft(form: Profile, prev: Draft | null, values: Partial<Record<Dr
   return { form: next, draft, count };
 }
 
-const START: Profile = { ...initialCompany, instructions: initialInstructions };
+const START: Profile = { ...initialCompany, instructions: initialInstructions, timeZone: WORKSPACE_TZ };
 
 export function WorkspaceScreen() {
   const preview = useSearchParams().get("state") ?? "";
@@ -248,33 +272,6 @@ export function WorkspaceScreen() {
           void save();
         }}
       >
-        {draft && (
-          <div
-            role="status"
-            className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-brand/30 bg-primary-subtle px-4 py-2.5 text-sm"
-          >
-            <SparklesIcon className="size-4 text-brand" aria-hidden />
-            <span>
-              <span className="font-medium tabular-nums">
-                {draft.count} field{draft.count === 1 ? "" : "s"} drafted
-              </span>{" "}
-              · Review, then save
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="ml-auto"
-              onClick={() => {
-                setForm(draft.before);
-                setDraft(null);
-              }}
-            >
-              Discard draft
-            </Button>
-          </div>
-        )}
-
         <Field data-invalid={urlError ? true : undefined} className="rounded-card border p-4">
           <FieldLabel htmlFor={file ? undefined : "co-url"}>Fill from your website or a file</FieldLabel>
           <div className="flex gap-2">
@@ -385,7 +382,6 @@ export function WorkspaceScreen() {
                 Remove
               </Button>
             )}
-            {draft && !form.logo && <span className="text-sm text-muted-foreground">Logos aren&apos;t drafted.</span>}
           </div>
         </div>
 
@@ -491,6 +487,29 @@ export function WorkspaceScreen() {
               />
             )}
           </Field>
+          <Field>
+            {/* The why in a tooltip, kept short. */}
+            <div className="flex items-center gap-1">
+              <FieldLabel htmlFor="co-timezone">Time zone</FieldLabel>
+              <InfoTip label="About time zone">Used for every date and schedule in this workspace.</InfoTip>
+            </div>
+            {busy(
+              <Select value={form.timeZone} onValueChange={(v) => set("timeZone", v)}>
+                <SelectTrigger id="co-timezone" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {TIME_ZONES.map((z) => (
+                      <SelectItem key={z.value} value={z.value}>
+                        {z.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            )}
+          </Field>
           {/* No data-invalid on the Field: it would turn the whole text red. The red border and counter carry it. */}
           <Field>
             <DraftLabel htmlFor="co-instructions" drafted={filled("instructions")}>
@@ -523,16 +542,40 @@ export function WorkspaceScreen() {
           </Field>
         </FieldGroup>
 
-        <div className="flex justify-end gap-2">
-          {dirty && (
-            <Button type="button" variant="outline" onClick={discardAll} disabled={saving}>
-              Discard
-            </Button>
+        <div
+          // Lifts the floating "Ask the agent" pill above this bar (app-shell.tsx).
+          data-sticky-actions=""
+          className={cn(
+            "sticky bottom-0 z-10 flex flex-wrap items-center gap-x-3 gap-y-2 border-t bg-background py-3",
+            draft && "border-brand/30"
           )}
-          <Button type="submit" disabled={!dirty || over > 0 || saving || generating} aria-busy={saving || undefined}>
-            {saving && <Spinner data-icon="inline-start" />}
-            Save changes
-          </Button>
+        >
+          <span role="status" className="contents">
+          {draft ? (
+            <span className="flex items-center gap-2 text-sm">
+              <SparklesIcon className="size-4 text-brand" aria-hidden />
+              <span>
+                <span className="font-medium tabular-nums">
+                  {draft.count} field{draft.count === 1 ? "" : "s"} drafted
+                </span>{" "}
+                · Review, then save
+              </span>
+            </span>
+          ) : (
+            dirty && <span className="text-sm text-muted-foreground">Unsaved changes</span>
+          )}
+          </span>
+          <div className="ml-auto flex gap-2">
+            {dirty && (
+              <Button type="button" variant="outline" onClick={discardAll} disabled={saving}>
+                Discard
+              </Button>
+            )}
+            <Button type="submit" disabled={!dirty || over > 0 || saving || generating} aria-busy={saving || undefined}>
+              {saving && <Spinner data-icon="inline-start" />}
+              Save changes
+            </Button>
+          </div>
         </div>
       </form>
     </section>

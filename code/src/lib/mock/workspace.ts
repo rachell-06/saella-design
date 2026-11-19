@@ -1,6 +1,6 @@
 import type { BatchStatus } from "@/components/saella/status-badge";
 
-// Shared mock data for the product screens (2026-10-28). Read-only for screen code: a screen that needs more
+// Shared mock data for the product screens. Read-only for screen code: a screen that needs more
 // fields defines them locally next to itself. Campaigns and templates live in
 // `src/app/(app)/campaigns/_components/data.ts` (ids c1..c6, t1..t9); everything here points at those ids.
 // All names are fictional; numbers are illustrative. "Today" is 2026-10-27 (same as campaigns/data.ts).
@@ -86,7 +86,10 @@ export const senders: Sender[] = [
   { id: "s1", name: "Linh Tran", email: "linh@northwind-ceramics.com", status: "confirmed", ownerId: "u1" },
   { id: "s2", name: "Minh Pham", email: "minh@northwind-ceramics.com", status: "confirmed", ownerId: "u2" },
   { id: "s3", name: "Northwind Sales", email: "sales@northwind-ceramics.com", status: "unconfirmed" },
-  { id: "s0", name: "Northwind Ceramics via Saella", email: "northwind@shared.saella.ai", status: "confirmed", shared: true },
+  // The instant sender on the platform's shared domain (PRD AC-EC-I-01..03; live api/email/senders/instant): from
+  // <company_key>@<platform domain>, named after the company, capped at 1,000 a month. The domain is a placeholder until
+  // the team names the real one.
+  { id: "s0", name: "Northwind Ceramics", email: "northwind@shared.saella.ai", status: "confirmed", shared: true },
 ];
 
 // Contacts are one book grouped by tag (lib/mock/contacts.ts); a batch goes to everyone carrying any of its tags.
@@ -114,7 +117,6 @@ export const batches: Batch[] = [
   { id: "b2", templateId: "t2", campaignId: "c1", senderId: "s1", tags: ["hotel"], status: "sending", recipients: 640, sent: 412, createdOn: "2026-10-27", sentAt: "2026-10-27T02:00:00Z" },
   { id: "b3", templateId: "t6", campaignId: "c3", senderId: "s2", tags: ["distributor"], status: "sent", recipients: 2875, sent: 2875, createdOn: "2026-10-21", sentAt: "2026-10-21T00:00:00Z" },
   { id: "b4", templateId: "t7", campaignId: "c4", senderId: "s1", tags: ["architect"], status: "sent", recipients: 248, sent: 248, createdOn: "2026-10-24", sentAt: "2026-10-24T03:00:00Z" },
-  { id: "b5", templateId: "t1", campaignId: "c1", senderId: "s1", tags: ["hotel"], status: "scheduled", recipients: 600, sent: 0, createdOn: "2026-10-27", scheduledFor: "2026-10-30T02:00:00Z" },
   { id: "b6", templateId: "t4", campaignId: "c2", senderId: "s1", tags: ["fair"], status: "sent", recipients: 312, sent: 312, createdOn: "2026-09-12", sentAt: "2026-09-12T01:30:00Z" },
   { id: "b7", templateId: "t6", campaignId: "c3", senderId: "s2", tags: ["distributor"], status: "failed", recipients: 500, sent: 0, createdOn: "2026-10-15", reason: "Sender minh@northwind-ceramics.com was not confirmed at send time" },
   { id: "b8", templateId: "t5", campaignId: "c2", senderId: "s1", tags: ["fair"], status: "draft", recipients: 150, sent: 0, createdOn: "2026-09-18" },
@@ -122,7 +124,7 @@ export const batches: Batch[] = [
 
 export type AppNotification = {
   id: string;
-  kind: "batch" | "campaign" | "member" | "domain" | "share";
+  kind: "batch" | "campaign" | "member" | "domain" | "share" | "credits";
   title: string;
   body: string;
   at: string;
@@ -131,6 +133,11 @@ export type AppNotification = {
 };
 
 export const notifications: AppNotification[] = [
+  // A schedule short of credits waits and says so here; it runs again by itself once credits are
+  // bought. Matches the seeded schedule s-t7 in components/features/automation.ts. PRD Notification has no credit kind.
+  // Opens the template's Automation card, not Billing: the waiting schedule is there with Buy
+  // credits, which knows what each run needs.
+  { id: "n6", kind: "credits", title: "A schedule is waiting for credits", body: "“New tile range lookbook” needs 1,000 credits for its next run. Buy credits and it continues by itself.", at: "2026-10-27T01:00:00Z", read: false, href: "/templates/t7#automation" },
   { id: "n1", kind: "batch", title: "Batch finished", body: "“Intro – ceramics catalog” reached 1,240 recipients.", at: "2026-10-26T02:42:00Z", read: false, href: "/batches/b1/report" },
   { id: "n2", kind: "member", title: "Bao Nguyen wants to join", body: "Approve or reject in Members.", at: "2026-10-25T20:10:00Z", read: false, href: "/settings/organization" },
   { id: "n3", kind: "domain", title: "northwind-tiles.vn is not verified yet", body: "DKIM and DMARC records are missing.", at: "2026-10-25T04:00:00Z", read: true, href: "/settings/domain" },

@@ -81,8 +81,9 @@ export function AddSenderDialog({
                     aria-invalid={errors.local ? true : undefined}
                     autoFocus
                   />
+                  {/* One domain (the usual case): it reads as part of the address, not a cut-off disabled field. */}
                   <InputGroupAddon align="inline-end">
-                    <InputGroupText>@</InputGroupText>
+                    <InputGroupText>{domains.length > 1 ? "@" : `@${domains[0] ?? ""}`}</InputGroupText>
                   </InputGroupAddon>
                 </InputGroup>
                 {domains.length > 1 ? (
@@ -100,9 +101,7 @@ export function AddSenderDialog({
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                ) : (
-                  <Input aria-label="Domain" value={domains[0] ?? ""} readOnly disabled className="w-56" />
-                )}
+                ) : null}
               </div>
               {errors.local && <FieldError>{errors.local}</FieldError>}
             </Field>
@@ -130,7 +129,7 @@ export function AddSenderDialog({
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit">Add and send confirmation</Button>
+            <Button type="submit">Add sender</Button>
           </DialogFooter>
         </form>
       </DialogContent>

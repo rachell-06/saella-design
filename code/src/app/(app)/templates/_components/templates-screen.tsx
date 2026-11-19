@@ -7,6 +7,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
+  CirclePauseIcon,
   FileTextIcon,
   LockIcon,
   PlusIcon,
@@ -16,12 +17,14 @@ import {
 } from "lucide-react";
 import {
   type Campaign,
+  campaignStatus,
   formatDate,
   formatDateTime,
   sampleCampaigns,
 } from "@/lib/mock/campaigns";
 import { manyCampaigns } from "@/lib/mock/many-campaigns";
-import { useCreatedCampaigns } from "@/lib/mock/created-campaigns";
+import { applyCampaignStore } from "@/lib/mock/campaign-store";
+import { useCampaignStore } from "@/lib/mock/created-campaigns";
 import { PageHeader } from "@/components/layout/page-header";
 import { revealOnRowHover } from "@/components/saella/data-table";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
@@ -38,36 +41,34 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import {
   type TemplateRow,
-  type Viewer,
-  accessFor,
   allTemplates,
   applyTemplateStore,
   detailsFor,
-  ownerName,
   viewerFor,
 } from "@/lib/mock/templates";
 import { NewTemplateDialog } from "@/components/features/new-template-dialog";
 import { AutomateDialog } from "@/components/features/automation-panel";
-import { EditIconButton, SendButton, TemplateMenu } from "@/components/features/template-menu";
+import { EditIconButton, SendButton, TemplateMenu, TemplateNameCell, useRowOpen } from "@/components/features/template-menu";
 import { useTemplateStore } from "@/lib/mock/use-template-store";
 
 // All templates across campaigns, one flat table built like the live list (Repo EmailTemplatesList.tsx and
 // app/dashboard/email/templates/page.tsx, same on master and development):
-// - columns in the live order: Template (name + a Letter / Design chip, designer 2026-11-13; live shows no
-//   type), Campaign, Status, Delivered, Open, Click, Bounce,
-//   Last sent, actions. Live "Delivered / total" is the Delivery rate "98.2% (1,218)" with "of 1,240 sent" in its
-//   tooltip (PATTERNS.md §9.7: rates are RateCell, no separate count column; Delivery keeps its threshold);
+// - columns in the live order: Template (name + a Letter / Design chip; live shows no type), Campaign, Status,
+//   Delivered, Open, Click, Bounce, Last sent, actions. Live "Delivered / total" is the Delivery rate "98.2% (1,218)"
+//   with "of 1,240 sent" in its tooltip (PATTERNS.md §9.7: rates are RateCell, no separate count column; Delivery
+//   keeps its threshold);
 // - order: last edited first (live: updated_at desc), no column sorting (live has none);
-// - search (name, subject; Saella adds campaign name) + one Filter button as on Leads (user request 2026-11-12;
-//   live: one Campaign select): Campaign (searchable, several), Type, Status; active values as chips + Clear all.
-//   a follow-up that matches brings up its template (follow-ups themselves are not listed);
+// - search (name, subject; Saella adds campaign name) + one Filter button as on Leads (live: one Campaign select):
+//   Campaign (searchable, several), Type, Status; active values as chips + Clear all. A follow-up that matches brings
+//   up its template (follow-ups themselves are not listed);
 // - paging 20 per page, hidden on a single page (live pagination pageSize 20, hideOnSinglePage);
-// - row actions as live, condensed: Edit and Send on the row (live order), Share / View log / Transfer / Delete
-//   (+ Copy, Mark active) in ⋯; disabled with the reason when the viewer may not (template-permissions.ts).
-// Name only (designer 2026-11-12; live shows the subject): the subject appears when the search matched it; owner
-// and access (PRD Master) are in the name's tooltip. Follow-ups and automation are not on the list (designer
-// 2026-11-13, PATTERNS 9.6): they show on the template's own page (Automation card).
-// Saella look: bordered rounded-card frame, sticky header, thin column dividers, hover background.
+// - row actions as live, condensed: Edit and Send on the row (live order), Automate (active templates) / Share /
+//   View log / Transfer / Delete (+ Copy) in ⋯; disabled with the reason when the viewer may not
+//   (template-permissions.ts). The same cells and buttons as the Campaigns cards;
+// - a click anywhere on a row opens the template (PATTERNS 9.1).
+// Name only (live shows the subject): the subject appears when the search matched it; owner and access (PRD Master)
+// are in the name's tooltip (TemplateNameCell). Follow-ups are not on the list (PATTERNS 9.6): they show on the
+// template's own page (Automation card).
 // Preview states: ?state=loading | error | empty | paused | locked | member (Linh as a plain member, not admin)
 // | many (the 60 fictional campaigns of /campaigns?state=many, ~150 templates; their rows open no detail page).
 
@@ -77,8 +78,12 @@ const divider = "border-r border-border/50 last:border-r-0";
 
 type Row = TemplateRow & { subject: string; updatedAt: string };
 
-type Filters = { campaign: string[]; type: string[]; status: string[] };
-const NO_FILTERS: Filters = { campaign: [], type: [], status: [] };
+type Filters = { campaign: string[]; type: string[]; status: string[]; campaignStatus: string[] };
+const NO_FILTERS: Filters = { campaign: [], type: [], status: [], campaignStatus: [] };
+// The campaign's own status (as on Campaigns). Templates of an archived campaign are off and hidden until Archived is
+// picked here, or their campaign is picked by name.
+const CAMPAIGN_STATUS_OPTIONS = ["Active", "Not started", "Ended", "Archived"];
+const CAMPAIGN_STATUS_LABEL = { active: "Active", "not-started": "Not started", ended: "Ended", archived: "Archived" } as const;
 const TYPE_OPTIONS = [
   { value: "letter", label: "Letter" },
   { value: "design", label: "Design" },
@@ -96,7 +101,7 @@ export function TemplatesScreen() {
   const params = useSearchParams();
   const previewState = params.get("state");
   const viewer = viewerFor(previewState);
-  const created = useCreatedCampaigns();
+  const campaignState = useCampaignStore();
   const store = useTemplateStore();
   const [campaigns] = useState<Campaign[]>(() =>
     previewState === "empty" ? [] : previewState === "many" ? manyCampaigns : sampleCampaigns
@@ -104,18 +109,16 @@ export function TemplatesScreen() {
   const [query, setQuery] = useState(() => params.get("q") ?? "");
   // ?campaign=<id> lets the Campaigns screen link straight to its templates.
   const [filters, setFilters] = useState<Filters>(() => {
-    const c = [...created, ...sampleCampaigns].find((x) => x.id === params.get("campaign"));
+    const c = applyCampaignStore(campaigns, campaignState).find((x) => x.id === params.get("campaign"));
     return { ...NO_FILTERS, campaign: c ? [c.name] : [] };
   });
   const [page, setPage] = useState(0);
   const [automating, setAutomating] = useState<string | null>(null);
-  // Campaigns made this session (newest first, no templates yet) join the list's campaigns for the filter, Copy to
-  // and New template; a copy into one adds it to the list's own state.
-  const allCampaigns = useMemo(
-    () => [...created.filter((c) => !campaigns.some((x) => x.id === c.id)), ...campaigns],
-    [created, campaigns]
-  );
+  // The shared campaign store over the list's campaigns: made this session (newest first), edited, deleted (with
+  // their templates). Archived campaigns keep their templates here; New template and Copy to… leave them out.
+  const allCampaigns = useMemo(() => applyCampaignStore(campaigns, campaignState), [campaigns, campaignState]);
   const [creating, setCreating] = useState(false);
+  const rowOpen = useRowOpen();
 
   const loading = previewState === "loading";
   const error = previewState === "error";
@@ -136,6 +139,13 @@ export function TemplatesScreen() {
     [allCampaigns, store]
   );
 
+  // The campaign status of each row's campaign, archived first (the store's flag).
+  const campaignStatusOf = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const c of allCampaigns)
+      out.set(c.id, campaignState.archived.includes(c.id) ? "Archived" : CAMPAIGN_STATUS_LABEL[campaignStatus(c)]);
+    return out;
+  }, [allCampaigns, campaignState]);
   const q = query.trim().toLowerCase();
   const matches = (r: Row) =>
     (!q ||
@@ -144,21 +154,30 @@ export function TemplatesScreen() {
       r.campaignName.toLowerCase().includes(q)) &&
     (!filters.campaign.length || filters.campaign.includes(r.campaignName)) &&
     (!filters.type.length || filters.type.includes(r.kind)) &&
-    (!filters.status.length || filters.status.includes(r.status));
-  // Follow-ups are not listed (designer 2026-11-13): they and the automation show on the template's own page. A
-  // follow-up that matches the search or filters brings up its template instead.
+    (!filters.status.length || filters.status.includes(r.status)) &&
+    (filters.campaignStatus.length
+      ? filters.campaignStatus.includes(campaignStatusOf.get(r.campaignId) ?? "Active")
+      : campaignStatusOf.get(r.campaignId) !== "Archived" || filters.campaign.includes(r.campaignName));
+  // Follow-ups are not listed; one that matches the search or filters brings up its template instead.
   const isFollowUp = (r: Row) => Boolean(r.followUp && rows.some((x) => x.id === r.followUp!.of));
   const hits = rows.filter(matches);
   const visibleIds = new Set(hits.map((r) => (isFollowUp(r) ? r.followUp!.of : r.id)));
   const visible = rows.filter((r) => visibleIds.has(r.id) && !isFollowUp(r)).sort(byUpdated);
   const matched = visible;
-  const filterCount = filters.campaign.length + filters.type.length + filters.status.length;
+  const filterCount =
+    filters.campaign.length + filters.type.length + filters.status.length + filters.campaignStatus.length;
   const chips = [
     ...filters.campaign.map((v) => ({
       key: `c-${v}`,
       label: "Campaign",
       value: v,
       remove: { ...filters, campaign: filters.campaign.filter((x) => x !== v) },
+    })),
+    ...filters.campaignStatus.map((v) => ({
+      key: `cs-${v}`,
+      label: "Campaign status",
+      value: v,
+      remove: { ...filters, campaignStatus: filters.campaignStatus.filter((x) => x !== v) },
     })),
     ...filters.type.map((v) => ({
       key: `t-${v}`,
@@ -191,7 +210,7 @@ export function TemplatesScreen() {
     <>
       <PageHeader
         title="Templates"
-        description="Every email you send, with how many opened, clicked and replied."
+        description="Every email you've written and how each one performs."
         actions={
           <Button size="sm" onClick={() => setCreating(true)} disabled={allCampaigns.length === 0}>
             <PlusIcon data-icon="inline-start" />
@@ -200,13 +219,20 @@ export function TemplatesScreen() {
         }
       />
 
+      {/* Same paused alert as Campaigns, Overview and the batch report: warning + pause icon. */}
       {previewState === "paused" && (
-        <Alert variant="destructive">
-          <CircleAlertIcon />
+        <Alert variant="warning">
+          <CirclePauseIcon />
           <AlertTitle>Sending is paused for this workspace</AlertTitle>
           <AlertDescription>
-            Too many messages bounced or were marked as spam. An admin can resume sending in Settings.
+            Too many messages bounced or were marked as spam. Remove those addresses. Saella reviews and lifts the
+            pause; unsent emails go out then.
           </AlertDescription>
+          <AlertAction>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/settings/sending">Sending health</Link>
+            </Button>
+          </AlertAction>
         </Alert>
       )}
       {previewState === "locked" && (
@@ -277,8 +303,7 @@ export function TemplatesScreen() {
                 />
               </InputGroup>
               <FilterPopover count={filterCount} onClearAll={() => applyFilters(NO_FILTERS)} disabled={loading} size="default">
-                {/* Compact (designer rule 2026-11-12): 4+ options → one control; 2–3 options → inline choices.
-                    Order (PATTERNS 9.1): status first, then the multi-select, then the other inline list. */}
+                {/* Order (PATTERNS 9.1): status first, then the multi-select, then the other inline list. */}
                 <FilterCheckList
                   label="Status"
                   options={STATUS_OPTIONS}
@@ -293,6 +318,14 @@ export function TemplatesScreen() {
                   placeholder="Any campaign"
                   searchPlaceholder="Search campaigns"
                 />
+                <FilterMultiSelect
+                  label="Campaign status"
+                  options={CAMPAIGN_STATUS_OPTIONS}
+                  value={filters.campaignStatus}
+                  onChange={(picked) => applyFilters({ ...filters, campaignStatus: picked })}
+                  placeholder="Any except archived"
+                  searchPlaceholder="Search statuses"
+                />
                 <FilterCheckList
                   label="Type"
                   options={TYPE_OPTIONS}
@@ -300,7 +333,7 @@ export function TemplatesScreen() {
                   onChange={(type) => applyFilters({ ...filters, type })}
                 />
               </FilterPopover>
-              {/* No visible count (designer 2026-11-12); screen readers still hear the result of a search or filter. */}
+              {/* No visible count; screen readers still hear the result of a search or filter. */}
               <span className="sr-only" role="status" aria-live="polite">
                 {!loading && (q || filterCount > 0)
                   ? `${matched.length} ${matched.length === 1 ? "template" : "templates"} found`
@@ -313,35 +346,39 @@ export function TemplatesScreen() {
             />
           </div>
 
-          {/* overflow-clip (not hidden) rounds the corners. Below its minimum width (designer 2026-11-14: the name must
-              stay readable at 1280) the table scrolls sideways inside this card (its table-container), never the page. */}
+          {/* overflow-clip (not hidden) rounds the corners. Below its minimum width (the name must stay readable at 1280)
+              the table scrolls sideways inside this card (its table-container), never the page. */}
           <div className="overflow-clip rounded-card border">
             <Table
               aria-label="Templates"
               aria-busy={loading || undefined}
-              className="min-w-263 table-fixed [&_td]:px-2 [&_th]:px-2 [&_td:first-child]:px-3 [&_th:first-child]:px-3 min-[1600px]:[&_td]:px-3 min-[1600px]:[&_th]:px-3"
+              className="min-[1441px]:min-w-279 table-fixed [&_[data-slot=rate-value]]:flex-wrap [&_[data-slot=rate-value]]:gap-y-0 border-separate border-spacing-0 [&_th]:border-b [&_td]:border-b [&_tbody_tr:last-child_td]:border-b-0 [&_td]:px-2 [&_th]:px-2 [&_td:first-child]:px-3 [&_th:first-child]:px-3 min-[1600px]:[&_td]:px-3 min-[1600px]:[&_th]:px-3"
             >
-              {/* Widths (designer 2026-11-12, 2026-11-14). Numbers at content width, padded px-2 (Template px-3);
-                  Template takes the rest, never less than ~13rem (min-w-263 on the table: below that it scrolls in
-                  its card, ~1366px viewport); Campaign truncates (full name on hover). From a 1600px viewport: px-3
-                  everywhere, Template fixed to its longest name, Campaign wide enough for whole names. */}
+              {/* Widths. Numbers at content width, padded px-2 (Template px-3); Template takes the rest, never less than ~13rem
+                  (min-w-279 on the table: below that it scrolls in its card, ~1366px viewport) and wraps to two lines before it
+                  truncates; Campaign (w-48) fits the usual names whole above 1440. From a 1600px viewport: px-3 everywhere,
+                  Template fixed to its longest name, Campaign wide enough for whole names. */}
               <colgroup>
+                {/* Up to and including 1440 (laptops) the table fits its card with no sideways scroll: narrower columns, Campaign
+                    on up to two lines, a rate's count may wrap under it. */}
                 <col className="min-[1600px]:w-80" />
-                <col className="w-32 min-[1600px]:w-52" />
-                <col className="w-24 min-[1600px]:w-26" />
-                <col className="w-30 min-[1600px]:w-auto" />
-                <col className="w-28 min-[1600px]:w-auto" />
-                <col className="w-25 min-[1600px]:w-auto" />
-                <col className="w-24 min-[1600px]:w-auto" />
-                <col className="w-20 min-[1600px]:w-24" />
+                <col className="w-36 min-[1441px]:w-48 min-[1600px]:w-52" />
+                <col className="w-22 min-[1441px]:w-24 min-[1600px]:w-26" />
+                <col className="w-22 min-[1441px]:w-30 min-[1600px]:w-auto" />
+                <col className="w-22 min-[1441px]:w-28 min-[1600px]:w-auto" />
+                <col className="w-20 min-[1441px]:w-25 min-[1600px]:w-auto" />
+                <col className="w-20 min-[1441px]:w-24 min-[1600px]:w-auto" />
+                <col className="w-18 min-[1441px]:w-20 min-[1600px]:w-24" />
                 <col className="w-28 min-[1600px]:w-30" />
               </colgroup>
-              <TableHeader className="sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_var(--border)]">
+              {/* Header row: the table-head token like every other table. Its bottom rule is drawn per cell (separate
+                  borders above), so it stays under the sticky row while the rows scroll. */}
+              <TableHeader>
                 <TableRow>
                   <TableHead className={divider}>Template</TableHead>
                   <TableHead className={divider}>Campaign</TableHead>
                   <TableHead className={divider}>Status</TableHead>
-                  <TableHead className={divider}>Delivered</TableHead>
+                  <TableHead className={divider}>Delivery</TableHead>
                   <TableHead className={divider}>Open</TableHead>
                   <TableHead className={divider}>Click</TableHead>
                   <TableHead className={divider}>Bounce</TableHead>
@@ -383,13 +420,16 @@ export function TemplatesScreen() {
                 ) : (
                   shown.map((t) => {
                     return (
-                      <TableRow key={t.id} className="group/row">
+                      <TableRow key={t.id} className="group/row cursor-pointer" onClick={rowOpen(`/templates/${t.id}`)}>
                         <TableCell className={cn(divider, "whitespace-normal")}>
-                          <NameCell template={t} viewer={viewer} query={q} />
+                          <TemplateNameCell template={t} viewer={viewer} query={q} />
                         </TableCell>
                         <TableCell className={divider}>
                           {/* Name only, as live (schedule and campaign state are on the detail page). */}
-                          <span className="block truncate" title={t.campaignName}>
+                          <span
+                            className="line-clamp-2 whitespace-normal min-[1441px]:line-clamp-none min-[1441px]:block min-[1441px]:truncate min-[1441px]:whitespace-nowrap"
+                            title={t.campaignName}
+                          >
                             {t.campaignName}
                           </span>
                         </TableCell>
@@ -469,60 +509,5 @@ export function TemplatesScreen() {
       <NewTemplateDialog open={creating} onOpenChange={setCreating} campaigns={allCampaigns} />
 
     </>
-  );
-}
-
-/** Name (links to the template; owner and access in its tooltip, PRD Master). The subject shows as line 2 only
- *  when the search matched it and not the name (designer request 2026-11-12). */
-function NameCell({
-  template: t,
-  viewer,
-  query,
-}: {
-  template: Row;
-  viewer: Viewer;
-  /** Trimmed, lower-case search; the subject shows only when it, not the name, matched. */
-  query: string;
-}) {
-  const access = accessFor(t, viewer);
-  const who =
-    access === "owner"
-      ? "Owner: you"
-      : `Owner: ${ownerName(t.owner)} · ${access === "viewer" ? "view only" : access === "shared" ? "shared with you" : "admin access"}`;
-  const subjectHit = query && !t.name.toLowerCase().includes(query) ? t.subject.toLowerCase().indexOf(query) : -1;
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      {/* The name gets the whole line (designer 2026-11-14: a chip beside it squeezed it to one letter); the hint
-          carries the full name, so a long one can truncate. */}
-      <Hint
-        label={
-          <>
-            <span className="block font-medium">{t.name}</span>
-            {who}
-          </>
-        }
-      >
-        <Link
-          href={`/templates/${t.id}`}
-          className="truncate rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-        >
-          {t.name}
-        </Link>
-      </Hint>
-      {/* Second line: the type (Letter / Design), and why the row matched a search on the subject. */}
-      <span className="truncate text-sm text-muted-foreground" title={subjectHit >= 0 ? t.subject : undefined}>
-        {t.kind === "design" ? "Design" : "Letter"}
-        {subjectHit >= 0 && (
-          <>
-            {" · "}
-            {t.subject.slice(0, subjectHit)}
-            <mark className="rounded-sm bg-primary-subtle px-0.5 text-foreground">
-              {t.subject.slice(subjectHit, subjectHit + query.length)}
-            </mark>
-            {t.subject.slice(subjectHit + query.length)}
-          </>
-        )}
-      </span>
-    </div>
   );
 }

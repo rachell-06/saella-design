@@ -5,8 +5,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BellIcon,
   Building2Icon,
   ChevronsUpDownIcon,
+  CreditCardIcon,
+  GlobeIcon,
+  LanguagesIcon,
+  LockOpenIcon,
+  SearchIcon,
+  SendIcon,
+  UploadIcon,
+  UserIcon,
+  UsersIcon,
   LayoutTemplateIcon,
   LineChartIcon,
   LogOutIcon,
@@ -46,40 +56,81 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 
-// Same entries as the live app's DashboardSidebar (Repo, 2026-10-27), grouped under labels like Studio Admin's
-// nav (user request 2026-10-29). Overview has no label: it is the home of the app.
+// Same entries as the live app's DashboardSidebar (Repo), grouped under labels like Studio Admin's nav. Overview has
+// no label: it is the home of the app.
 /** `match`: other route prefixes that also highlight this entry (Leads covers /companies and /contacts). */
-type NavItem = { href: string; label: string; icon: typeof MailIcon; match?: string[]; exact?: boolean };
+/** `matchRe`: a route shape that also highlights it (a batch report sits under its template). */
+/** `keywords`: other words people search for in the command palette (Ctrl K): old names, tab names, sub-pages. */
+type NavItem = {
+  href: string;
+  label: string;
+  icon: typeof MailIcon;
+  match?: string[];
+  matchRe?: RegExp;
+  exact?: boolean;
+  keywords?: string[];
+};
 export const navGroups: { label?: string; items: NavItem[] }[] = [
-  // Grouped by product area (designer 2026-11-12): email outreach (campaigns, templates and the leads they go to)
-  // and social posting, a separate, newer feature. The agent opens from the launcher, not the nav (its page is gone).
+  // Grouped by product area: email outreach (campaigns, templates and the leads they go to) and social posting. The
+  // agent opens from the launcher, not the nav.
   {
-    items: [{ href: "/overview", label: "Overview", icon: LineChartIcon }],
+    items: [{ href: "/overview", label: "Overview", icon: LineChartIcon, keywords: ["Home", "Dashboard"] }],
   },
   {
     label: "Email outreach",
     items: [
-      // Leads first: find who to write to, then campaigns and templates (designer 2026-11-12).
-      // Contacts merged into Companies as one "Leads" entry with tabs (user request 2026-10-29, leads-tabs.tsx).
-      { href: "/companies", label: "Leads", icon: Building2Icon, match: ["/contacts"] },
-      { href: "/campaigns", label: "Campaigns", icon: MailIcon },
-      { href: "/templates", label: "Templates", icon: LayoutTemplateIcon },
+      // Leads first: find who to write to, then campaigns and templates. Companies and Contacts are one "Leads" entry with
+      // tabs (leads-tabs.tsx).
+      {
+        href: "/companies",
+        label: "Leads",
+        icon: Building2Icon,
+        match: ["/contacts"],
+        keywords: ["Companies"],
+      },
+      { href: "/campaigns", label: "Campaigns", icon: MailIcon, keywords: ["Email campaigns"] },
+      {
+        href: "/templates",
+        label: "Templates",
+        icon: LayoutTemplateIcon,
+        matchRe: /^\/batches\/(?!new(?:\/|$))[^/]+\/report/,
+        keywords: ["Emails", "Batches", "Reports", "Automation", "Follow-up"],
+      },
     ],
   },
   {
     label: "Social",
     items: [
       // Social posting (live app origin/development: nav.social → /dashboard/social).
-      // Two entries replace the page's Campaigns · Accounts tabs (designer 2026-11-12). "Posts", not "Campaigns", so it
-      // doesn't read like the email campaigns above.
-      { href: "/social", label: "Posts", icon: Share2Icon, exact: true, match: ["/social/campaigns"] },
-      { href: "/social/accounts", label: "Accounts", icon: AtSignIcon },
+      // Two entries, "Posts" (not "Campaigns", so it doesn't read like the email campaigns above) and Accounts.
+      { href: "/social", label: "Posts", icon: Share2Icon, exact: true, match: ["/social/campaigns"], keywords: ["Social"] },
+      { href: "/social/accounts", label: "Accounts", icon: AtSignIcon, keywords: ["Social accounts", "Connections"] },
     ],
   },
 ];
-// Settings lives in the account menu, not the nav (user request 2026-11-11); search (Ctrl K) still lists it.
-const SETTINGS_ITEM: NavItem = { href: "/settings", label: "Settings", icon: SettingsIcon };
+// Settings lives in the account menu, not the nav; search (Ctrl K) still lists it.
+const SETTINGS_ITEM: NavItem = {
+  href: "/settings",
+  label: "Settings",
+  icon: SettingsIcon,
+};
 export const navItems = [...navGroups.flatMap((g) => g.items), SETTINGS_ITEM];
+
+/** Tabs and sub-pages the command palette (Ctrl K) opens directly: "billing" goes to Billing, "contacts" to
+ *  Self-upload, not to their parent page. `parent` is shown next to the label. */
+export const subPages: (NavItem & { parent: string })[] = [
+  { href: "/companies", label: "Find companies", parent: "Leads", icon: SearchIcon, keywords: ["Search companies"] },
+  { href: "/companies/unlocked", label: "Unlocked", parent: "Leads", icon: LockOpenIcon, keywords: ["Unlocked companies"] },
+  { href: "/contacts", label: "Self-upload", parent: "Leads", icon: UploadIcon, keywords: ["Contacts", "Import", "Upload"] },
+  { href: "/settings/profile", label: "Profile", parent: "Settings", icon: UserIcon, keywords: ["Account", "Password"] },
+  { href: "/settings/notifications", label: "Notifications", parent: "Settings", icon: BellIcon, keywords: ["Emails", "Alerts"] },
+  { href: "/settings/language", label: "Language", parent: "Settings", icon: LanguagesIcon },
+  { href: "/settings/workspace", label: "Company", parent: "Settings", icon: Building2Icon, keywords: ["Workspace", "Logo"] },
+  { href: "/settings/domain", label: "Domain", parent: "Settings", icon: GlobeIcon, keywords: ["DNS", "DKIM", "Verify"] },
+  { href: "/settings/sending", label: "Sending", parent: "Settings", icon: SendIcon, keywords: ["Senders", "Sending health"] },
+  { href: "/settings/organization", label: "Members", parent: "Settings", icon: UsersIcon, keywords: ["Team", "Invite", "Users"] },
+  { href: "/settings/billing", label: "Billing", parent: "Settings", icon: CreditCardIcon, keywords: ["Credits", "Plan", "Top up", "Invoices"] },
+];
 
 export type AppSidebarUser = {
   name: string;
@@ -113,7 +164,8 @@ function NavItems({ items, current }: { items: NavItem[]; current: string }) {
         isActive={
           current === item.href ||
           (!item.exact && current.startsWith(`${item.href}/`)) ||
-          (item.match ?? []).some((h) => current === h || current.startsWith(`${h}/`))
+          (item.match ?? []).some((h) => current === h || current.startsWith(`${h}/`)) ||
+          Boolean(item.matchRe?.test(current))
         }
         tooltip={item.label}
       >
@@ -135,8 +187,7 @@ export function AppSidebar({
   return (
     <Sidebar {...props}>
       <SidebarHeader>
-        {/* The collapse toggle sits in the sidebar (designer 2026-11-12): beside the logo when open; when collapsed to
-            icons the logo hides and the toggle takes its place. */}
+        {/* The collapse toggle sits beside the logo when open; collapsed to icons, the toggle takes the logo's place. */}
         <SidebarMenu className="flex-row items-center gap-1">
           <SidebarMenuItem className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
             <SidebarMenuButton size="lg" asChild>
@@ -158,14 +209,15 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
 
-      {/* No "Ask the agent" entry here (removed on request 2026-10-29): the agent opens from the floating
-          launcher at the bottom right and from search (Ctrl K). */}
+      {/* No "Ask the agent" entry here: the agent opens from the floating launcher and from search (Ctrl K). */}
       <SidebarContent>
-        {/* The route is only known at request time on dynamic routes (cacheComponents), so the part that
-            reads it suspends on its own; the fallback is the same list without a highlight. */}
-        <Suspense fallback={<NavGroups current="" />}>
-          <RouteNavGroups />
-        </Suspense>
+        {/* The route is only known at request time on dynamic routes (cacheComponents), so the part that reads it
+            suspends on its own; the fallback is the same list without a highlight. */}
+        <nav aria-label="Main" className="flex flex-col">
+          <Suspense fallback={<NavGroups current="" />}>
+            <RouteNavGroups />
+          </Suspense>
+        </nav>
       </SidebarContent>
 
       <SidebarFooter>
@@ -206,7 +258,7 @@ function AccountMenu({ user }: { user: AppSidebarUser }) {
               {user.name}
             </span>
             <span
-              className="truncate text-xs text-subtle-foreground"
+              className="truncate text-xs text-muted-foreground"
               title={user.email}
             >
               {user.email}
@@ -220,12 +272,9 @@ function AccountMenu({ user }: { user: AppSidebarUser }) {
         align="start"
         className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
       >
-        <DropdownMenuLabel className="font-normal text-muted-foreground">
-          {user.email}
-        </DropdownMenuLabel>
+        {/* The email shows once, on the trigger above. */}
         <DropdownMenuGroup>
-          {/* One entry (designer decision 2026-11-12): Profile is the first Settings tab, so a separate Profile item led
-              to the same screen. */}
+          {/* One entry: Profile is the first Settings tab. */}
           <DropdownMenuItem asChild>
             <Link href="/settings/profile">
               <SettingsIcon />
@@ -234,7 +283,7 @@ function AccountMenu({ user }: { user: AppSidebarUser }) {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs text-subtle-foreground">
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
           Theme
         </DropdownMenuLabel>
         <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>

@@ -45,17 +45,30 @@ Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại 
 
 **Bố cục**
 - Không bóng cho nền, card, khung, bảng trong trang; tách lớp bằng hairline. Bóng chỉ cho phần tử nổi: popover, menu, toast, dialog, sheet, nút nổi.
-- Mỗi trang **một** nút cam đặc; mọi nút khác `outline` hoặc `ghost`.
+- Mỗi trang **một** nút cam đặc; mọi nút khác `outline` hoặc `ghost`. Dialog, sheet và khung agent là bề mặt riêng, được có nút chính cam của mình (designer 2026-11-18). Ngoại lệ thứ hai: nút "Write with Saella" trên thanh công cụ của trình soạn giữ cam đặc như app thật, có icon ✨ động (designer 2026-11-18); các nút AI khác vẫn dùng biến thể `ai`.
 - Nội dung rộng tối đa 1536px, căn giữa. Thanh header và vạch kẻ dưới nó trải hết bề ngang (chỉ phần bên trong bị giới hạn).
 - Đầu trang luôn là `PageHeader`; màn mới đặt trong `code/src/app/(app)/<màn>/`.
 - Dữ liệu cha–con (campaign → template) dùng master–detail (`PATTERNS.md` 9.6).
+- Thanh hành động dính đáy màn (Save của Settings › Company, chân Review của New batch) gắn `data-sticky-actions`: nút nổi "Ask the agent" tự nâng lên ngay trên thanh khi thanh nằm dưới chỗ của nó, nên không che Save / Send (designer 2026-11-18, `components/layout/app-shell.tsx`).
 
 **Bảng**
-- **Không bảng nào trải hết danh sách ra trang** (người dùng chốt 2026-11-14, áp cho mọi bảng): bảng nằm trong một vùng giới hạn chiều cao, các dòng cuộn bên trong, hàng tiêu đề dính ở trên. Mặc định trong `components/ui/table.tsx` (cao tối đa `max(20rem, 100svh − 14rem)`); bảng chiếm hết cột flex (Leads, New batch) thì vùng là phần còn lại của màn, phân trang/đếm ở chân khung. Không tự viết bảng ngoài `Table`/`DataTable`.
+- **Không bảng nào trải hết danh sách ra trang** (người dùng chốt 2026-11-14, áp cho mọi bảng): bảng nằm trong một vùng giới hạn chiều cao, các dòng cuộn bên trong, hàng tiêu đề dính ở trên. Mặc định trong `components/ui/table.tsx` (cao tối đa `max(20rem, 100svh − 14rem)`); bảng chiếm hết cột flex (Leads, New batch) thì vùng là phần còn lại của màn, phân trang/đếm ở chân khung. Không tự viết bảng ngoài `Table`/`DataTable`. Ngoại lệ có ghi nhận (designer 2026-11-18): danh sách bài ở **Posts** (`social/_components/campaigns-screen.tsx`) giữ danh sách dựng tay theo kiểu "List" của kanban Studio Admin (nhóm campaign thu gọn được, bài là dòng bên dưới, mở ra từng mạng), không đổi sang `Table`.
+- **Chiều cao vùng cuộn bên trong theo loại vùng** (designer 2026-11-19): giữ thanh cuộn gốc của trình duyệt (không dùng ScrollArea, không đổi kiểu thanh cuộn); cuộn cả trang giữ nguyên. Lấy hằng trong `code/src/lib/scroll.ts`, không viết `max-h-*`/`overflow-*` riêng cho vùng cuộn mới:
+
+  | Loại vùng | Chiều cao | Hằng |
+  |---|---|---|
+  | Bảng trên trang | tối đa `max(20rem, 100svh − 14rem)` (mặc định của `Table`) | `SCROLL_TABLE` |
+  | Bảng chiếm hết cột flex (Leads, `TableFrame`) | phần còn lại của màn, tiêu đề dính, chỉ dòng cuộn | `SCROLL_TABLE_FILL` (đặt ở cha của `Table`) |
+  | Bảng trong card ở trang chi tiết (Send history, All recipients, tab báo cáo batch) | `min(60vh, 40rem)` | `SCROLL_CARD_TABLE` (cha), `SCROLL_CARD_TABLE_BOX` (khung tự cuộn) |
+  | Danh sách hoặc bảng trong dialog | `clamp(18rem, 40vh, 26rem)` | `SCROLL_DIALOG_LIST`, `SCROLL_DIALOG_TABLE` |
+  | Danh sách trong popover, dropdown, combobox, multi-select, tree-select | tối đa 320px (`max-h-80`) | `SCROLL_POPOVER_LIST` |
+  | Thân sheet | header, footer cố định; chỉ thân cuộn | `SCROLL_SHEET_BODY` |
+
+  Vùng cuộn nằm trong trang hoặc dialog đang cuộn thì có `overscroll-contain` (đã gồm trong hằng). Không áp: khung app, thanh bên, khung tin nhắn agent, khung xem email và canvas soạn thảo.
 - Tối đa 2 tầng chữ mỗi dòng. Một cột một kiểu hiển thị: không lẫn badge với chữ.
 - Rê chuột lên dòng: nền `muted/50` như Studio Admin (đổi 2026-11-10, trước đây không đổi nền). Checkbox chọn dòng luôn hiện (như Studio Admin, đổi 2026-11-10); nút thao tác dòng ⋯ hiện khi rê chuột hoặc Tab tới; bảng gọn có thể cho thao tác nổi đè lên cột cuối.
 - Một trang chỉ một hàng tab gạch chân. Bộ lọc phụ có đếm bên dưới (vd. Total / New / Already saved ở Find companies) dùng chip `ToggleGroup`.
-- Chỉ hiện nhãn trạng thái khi khác trạng thái bình thường; ngoại lệ: bảng template và bảng công ty (Find companies) luôn có cột Status, mọi dòng đều có badge.
+- Chỉ hiện nhãn trạng thái khi khác trạng thái bình thường; ngoại lệ: bảng template, bảng công ty (Find companies) bảng Recipients của báo cáo batch và bảng Follow-up của thẻ Automation (designer 2026-11-18) luôn có cột Status, mọi dòng đều có badge, kể cả khi đang Active.
 - Ô bảng không có số thì để trống (không "0%", không "–"). Ô KPI chưa có số thì hiện "–". Cả hai không bao giờ hiện "0" thay cho "chưa biết" (PRD Master v1.6.8). Chỉ phân trang khi dài hơn một trang.
 
 **Số liệu**
@@ -95,7 +108,7 @@ Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại 
 | Animation lặp vô hạn trên control; animation không tắt theo reduced motion | Mục 7 |
 | `shadcn apply` / `init --preset` (ghi đè token Saella) | Sửa `tokens.css` |
 
-Ngoại lệ duy nhất cho mã màu và icon nhiều màu: logo nhà cung cấp trên nút đăng nhập (Google, Microsoft) giữ màu chính thức của họ, cả light lẫn dark.
+Ngoại lệ duy nhất cho mã màu và icon nhiều màu: logo nhà cung cấp trên nút đăng nhập (Google, Microsoft) và logo mạng xã hội (mục 7 "Icon") giữ màu chính thức của họ, cả light lẫn dark (designer 2026-11-18).
 
 ## 3. Token
 
@@ -167,7 +180,7 @@ Campaign (Not started / Active / Ended / Archived) và template (Active / Inacti
 | `chart-5` | gold | 2.16:1 trên trắng: luôn kèm nhãn hoặc legend |
 | `chart-6` | rose | Bounce |
 
-Mỗi chỉ số giữ một màu ở cả light và dark. Đã kiểm phân biệt khi mù màu (OKLab, mô phỏng deutan/protan).
+Mỗi chỉ số giữ một màu ở cả light và dark, trên mọi biểu đồ: bảng chỉ số → màu khai báo một nơi, `src/lib/metric-colors.ts` (Sent cam, Delivered blue, Opens teal, Clicks gold, Replies plum, Bounce rose; 2026-11-18). Biểu đồ không tự chọn màu cho chỉ số. Đã kiểm phân biệt khi mù màu (OKLab, mô phỏng deutan/protan).
 
 ### 4.4 Dark mode
 - Nền, chữ, viền lấy bảng dark "neutral" của shadcn; độ sáng tăng dần: trang < card, popover, sidebar < muted.
@@ -192,7 +205,7 @@ Font **Geist** (`next/font`). Giao diện có ba ngôn ngữ: **English, Tiếng
 
 | Class | Cỡ / dòng | Weight | Dùng cho |
 |---|---|---|---|
-| `text-xs` | 12 / 16 | 500–600 | Chỉ badge, kbd, trục biểu đồ, bộ đếm, nhãn nhóm |
+| `text-xs` | 12 / 16 | 500–600 | Chỉ badge, kbd, trục biểu đồ, nhãn nhóm và siêu dữ liệu ngắn không bấm được (quy tắc 12px dưới bảng) |
 | `text-dense` | 13 / 18 | 400 | Ô bảng dày |
 | `text-sm` | 14 / 20 | 400; nút, nhãn 500 | **Body mặc định**, ô nhập, nút, menu |
 | `text-base` | 16 / 24 | 400 | Đoạn đọc dài (chat agent, mô tả) |
@@ -203,6 +216,7 @@ Font **Geist** (`next/font`). Giao diện có ba ngôn ngữ: **English, Tiếng
 
 - Phân cấp bằng cỡ và màu trước, weight sau; hạn chế 700.
 - Không viết hoa cả câu. Nhãn nhóm: 12px, 600, `muted-foreground`.
+- **Quy tắc 12px** (designer 2026-11-18): 12px chỉ cho badge, kbd, trục biểu đồ, nhãn nhóm và **siêu dữ liệu ngắn không bấm được** (giờ, bộ đếm, "3 credits used", "+600 on Dec 12"), tối đa ~8 từ, màu `muted-foreground` (≥ 4.5:1), không bao giờ `subtle-foreground`. Không bao giờ 12px cho chữ bấm được (link, nút), tiêu đề, câu giải thích hay lỗi, và thông tin dùng để quyết định (giá, số credit cần nạp): những chữ đó tối thiểu 14px. **Ngoại lệ: tooltip** (`Hint`, `LockedTip`) giữ 12px như shadcn: nền tối tương phản cao, câu ngắn (designer 2026-11-18).
 
 ## 6. Khoảng cách, bo góc, viền
 
@@ -290,18 +304,18 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 
 | Component | Saella |
 |---|---|
-| Button | `default` = `primary`, hover `primary-hover`. `outline` viền `input`. `destructive` nền `destructive-soft`. `ai` = hành động AI (✨): nền `primary-subtle`, chữ `primary-soft-foreground`, icon `brand`, viền `brand/30`; không bao giờ cam đặc, không tính là nút cam duy nhất của trang |
+| Button | `default` = `primary`, hover `primary-hover`. `outline` viền `input`. `destructive` nền `destructive-soft`. `ai` = hành động AI (✨): nền `peach` đặc, chữ và icon `primary-soft-foreground`, không viền (designer 2026-11-18: bản viền nhạt quá mờ); không bao giờ cam đặc, không tính là nút cam duy nhất của trang |
 | Input, Textarea | Viền `input`; placeholder `subtle-foreground` |
 | Select | Popover `shadow-card`; mục đang chọn có dấu check |
 | Checkbox, Radio, Switch | Bật = `primary`, tắt viền `input`. Checkbox có trạng thái "chọn một phần" |
 | Badge | Pill 12px, weight 500 (người dùng chốt 2026-11-13; trước là 600). Tông: trung tính, `brand`, `success`, `warning`, `info`, `destructive` (họ `-soft`) |
-| Table | Theo Studio Admin: hàng tên cột không nền, chữ 14px 500 màu chữ chính; ô lề 16px; rê chuột nền `muted/50`; dòng chọn `primary-subtle`. Tiêu đề dính khi cuộn thì thêm nền `background` |
+| Table | Theo Studio Admin: hàng tên cột không nền, chữ 14px 500 màu chữ chính; ô lề 16px; rê chuột nền `muted/50`; dòng chọn `primary-subtle`, badge xám (tag) trong dòng chọn chuyển nền `card` (trắng) cho khỏi chìm; badge trạng thái giữ nguyên (designer 2026-11-18). Tiêu đề dính khi cuộn thì thêm nền `background` |
 | Tabs | Mặc định gạch dưới màu `brand`, tab chưa chọn `muted-foreground`. Chuyển chế độ xem (Rates / Counts) dùng `TabsList variant="default"` |
 | Toggle, ToggleGroup | Mục đang chọn nền `primary-soft`. Chip chọn nhiều (series biểu đồ, lọc sự kiện) |
 | Dialog, AlertDialog | Bo 12px, `shadow-float`, overlay `deep` 40%. `DialogContent` có `grid-cols-[minmax(0,1fr)]` để nội dung rộng cuộn bên trong |
 | Sheet | `shadow-float`. Chi tiết contact, công ty |
 | Alert | Thêm tông `info`, `success`, `warning`. Alert cho thông báo cần nằm lại; toast cho xác nhận ngắn |
-| Toast (`sonner`) | Icon theo họ ngữ nghĩa; warning dùng `warning-soft-foreground` |
+| Toast (`sonner`) | Icon theo họ ngữ nghĩa; warning dùng `warning-soft-foreground`; hiện ở giữa phía trên (`top-center`, designer 2026-11-19) |
 | Card | `rounded-card` (12px) |
 | Message, Bubble, MessageScroller, Trace, Attachment, Marker | Bộ chat của shadcn cho Agent; không cài AI Elements (Vercel, sắp gộp vào shadcn). Attachment bo `rounded-card`, trạng thái đang tải dùng `shimmer` của shadcn (tự tắt khi giảm chuyển động). Marker cho mốc trong hội thoại |
 
@@ -312,7 +326,7 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 | `StatusBadge` | Trạng thái campaign / template / batch: chấm tĩnh + chữ (mục 4.2) |
 | `KpiStrip` | Mẫu KPI hiện dùng (Overview, Campaigns, báo cáo batch, Billing); màn dựng lại từ Studio Admin thì dùng kiểu KPI của trang mẫu: một dải liền khối chia bằng hairline, không icon trang trí. Ô có `href` thì bấm được; `detail` vào tooltip; tông `warning` / `danger` khi vượt ngưỡng |
 | `RateCell`, `RateValue`, `rateKpi` | Cách duy nhất để hiện tỉ lệ email (`rate-meter.tsx`): "38.3% (466)", mẫu số trong tooltip, màu theo `RATE_BANDS`. `RateCell` cho bảng, `RateValue` nội dòng, `rateKpi` cho ô `KpiStrip` |
-| `DataTable` | Bảng TanStack v9: sắp xếp, chọn nhiều + thanh thao tác phía trên, phân trang, loading, empty, mở rộng dòng (`renderExpanded`), checkbox hiện khi rê chuột; thao tác dòng (`…`) luôn hiện, màu nhạt (`revealOnRowHover`) |
+| `DataTable` | Bảng TanStack v9: sắp xếp, chọn nhiều + thanh thao tác phía trên, phân trang, loading, empty, mở rộng dòng (`renderExpanded`), checkbox chọn dòng luôn hiện (mục 2); thao tác dòng (`…`) luôn hiện, màu nhạt (`revealOnRowHover`) |
 | `FilterBar` | Ô tìm + menu lọc + chip giá trị + Clear all; điều khiển được từ ngoài (URL, agent) |
 | `MultiSelect`, `TreeSelect`, `TagInput` | Chọn nhiều (Popover + Command; danh sách trên 7 mục có ô tìm, khớp theo chuỗi), chọn theo cây, nhập tag (tag có sẵn hiện thành dropdown khi focus, gõ để lọc, Enter thêm; không bày chip gợi ý) |
 | `DatePicker`, `DateRangePicker`, `TimePicker` | Chọn ngày giờ thay ô native, theo múi giờ workspace (`PATTERNS.md` 9.8) |
@@ -342,7 +356,7 @@ Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trư�
 |---|---|
 | `AppShell` | Sidebar + header + panel agent kéo 320–900px |
 | `AppSidebar` | Thu gọn thành icon, nhóm có nhãn, menu tài khoản có Light / Dark / System |
-| `PageHeader` | Breadcrumb (tuỳ chọn), tiêu đề 30px, một dòng ngữ cảnh `text-sm`, thao tác bên phải: nút `size="sm"`, nút phụ (outline) trước, nút cam chính cuối, menu ⋯ (nếu có) sau cùng |
+| `PageHeader` | Breadcrumb (tuỳ chọn), tiêu đề 24px (mục 5), một dòng ngữ cảnh `text-sm`, thao tác bên phải: nút `size="sm"`, nút phụ (outline) trước, nút cam chính cuối, menu ⋯ (nếu có) sau cùng |
 | `SearchCommand` | Command palette (Ctrl/⌘K) |
 | `NotificationsMenu` | Thông báo |
 | `AgentPanel` + nút nổi "Ask the agent" | Lối vào agent (`PATTERNS.md` 9.4). Nút nổi là tính năng chính nên to và tương phản cao: pill nền `foreground` (ink) cao 48px, Saella mini 30px, `shadow-float`; không dùng cam đặc để không tranh nút chính của trang (2026-11-11) |
@@ -373,12 +387,13 @@ Mọi component, gốc hay ghép, phải thiết kế đủ:
 - [ ] Đủ trạng thái mục 8.4. Loading giữ nguyên layout; empty và error có câu giải thích + hành động tiếp theo.
 
 **Truy cập**
-- [ ] Body ≥ 14px, bảng dày ≥ 13px, 12px chỉ cho badge, kbd, trục. Số dùng `tabular-nums`.
+- [ ] Body ≥ 14px, bảng dày ≥ 13px. 12px chỉ cho badge, kbd, trục, nhãn nhóm và siêu dữ liệu ngắn không bấm được, màu `muted-foreground` (mục 5 "Quy tắc 12px"); link, nút, tiêu đề, lỗi, giá không bao giờ 12px. Số dùng `tabular-nums`.
 - [ ] Chữ ≥ 4.5:1; viền control, icon mang nghĩa, focus ≥ 3:1.
 - [ ] Focus thấy được trên mọi phần tử tương tác; control có nhãn (`aria-label` cho nút chỉ có icon); vùng bấm ≥ 24×24px.
 
 **Hiển thị**
 - [ ] Chụp 1440px light + dark (`scripts/screenshot.mjs`, lưu vào thư mục tạm): không cuộn ngang, dòng phụ không bị cắt, cột tên không bị bóp.
+- [ ] Laptop nhỏ (người dùng chốt 2026-11-18): đo thêm 1280×800 và 1366×768. Không cuộn ngang cả trang, và bảng vừa khung không phải kéo ngang. Dưới 1440: thu cột, cho số trong ngoặc của ô tỉ lệ xuống dòng (`[data-slot=rate-value]`), tên dài tối đa 2 dòng, tag chỉ hiện 1 + "+N". Chiều cao 768: nút chính và modal vẫn thấy đủ.
 - [ ] **Lượt cắt gọt chữ** trên ảnh chụp, theo `PATTERNS.md` 9.15: rà từng chữ bằng phép thử "người dùng làm gì với nó?"; bỏ dữ liệu thô, câu giải thích logic, số liệu lặp, khối chỉ một mục. Có thể dùng skill `distill` (bớt thành phần thừa) và `clarify` (sửa câu chữ). Báo lại những gì đã bỏ.
 
 **Kỹ thuật**

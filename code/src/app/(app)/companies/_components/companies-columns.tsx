@@ -1,5 +1,6 @@
 "use client";
 
+import { SCROLL_POPOVER_LIST } from "@/lib/scroll";
 import { LockIcon } from "lucide-react";
 import { type DataTableColumn } from "@/components/saella/data-table";
 import { Hint } from "@/components/saella/hint";
@@ -10,17 +11,14 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { cn } from "@/lib/utils";
 import { type Company, STATUSES, countryLabel, formatDate, isicLabel, maskEmail, maskPhone } from "@/lib/mock/companies";
 
-// Columns of the companies table, laid out like Studio Admin /dashboard/products (products-columns.tsx,
-// 2026-11-10): checkbox, one-line cells, a status badge, a "…" row menu in the last column.
-// Saella data rules (DESIGN §2): status shows only when the company is not active; the email shows masked until
-// unlocked (PRD Contacts AC-CON-B-02), phone and website masked in the sheet (one contact column keeps the table
-// within the page). Sortable like the live app's table (CompaniesTable.tsx sorters): name, tax code, industry,
-// founding date, email; default newest first. Tax code is its own column like the live app: users tell
-// look-alike companies apart and match paperwork by it.
+// Columns of the companies table, laid out like Studio Admin /dashboard/products (products-columns.tsx): checkbox,
+// one-line cells, a status badge on every row (DESIGN §2 exception for this table). Email and phone show masked until
+// unlocked (PRD Contacts AC-CON-B-02), the website in the sheet. Sortable like the live app's table
+// (CompaniesTable.tsx sorters): name, tax code, industry, founding date, email; default newest first. Tax code is
+// its own column like the live app (hidden by default): users tell look-alike companies apart by it.
 
 const STATUS_LABEL = Object.fromEntries(STATUSES.map((s) => [s.value, s.label])) as Record<Company["status"], string>;
-// Every row shows its status (user request 2026-11-10), as Studio Admin's status badge: outlined pill, tinted
-// fill, dot + word, in Saella's -soft tokens.
+// Every row shows its status, as Studio Admin's status badge, in Saella's -soft tokens.
 const STATUS_TONE: Record<Company["status"], { pill: string; dot: string }> = {
   active: { pill: "border-success/20 bg-success-soft text-success-soft-foreground", dot: "bg-success" },
   inactive: { pill: "border-warning/20 bg-warning-soft text-warning-soft-foreground", dot: "bg-warning" },
@@ -28,6 +26,16 @@ const STATUS_TONE: Record<Company["status"], { pill: string; dot: string }> = {
   ceased: { pill: "border-destructive/20 bg-destructive-soft text-destructive-soft-foreground", dot: "bg-destructive" },
   unknown: { pill: "border-border bg-muted text-muted-foreground", dot: "bg-muted-foreground" },
 };
+
+/** The company's status pill, the same in the table and the sheet. */
+export function CompanyStatusBadge({ status }: { status: Company["status"] }) {
+  return (
+    <Badge variant="outline" className={cn("gap-1.5 px-2", STATUS_TONE[status].pill)}>
+      <span aria-hidden className={cn("size-1.5 rounded-full", STATUS_TONE[status].dot)} />
+      {STATUS_LABEL[status]}
+    </Badge>
+  );
+}
 
 // City-states read once: "Singapore", not "Singapore, Singapore".
 const location = (c: Company) => (c.city === countryLabel(c.country) ? c.city : `${c.city}, ${countryLabel(c.country)}`);
@@ -43,7 +51,7 @@ export function createCompaniesColumns({
   onOpen: (c: Company) => void;
   /** Unlocks this one company (1 credit). */
   onUnlock: (c: Company) => void;
-  /** Checkbox column (both tabs since 2026-11-13: Unlock on Find companies, Export on Unlocked since 2026-11-14). */
+  /** Checkbox column (Unlock on Find companies, Export on Unlocked). */
   selectable: boolean;
 }): DataTableColumn<Company>[] {
   const columns: DataTableColumn<Company>[] = [
@@ -72,15 +80,19 @@ export function createCompaniesColumns({
       accessorFn: (c) => c.name,
       // Two lines (PATTERNS 9.16): the name, then where it is. Location stays off its own column so the table fits.
       cell: ({ row: { original: c } }) => (
-        <div className="flex min-w-0 max-w-48 flex-col gap-0.5">
+        <div className="flex min-w-0 flex-col gap-0.5">
           <Button
             variant="link"
             className="h-auto max-w-full justify-start border-0 p-0 font-medium text-foreground hover:no-underline"
             onClick={() => onOpen(c)}
           >
-            <span className="truncate">{c.name}</span>
+            <span className="truncate" title={c.name}>
+              {c.name}
+            </span>
           </Button>
-          <span className="truncate text-sm text-muted-foreground">{location(c)}</span>
+          <span className="truncate text-sm text-muted-foreground" title={location(c)}>
+            {location(c)}
+          </span>
         </div>
       ),
     },
@@ -91,14 +103,14 @@ export function createCompaniesColumns({
       cell: ({ row: { original: c } }) => <span className="tabular-nums">{c.registrationNo}</span>,
     },
     {
-      // Main industry, then the count of other registered business lines (live app "Sub industries" column)
-      // as "+27"; the names show on hover or focus. Folded into this column so the table fits the page.
+      // Main industry, then the count of other registered business lines (live app "Sub industries" column) as "+27";
+      // the names show on hover or focus.
       id: "industry",
       header: "Industry",
       accessorFn: (c) => isicLabel(c.isic),
       cell: ({ row: { original: c } }) => (
         <div className="flex min-w-0 items-center gap-2">
-          <span className="block max-w-36 truncate" title={isicLabel(c.isic)}>
+          <span className="block min-w-0 truncate" title={isicLabel(c.isic)}>
             {isicLabel(c.isic)}
           </span>
           {c.subIndustries.length > 0 && (
@@ -114,7 +126,7 @@ export function createCompaniesColumns({
                   +{c.subIndustries.length}
                 </Badge>
               </HoverCardTrigger>
-              <HoverCardContent side="bottom" align="start" className="max-h-80 w-72 overflow-y-auto p-3">
+              <HoverCardContent side="bottom" align="start" className={cn("w-72 p-3", SCROLL_POPOVER_LIST)}>
                 <p className="mb-2 text-xs font-medium text-muted-foreground">Other industries</p>
                 <ul className="flex flex-col gap-1 text-sm">
                   {c.subIndustries.map((s) => (
@@ -132,12 +144,7 @@ export function createCompaniesColumns({
       header: "Status",
       enableSorting: false,
       accessorFn: (c) => STATUS_LABEL[c.status],
-      cell: ({ row: { original: c } }) => (
-        <Badge variant="outline" className={cn("gap-1.5 px-2", STATUS_TONE[c.status].pill)}>
-          <span aria-hidden className={cn("size-1.5 rounded-full", STATUS_TONE[c.status].dot)} />
-          {STATUS_LABEL[c.status]}
-        </Badge>
-      ),
+      cell: ({ row: { original: c } }) => <CompanyStatusBadge status={c.status} />,
     },
     {
       id: "founded",
@@ -146,9 +153,8 @@ export function createCompaniesColumns({
       cell: ({ row: { original: c } }) => <span className="tabular-nums">{formatDate(c.incorporatedOn)}</span>,
     },
     {
-      // Masked as the registry serves it (AC-CON-B-02, BR-RULE-CON-01): it shows the record has an address
-      // without giving it away, with a lock that unlocks the company for 1 credit in one click (live app #116
-      // lockButton). Unlocked: the full address in body colour. Blank when the registry has none (DESIGN §2).
+      // Masked as the registry serves it (AC-CON-B-02, BR-RULE-CON-01), with a lock that unlocks the company for 1 credit
+      // in one click (live app #116 lockButton). Blank when the registry has none (DESIGN §2).
       id: "email",
       header: "Email",
       accessorFn: (c) => c.email ?? "",
@@ -160,14 +166,13 @@ export function createCompaniesColumns({
             isUnlocked={unlocked.has(c.id)}
             name={c.name}
             onUnlock={() => onUnlock(c)}
-            width="max-w-32"
+            email
           />
         ),
     },
     {
-      // One lock per row (designer decision 2026-11-12): on Email, or here when the company has no email.
-      // Same as Email (designer request 2026-11-12). Masked like the live app's lib/companies/mask.ts maskPhone:
-      // "+" and the first 2 digits, 5 stars, the last 2 digits ("+84*****67").
+      // One lock per row, on Email: only a company with an email can be unlocked. Masked like the live app's
+      // lib/companies/mask.ts maskPhone: "+" and the first 2 digits, 5 stars, the last 2 digits ("+84*****67").
       id: "phone",
       header: "Phone",
       accessorFn: (c) => c.phone ?? "",
@@ -178,25 +183,23 @@ export function createCompaniesColumns({
             masked={maskPhone(c.phone)}
             isUnlocked={unlocked.has(c.id)}
             name={c.name}
-            onUnlock={c.email ? undefined : () => onUnlock(c)}
-            width="max-w-32"
           />
         ),
     },
   ];
-  // No row "…" menu (designer 2026-11-13): the row click opens the sheet and unlock is the row's lock or the sheet's button.
+  // No row "…" menu: the row click opens the sheet and unlock is the row's lock or the sheet's button.
   return selectable ? columns : columns.filter((col) => col.id !== "select");
 }
 
 /** A contact value: masked with a lock (1 credit, one click) until the workspace unlocks the company, then in
- *  full. Cut text keeps title= (PATTERNS 9.13). */
+ *  full. It fills its column; cut text keeps title= (PATTERNS 9.13). */
 function ContactCell({
   value,
   masked,
   isUnlocked,
   name,
   onUnlock,
-  width,
+  email,
 }: {
   value: string;
   masked: string;
@@ -204,21 +207,14 @@ function ContactCell({
   name: string;
   /** No button when another cell of the row already has the lock. */
   onUnlock?: () => void;
-  /** max-w-* of the text; the lock adds 1.5rem. */
-  width: string;
+  /** An email is cut in its name, never its domain: the domain tells the company apart. */
+  email?: boolean;
 }) {
-  if (isUnlocked)
-    return (
-      <span className={cn("block truncate tabular-nums", width)} title={value}>
-        {value}
-      </span>
-    );
+  const shown = isUnlocked ? value : masked;
   return (
     <div className="flex min-w-0 items-center gap-1">
-      <span className={cn("block truncate text-muted-foreground tabular-nums", width)} title={masked}>
-        {masked}
-      </span>
-      {onUnlock && (
+      <ContactText value={shown} email={email} className={cn(!isUnlocked && "text-muted-foreground")} />
+      {onUnlock && !isUnlocked && (
         <Hint label="Unlock for 1 credit">
           <Button
             variant="ghost"
@@ -232,5 +228,31 @@ function ContactCell({
         </Hint>
       )}
     </div>
+  );
+}
+
+function ContactText({ value, email, className }: { value: string; email?: boolean; className?: string }) {
+  const at = email ? value.lastIndexOf("@") : -1;
+  if (at <= 0)
+    return (
+      <span className={cn("block min-w-0 truncate tabular-nums", className)} title={value}>
+        {value}
+      </span>
+    );
+  // The name gives way first (its first two letters and an ellipsis stay), then the domain.
+  const head = value.slice(0, Math.min(2, at));
+  const rest = value.slice(head.length, at);
+  return (
+    <span className={cn("flex min-w-0 tabular-nums", className)}>
+      <span className="shrink-0">{head}</span>
+      {rest && (
+        <span className={cn("shrink-[999] truncate", rest.length > 1 ? "min-w-3" : "min-w-0")} title={value}>
+          {rest}
+        </span>
+      )}
+      <span className="min-w-0 truncate" title={value}>
+        {value.slice(at)}
+      </span>
+    </span>
   );
 }

@@ -16,8 +16,8 @@ import type { DomainRecord } from "../../_components/data";
 // - Verified: a health list, one line per record the domain sends with. The ownership TXT is left out once the
 //   domain is claimed (PRD Master). A missing record blocks sending until it's back (PRD Master v1.4.2); DMARC at
 //   p=none is flagged as a warning with how to tighten it (live app dm4.dmarcbody).
-// - Plain language first (2026-11-12): a one-line summary, each record named by what it does with the technical name
-//   muted beside it, the raw record behind "Show DNS record" (open by default only when the record is missing).
+// - Plain language first: a one-line summary, each record named by what it does with the technical name muted
+//   beside it, the raw record behind "Show DNS record" (open by default only when the record is missing).
 
 /** DMARC policy p=none: monitor only (live app shows the how-to under every verified domain). */
 export const isMonitorOnly = (r: DomainRecord) => r.purpose === "DMARC" && /\bp=none\b/i.test(r.value);
@@ -53,7 +53,8 @@ export function DnsRecordsTable({ records }: { records: DomainRecord[] }) {
                 ) : r.purpose === "Ownership" ? (
                   <Badge variant="warning">Add first</Badge>
                 ) : (
-                  <Badge variant="destructive">Missing</Badge>
+                  // Same words as the verified list.
+                  <Badge variant="destructive">Not found yet</Badge>
                 )}
               </TableCell>
             </TableRow>
@@ -64,8 +65,7 @@ export function DnsRecordsTable({ records }: { records: DomainRecord[] }) {
   );
 }
 
-// Plain-language names (2026-11-12): what each record does for the user, the technical name beside it, the raw record
-// on demand (PATTERNS 9.15). Order and wording follow what the live app's records are for.
+// Plain-language names, the raw record on demand (PATTERNS 9.15). Order and wording follow the live app's records.
 const PLAIN: Record<string, string> = {
   DKIM: "Signs your emails",
   SPF: "Lets Saella send for you",
@@ -73,7 +73,15 @@ const PLAIN: Record<string, string> = {
   "Return-Path": "Handles bounced emails",
 };
 
-export function RecordHealthList({ records }: { records: DomainRecord[]; domain: string }) {
+export function RecordHealthList({
+  records,
+  summary = true,
+}: {
+  records: DomainRecord[];
+  domain: string;
+  /** The one-line conclusion; off when an Alert above already says it (Unverified). */
+  summary?: boolean;
+}) {
   const rows = records.filter((r) => r.purpose !== "Ownership");
   const missing = rows.filter((r) => !r.ok).length;
   const weak = rows.some((r) => r.ok && isMonitorOnly(r));
@@ -85,10 +93,12 @@ export function RecordHealthList({ records }: { records: DomainRecord[]; domain:
         : [CircleCheckIcon, "text-success-soft-foreground", "Ready to send. Inboxes can tell your emails are really from you."];
   return (
     <div className="flex flex-col gap-3">
-      <p className="flex items-center gap-2 font-medium">
-        <Icon className={cn("size-4 shrink-0", tone)} aria-hidden />
-        {text}
-      </p>
+      {summary && (
+        <p className="flex items-center gap-2 font-medium">
+          <Icon className={cn("size-4 shrink-0", tone)} aria-hidden />
+          {text}
+        </p>
+      )}
       <ul className="flex flex-col divide-y rounded-card border">
         {rows.map((r) => (
           <RecordRow key={r.purpose} record={r} />
@@ -117,10 +127,8 @@ function RecordRow({ record: r }: { record: DomainRecord }) {
         </span>
         <span className="flex items-center gap-2 text-sm">
           {!r.ok ? (
-            <>
-              <span className="text-muted-foreground">DNS changes can take up to 24 hours.</span>
-              <Badge variant="destructive">Not found yet</Badge>
-            </>
+            // The DNS wait is said once on the screen, in the Alert.
+            <Badge variant="destructive">Not found yet</Badge>
           ) : weak ? (
             <>
               <Badge variant="warning">Works</Badge>
@@ -202,7 +210,7 @@ export function DnsInfo() {
         </Button>
       </HoverCardTrigger>
       <HoverCardContent align="start" className="flex w-80 flex-col gap-2 text-sm text-muted-foreground">
-        <p>Enter only the prefix if your host adds the domain. Allow 48 hours.</p>
+        <p>Enter only the prefix if your host adds the domain.</p>
       </HoverCardContent>
     </HoverCard>
   );

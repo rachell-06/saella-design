@@ -1,17 +1,18 @@
 "use client"
 
+import { SCROLL_TABLE } from "@/lib/scroll";
 import * as React from "react"
 import { cn } from "cn"
 
-// Rule (designer 2026-11-14, PATTERNS.md §9.1): no table shows its whole list on the page. Every table sits in a
+// Rule (PATTERNS.md §9.1): no table shows its whole list on the page. Every table sits in a
 // bounded area (at most the viewport minus the page frame, never under 20rem) and its rows scroll inside it, under
-// a sticky header. Short tables look as before. A table that fills a flex column (Leads) sets
-// `*:data-[slot=table-container]:min-h-0 flex-1` on its parent; `max-h-none` there opts out of the cap.
+// a sticky header. Short tables look as before. Heights by region type live in lib/scroll.ts:
+// a table that fills a flex column (Leads) puts SCROLL_TABLE_FILL on its parent, a card table SCROLL_CARD_TABLE.
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative max-h-[max(20rem,calc(100svh-14rem))] w-full overflow-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10"
+      className={cn("relative w-full overflow-auto [&_thead]:sticky [&_thead]:top-0 [&_thead]:z-10", SCROLL_TABLE)}
     >
       <table
         data-slot="table"
@@ -61,6 +62,9 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
       data-slot="table-row"
       className={cn(
         "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-primary-subtle",
+        // Grey badges (tags) turn white on a selected row: grey on the peach tint read sunken.
+        // Outline badges keep theirs: status pills are outline badges with their own tint.
+        "data-[state=selected]:[&_[data-slot=badge][data-variant=secondary]]:bg-card",
         className
       )}
       {...props}

@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRightIcon,
   CircleAlertIcon,
+  CoinsIcon,
   DownloadIcon,
   FileSpreadsheetIcon,
   FileTextIcon,
@@ -15,6 +17,9 @@ import {
 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
+import { TopUpDialog } from "@/components/features/top-up-dialog";
+import { useCreditBalance } from "@/lib/mock/credits";
+import { creditsUsd } from "@/lib/mock/pricing";
 import { AgentSteps } from "@/components/saella/agent-steps";
 import { ApprovalCard } from "@/components/saella/approval-card";
 import { Hint } from "@/components/saella/hint";
@@ -36,7 +41,23 @@ import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
 import { Message, MessageContent } from "@/components/ui/message";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { type FlowStep, type Message as Msg, type Part, type Rating, type SendSplit, canSplit, confirmLabelOf, noteOf, splitOf } from "./data";
+import { METRIC_COLOR } from "@/lib/metric-colors";
+import {
+  type FlowStep,
+  type Message as Msg,
+  type Part,
+  type Rating,
+  type SendSplit,
+  type TurnCharge,
+  actionList,
+  canSplit,
+  confirmLabelOf,
+  creditWord,
+  creditsFor,
+  noteOf,
+  splitOf,
+  turnUsage,
+} from "./data";
 import { FileAttachment } from "./file-attachment";
 import { SendSplitChoice, TestSendView } from "./send-split";
 
@@ -80,12 +101,16 @@ export function MessageView({ message, handlers, busy }: { message: Msg; handler
       </Message>
     );
   }
+  // One quiet line closes a finished turn, after everything it showed (PATTERNS 9.18).
+  const turn = message.parts.find((p) => p.kind === "steps");
+  const closing = turn?.kind === "steps" && (turn.finished || turn.charge) ? turn : undefined;
   return (
     <Message>
       <MessageContent className="gap-3">
         {message.parts.map((p, i) => (
           <PartView key={i} part={p} handlers={handlers} busy={busy} />
         ))}
+        {closing && <TurnUsage usage={closing.finished ? turnUsage(message.parts) : undefined} charge={closing.charge} />}
       </MessageContent>
     </Message>
   );
@@ -116,10 +141,83 @@ export function RatingPrompt({ rated, onRate, onDismiss }: { rated?: Rating; onR
   );
 }
 
+/** "Costs 3 credits ($0.27)" before a paid step runs; nothing for a free one (PATTERNS 9.18). */
+function approvalCost(charges: Parameters<typeof creditsFor>[0]) {
+  const cost = creditsFor(charges);
+  return cost ? `Costs ${creditWord(cost)} (${creditsUsd(cost)})` : undefined;
+}
+
+/**
+ * The quiet line that closes a turn: every step, the time and the credits it used (no token count, PATTERNS 9.15).
+ * What each credit paid for is in the tooltip.
+ */
+function TurnUsage({ usage, charge }: { usage?: string; charge?: TurnCharge }) {
+  const cost = creditsFor(charge?.actions);
+  const credits = !charge ? null : cost === 0 ? "No credits used" : `${creditWord(cost)} ${charge.refunded ? "refunded" : "used"}`;
+  return (
+    <p className="text-xs text-muted-foreground tabular-nums">
+      {usage}
+      {usage && credits && " · "}
+      {credits && cost > 0 ? (
+        <Hint label={`${actionList(charge!.actions)}: ${charge!.actions.length > 1 ? "1 credit each" : "1 credit"}`}>
+          <span tabIndex={0} className="rounded-sm underline decoration-dotted underline-offset-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+            {credits}
+          </span>
+        </Hint>
+      ) : (
+        credits
+      )}
+    </p>
+  );
+}
+
+/**
+ * Refused for credits (PRD-03 AC-AG-W-01/02; PATTERNS 9.18): nothing ran. Top up opens the shared Top up dialog in
+ * place with what is missing; once the balance covers it, the line offers to run the turn again (an approval is just
+ * approved again on its card).
+ */
+function NotEnoughCredits({ cost, on, onRetry, busy }: { cost: number; on: "turn" | "approval"; onRetry: () => void; busy: boolean }) {
+  const balance = useCreditBalance();
+  const [topUp, setTopUp] = useState(false);
+  const short = Math.max(0, cost - balance);
+  return (
+    <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg bg-warning-soft px-3 py-2 text-sm text-warning-soft-foreground">
+      <CoinsIcon className="size-4 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 tabular-nums">
+        {short > 0 ? (
+          <>
+            <span className="font-medium">Not enough credits.</span> This needs {creditWord(cost)}, you have{" "}
+            {balance.toLocaleString("en-US")}. Nothing was done.
+          </>
+        ) : on === "turn" ? (
+          "Credits added. Run it again when you're ready."
+        ) : (
+          "Credits added. Approve it again above."
+        )}
+      </span>
+      {short > 0 ? (
+        <Button variant="outline" size="sm" onClick={() => setTopUp(true)}>
+          Top up credits
+        </Button>
+      ) : on === "turn" ? (
+        <Button variant="outline" size="sm" onClick={onRetry} disabled={busy}>
+          <RotateCcwIcon data-icon="inline-start" />
+          Try again
+        </Button>
+      ) : null}
+      <TopUpDialog open={topUp} onOpenChange={setTopUp} need={short} />
+    </div>
+  );
+}
+
+// Colours from the one metric map (lib/metric-colors.ts), as every other chart.
 const chartConfig = {
-  open: { label: "Open rate %", color: "var(--chart-1)" },
-  click: { label: "Click rate %", color: "var(--chart-2)" },
+  open: { label: "Open rate %", color: METRIC_COLOR.opens },
+  click: { label: "Click rate %", color: METRIC_COLOR.clicks },
 } satisfies ChartConfig;
+
+/** Tables in the agent panel fit its width: wrapping cells, tighter padding (no sideways scroll). */
+export const AGENT_TABLE = "[&_td]:px-2 [&_td]:whitespace-normal [&_th]:px-2 [&_th]:whitespace-normal [&_td]:break-words";
 
 function PartView({ part: p, handlers, busy }: { part: Part; handlers: PartHandlers; busy: boolean }) {
   switch (p.kind) {
@@ -127,15 +225,14 @@ function PartView({ part: p, handlers, busy }: { part: Part; handlers: PartHandl
       return <p className="text-sm leading-relaxed">{p.text}</p>;
     case "steps":
       return (
-        <div className="flex flex-col gap-1">
-          <AgentSteps steps={p.steps} />
-          {p.usage && <p className="text-xs text-subtle-foreground tabular-nums">{p.usage}</p>}
-        </div>
+        <AgentSteps steps={p.steps} />
       );
     case "table":
       return (
-        <div className="overflow-x-auto rounded-lg border">
-          <Table aria-label={p.caption} className="text-dense">
+        // The panel is ~400px: cells wrap (names on two lines, "under 5%") and pad tighter instead of scrolling
+        // sideways inside the chat.
+        <div className="overflow-hidden rounded-lg border">
+          <Table aria-label={p.caption} className={cn("text-dense", AGENT_TABLE)}>
             <TableHeader>
               <TableRow>
                 {p.columns.map((c) => (
@@ -204,9 +301,8 @@ function PartView({ part: p, handlers, busy }: { part: Part; handlers: PartHandl
     case "approval":
       return (
         <div className="flex flex-col gap-1">
-          {/* A large live send carries the "20 first / all N" choice as one more detail row (R18). The key
-              remounts the card when the choice changes, so the confirm tick has to be given again for the new
-              number (AC-AG-G-06). */}
+          {/* A large live send carries the "20 first / all N" choice as one more detail row (R18). The key remounts the card
+              when the choice changes, so the confirm tick has to be given again for the new number (AC-AG-G-06). */}
           <ApprovalCard
             key={splitOf(p) ?? "one"}
             action={p.action}
@@ -225,11 +321,12 @@ function PartView({ part: p, handlers, busy }: { part: Part; handlers: PartHandl
             confirmLabel={confirmLabelOf(p)}
             state={p.state}
             result={p.result}
+            cost={approvalCost(p.charges)}
             onApprove={() => handlers.onApprove(p.id)}
             onAlwaysAllow={() => handlers.onAlwaysAllow(p.id)}
             onDecline={() => handlers.onDecline(p.id)}
           />
-          {/* The only place to take back "Always allow" (the header's Approvals menu was removed 2026-11-13). */}
+          {/* The only place to take back "Always allow". */}
           {p.auto && (
             <p className="pl-6 text-sm text-muted-foreground">
               Ran without asking
@@ -255,7 +352,7 @@ function PartView({ part: p, handlers, busy }: { part: Part; handlers: PartHandl
       return (
         <div className="flex flex-col gap-2">
           <div className="overflow-hidden rounded-lg border">
-            <Table aria-label="Companies found" className="text-dense">
+            <Table aria-label="Companies found" className={cn("text-dense", AGENT_TABLE)}>
               <TableHeader>
                 <TableRow>
                   <TableHead>Company</TableHead>
@@ -311,16 +408,20 @@ function PartView({ part: p, handlers, busy }: { part: Part; handlers: PartHandl
       return (
         <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg bg-destructive-soft px-3 py-2 text-sm text-destructive-soft-foreground">
           <CircleAlertIcon className="size-4 shrink-0" aria-hidden />
-          <span className="flex-1">{p.text}</span>
+          <span className="flex-1">
+            {p.text}
+            {p.refunded ? <span className="font-medium"> {creditWord(p.refunded)} refunded.</span> : null}
+          </span>
           <Button variant="outline" size="sm" onClick={handlers.onRetry} disabled={busy}>
             <RotateCcwIcon data-icon="inline-start" />
             Try again
           </Button>
         </div>
       );
+    case "credits":
+      return <NotEnoughCredits cost={p.cost} on={p.on} onRetry={handlers.onRetry} busy={busy} />;
     case "queue":
-      // Unify's "Nothing is sending yet" line (Competitor.md U-P1). The approval queue page is gone with /agent
-      // (2026-11-13): the cards below are where each item is approved; the panel's Approvals menu lists them all.
+      // "Nothing is sending yet" line (Competitor.md U-P1): the cards below are where each item is approved.
       return (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
           <ListChecksIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />

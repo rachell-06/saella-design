@@ -1,10 +1,11 @@
-import { type ReportBatch, allBatches, findTemplate, recipientRows, senderById } from "@/lib/mock/batches";
-import { campaignStatus, sampleCampaigns } from "@/lib/mock/campaigns";
+import { type ReportBatch, allBatches, recipientRows, senderById } from "@/lib/mock/batches";
+import { type Campaign, campaignStatus } from "@/lib/mock/campaigns";
 import { withReplies } from "@/lib/mock/replies";
+import { WORKSPACE_TZ } from "@/lib/time";
 import type { CampaignStatus } from "@/components/saella/status-badge";
 
-// Overview metrics, ported from the live app (Repo origin/development, 2026-11-05):
-// app/dashboard/email/metrics/page.tsx (aggregation, trend buckets, boards, deliverability) and
+// Overview metrics, ported from the live app: app/dashboard/email/metrics/page.tsx (aggregation, trend buckets,
+// boards, deliverability) and
 // components/email/EmailMetricsDashboard.tsx (ranking, template means, sender aggregates).
 // Computed from the same batches the reports use, so every number on Overview adds up to the reports.
 // Saella number logic stays (DESIGN §2): a rate with nothing under it is null (blank or "–"), never 0.
@@ -30,9 +31,23 @@ export type Totals = {
 
 export const emptyTotals = (): Totals => ({ batches: 0, recipients: 0, sends: 0, delivered: 0, opens: 0, clicks: 0, bounces: 0, unsubs: 0, replies: 0 });
 
+/**
+ * Batches as Overview counts them, over the campaigns as of now (currentCampaigns / useCurrentCampaigns): each one in
+ * the campaign its template sits in now (a moved template takes its sends along), and none of a deleted template or
+ * campaign (live app metrics page: batches of soft-deleted templates leave every KPI and board; a campaign delete
+ * cascades to its templates). Archived campaigns keep their sends.
+ */
+export function liveBatches(campaigns: Campaign[]): ReportBatch[] {
+  const home = new Map(campaigns.flatMap((c) => c.templates.map((t) => [t.id, c.id] as const)));
+  return allBatches().flatMap((b) => {
+    const campaignId = home.get(b.templateId);
+    return campaignId ? [{ ...b, campaignId }] : [];
+  });
+}
+
 /** Batches that sent something inside the span, optionally one campaign only (live app: window + campaign filter). */
-export function sentIn(span: Span, campaignId?: string | null): ReportBatch[] {
-  return allBatches().filter(
+export function sentIn(campaigns: Campaign[], span: Span, campaignId?: string | null): ReportBatch[] {
+  return liveBatches(campaigns).filter(
     (b) => b.metrics && b.sentAt && b.sentAt >= span.since && b.sentAt <= span.until && (!campaignId || b.campaignId === campaignId)
   );
 }
@@ -59,61 +74,82 @@ export function sum(list: ReportBatch[]): Totals {
 export const ratio = (part: number, whole: number) => (whole > 0 ? part / whole : null);
 
 // ---------------------------------------------------------------------------------------------------------------
-// Send volume trend (live app buildTrend): COUNTS per bucket, bucket size per window. Buckets with no sends are 0:
-// nothing was sent, so 0 is the true count (PATTERNS 9.7; user decision 2026-11-12, as the live app).
-//   7 / 14 → 1 day · 30 → 3 days · 90 → 7 days · 180 → 14 days · year → 12 calendar months
-//   range → 1 day up to 31 days, 7 days up to 120, else 30 days
+// Send volume trend: COUNTS per bucket. Buckets with no sends are 0: nothing was sent, so 0 is the true count
+// (PATTERNS 9.7; as the live app). Bucket size by the length of the period (PATTERNS 9.7,
+// not the live app's 3- and 14-day buckets): up to 31 days one per day, up to 120 one per week (Mon–Sun), longer one
+// per calendar month. Days are workspace days (GMT+7, lib/time.ts): a batch counts on the day it went out there.
 // ---------------------------------------------------------------------------------------------------------------
 
-/** Counts per bucket; 0 where nothing was sent, so the lines stay continuous (PATTERNS 9.7). */
-export type TrendPoint = { key: string; label: string; sends: number; delivered: number; opens: number; clicks: number; replies: number };
+/** Counts per bucket; 0 where nothing was sent, so the lines stay continuous (PATTERNS 9.7). `label` is the axis
+ *  tick (day number, month only on the first column and the 1st), `tip` the bucket in full for the tooltip. */
+export type TrendPoint = { key: string; label: string; tip: string; sends: number; delivered: number; opens: number; clicks: number; replies: number };
+
+/** Calendar day "YYYY-MM-DD" as a day count, and back (UTC arithmetic on dates only, no clock time). */
+const dayNum = (ymd: string) => Date.UTC(Number(ymd.slice(0, 4)), Number(ymd.slice(5, 7)) - 1, Number(ymd.slice(8, 10))) / DAY;
+const dayStr = (d: number) => iso(d * DAY).slice(0, 10);
+/** The workspace day a moment falls on. */
+const workspaceDay = (t: number) => new Date(t).toLocaleDateString("en-CA", { timeZone: WORKSPACE_TZ });
+const fmtDay = (d: number, opts: Intl.DateTimeFormatOptions) => new Date(d * DAY).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
 
 export function trend(list: ReportBatch[], span: Span): TrendPoint[] {
-  const fmt = (t: number, opts: Intl.DateTimeFormatOptions) => new Date(t).toLocaleDateString("en-US", { ...opts, timeZone: "UTC" });
-  const day = (t: number) => fmt(t, { month: "short", day: "numeric" });
-  const buckets: { start: number; end: number; label: string }[] = [];
-  const now = new Date(span.until).getTime();
-  if (span.key === "year") {
-    const base = new Date(now);
-    for (let i = 11; i >= 0; i--) {
-      const s = Date.UTC(base.getUTCFullYear(), base.getUTCMonth() - i, 1);
-      const e = Date.UTC(base.getUTCFullYear(), base.getUTCMonth() - i + 1, 1);
-      buckets.push({ start: s, end: e, label: fmt(s, { month: "short" }) });
+  // The period's calendar days (period.ts writes them as UTC bounds: since is the last moment before the first day).
+  const first = dayNum(iso(new Date(span.since).getTime() + 1000).slice(0, 10));
+  const last = dayNum(span.until.slice(0, 10));
+  const days = last - first + 1;
+  const buckets: { start: number; end: number; label: string; tip: string }[] = [];
+  if (days <= 31) {
+    for (let d = first; d <= last; d++) {
+      const dom = Number(dayStr(d).slice(8, 10));
+      buckets.push({
+        start: d,
+        end: d,
+        label: d === first || dom === 1 ? fmtDay(d, { month: "short", day: "numeric" }) : String(dom),
+        tip: fmtDay(d, { weekday: "short", month: "short", day: "numeric" }),
+      });
     }
-  } else if (span.key === "range") {
-    const start0 = new Date(span.since).getTime();
-    const days = Math.max(1, Math.ceil((now - start0) / DAY));
-    const step = days <= 31 ? 1 : days <= 120 ? 7 : 30;
-    for (let i = 0; i < Math.ceil(days / step); i++) {
-      const s = start0 + i * step * DAY;
-      buckets.push({ start: s, end: Math.min(s + step * DAY, now + 1), label: day(s) });
+  } else if (days <= 120) {
+    // Weeks run Monday to Sunday; the first and last may be cut by the period.
+    const monday = first - ((new Date(first * DAY).getUTCDay() + 6) % 7);
+    for (let w = monday; w <= last; w += 7) {
+      const s = Math.max(w, first);
+      const e = Math.min(w + 6, last);
+      const short = (d: number) => fmtDay(d, { month: "short", day: "numeric" });
+      buckets.push({ start: s, end: e, label: short(s), tip: s === e ? short(s) : `${short(s)} – ${short(e)}` });
     }
   } else {
-    const step = span.key === "180" ? 14 : span.key === "90" ? 7 : span.key === "30" ? 3 : 1;
-    const count = Math.ceil(span.days / step);
-    for (let i = count - 1; i >= 0; i--) {
-      const e = now + 1 - i * step * DAY;
-      const s = e - step * DAY;
-      buckets.push({ start: s, end: e, label: day(s) });
+    const f = new Date(first * DAY);
+    let y = f.getUTCFullYear();
+    let m = f.getUTCMonth();
+    while (Date.UTC(y, m, 1) / DAY <= last) {
+      const s = Math.max(Date.UTC(y, m, 1) / DAY, first);
+      const e = Math.min(Date.UTC(y, m + 1, 1) / DAY - 1, last);
+      const isFirst = buckets.length === 0;
+      buckets.push({
+        start: s,
+        end: e,
+        label: fmtDay(s, isFirst || m === 0 ? { month: "short", year: "numeric" } : { month: "short" }),
+        tip: fmtDay(s, { month: "long", year: "numeric" }),
+      });
+      m += 1;
+      if (m === 12) {
+        m = 0;
+        y += 1;
+      }
     }
   }
-  const acc = buckets.map(() => ({ batches: 0, sends: 0, delivered: 0, opens: 0, clicks: 0, replies: 0 }));
+  const acc = buckets.map(() => ({ sends: 0, delivered: 0, opens: 0, clicks: 0, replies: 0 }));
   for (const b of list) {
-    const t = new Date(b.sentAt!).getTime();
-    const i = buckets.findIndex((x) => t >= x.start && t < x.end);
+    const d = dayNum(workspaceDay(new Date(b.sentAt!).getTime()));
+    const i = buckets.findIndex((x) => d >= x.start && d <= x.end);
     if (i < 0) continue;
     const m = b.metrics!;
-    acc[i].batches++;
     acc[i].sends += b.sent;
     acc[i].delivered += m.delivered;
     acc[i].opens += m.opens;
     acc[i].clicks += m.clicks;
     acc[i].replies += m.replies;
   }
-  return buckets.map((b, i) => {
-    const a = acc[i];
-    return { key: iso(b.start), label: b.label, sends: a.sends, delivered: a.delivered, opens: a.opens, clicks: a.clicks, replies: a.replies };
-  });
+  return buckets.map((b, i) => ({ key: dayStr(b.start), label: b.label, tip: b.tip, ...acc[i] }));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -134,7 +170,13 @@ export type GroupRow = {
   totals: Totals;
 };
 
-export function groupBy(list: ReportBatch[], by: "campaign" | "template" | "sender"): GroupRow[] {
+/** `campaigns`: as of now, archived ones included (`archived` lists them); names, status and active come from it. */
+export function groupBy(
+  list: ReportBatch[],
+  by: "campaign" | "template" | "sender",
+  campaigns: Campaign[],
+  archived: readonly string[] = []
+): GroupRow[] {
   const map = new Map<string, ReportBatch[]>();
   for (const b of list) {
     const k = by === "campaign" ? b.campaignId : by === "template" ? b.templateId : b.senderId;
@@ -142,17 +184,19 @@ export function groupBy(list: ReportBatch[], by: "campaign" | "template" | "send
   }
   const rows = [...map.entries()].map(([id, bs]): GroupRow => {
     if (by === "campaign") {
-      const c = sampleCampaigns.find((x) => x.id === id);
-      return { id, name: c?.name ?? "Deleted campaign", status: c ? campaignStatus(c) : undefined, totals: sum(bs) };
+      const c = campaigns.find((x) => x.id === id);
+      return { id, name: c?.name ?? "Deleted campaign", status: c ? campaignRowStatus(c, archived) : undefined, totals: sum(bs) };
     }
     if (by === "template") {
-      const t = findTemplate(id);
+      const c = campaigns.find((x) => x.templates.some((t) => t.id === id));
+      const t = c?.templates.find((x) => x.id === id);
       return {
         id,
-        name: t?.template.name ?? "Deleted template",
-        sub: t?.campaign.name,
+        name: t?.name ?? "Deleted template",
+        sub: c?.name,
         href: `/templates/${id}`,
-        active: t?.template.status === "active",
+        // Status as of now: Mark active / inactive this session, and inactive once the campaign has ended.
+        active: t?.status === "active",
         totals: sum(bs),
       };
     }
@@ -163,13 +207,18 @@ export function groupBy(list: ReportBatch[], by: "campaign" | "template" | "send
   return rows.sort((a, b) => b.totals.sends - a.totals.sends);
 }
 
-/** Workspace counts for "See more" (live app totalCampaigns / activeCampaigns / totalTemplates / activeTemplates). */
-export function workspaceCounts(templateRows: GroupRow[]) {
+/** A campaign's badge on the boards: Archived over its dates (live app metrics page). */
+export const campaignRowStatus = (c: Campaign, archived: readonly string[]): CampaignStatus =>
+  archived.includes(c.id) ? "archived" : campaignStatus(c);
+
+/** Workspace counts for "See more" (live app totalCampaigns / activeCampaigns / totalTemplates / activeTemplates).
+ *  `campaigns`: the ones Overview lists (as of now, archived left out). */
+export function workspaceCounts(templateRows: GroupRow[], campaigns: Campaign[]) {
   return {
-    totalCampaigns: sampleCampaigns.length,
+    totalCampaigns: campaigns.length,
     // A campaign is active once it has at least one active template (live app).
-    activeCampaigns: sampleCampaigns.filter((c) => c.templates.some((t) => t.status === "active")).length,
-    // Both template counts follow the period and campaign filters (live app fix 2026-10-26).
+    activeCampaigns: campaigns.filter((c) => c.templates.some((t) => t.status === "active")).length,
+    // Both template counts follow the period and campaign filters.
     totalTemplates: templateRows.length,
     activeTemplates: templateRows.filter((r) => r.active).length,
   };
@@ -178,8 +227,8 @@ export function workspaceCounts(templateRows: GroupRow[]) {
 // ---------------------------------------------------------------------------------------------------------------
 // Ranking (gate ported from live app lib/email/ranking.ts). A rate is only ranked once its own denominator reaches
 // 100; when fewer than 3 rows clear the gate it is lowered to the third-largest sample. Inside the gate rows are
-// ordered by the plain rate shown in the column (user decision 2026-11-12: the highlighted column must read in order;
-// the live app sorts by the Wilson interval), larger sample first on a tie.
+// ordered by the plain rate shown in the column (so the highlighted column reads in order; the live app sorts by the
+// Wilson interval), larger sample first on a tie.
 // ---------------------------------------------------------------------------------------------------------------
 
 export const MIN_SAMPLE = 100;
@@ -198,13 +247,9 @@ export function rank<T extends { totals: Totals }>(
   rows: T[],
   metric: RankMetric,
   mode: RankMode,
-  { limit = 5, replyIsCount = false }: { limit?: number; replyIsCount?: boolean } = {}
+  { limit = 5 }: { limit?: number } = {}
 ) {
-  // Live app rankCampaigns: on the campaign board "Replies" is a COUNT with no denominator to gate on.
-  if (metric === "reply" && replyIsCount) {
-    const ranked = [...rows].sort((a, b) => (mode === "top" ? b.totals.replies - a.totals.replies : a.totals.replies - b.totals.replies));
-    return { ranked: ranked.slice(0, limit), belowGate: [] as T[], gate: 0, lowered: false };
-  }
+  // Replies rank as a rate on every board (the live app's campaign board ranks the count).
   const den = (r: T) => measure(r.totals, metric).denominator;
   let gate = MIN_SAMPLE;
   let lowered = false;

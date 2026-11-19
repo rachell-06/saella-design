@@ -1,12 +1,14 @@
 import { WORKSPACE_TZ } from "@/lib/time";
-import { type ReportBatch, allBatches, batchTitle, findTemplate } from "@/lib/mock/batches";
+import { type ReportBatch, allBatches, batchTitle } from "@/lib/mock/batches";
+import { findTemplate } from "@/lib/mock/templates";
 import { type Contact, withAnyTag } from "@/lib/mock/contacts";
 import { NOW as MOCK_NOW } from "@/lib/mock/constants";
 
-// Email activity of one contact (R8, 2026-10-29; HubSpot contact Activities tab, Apollo A2 engagement). The live
-// app keeps per-recipient events for each batch (report Recipients tab) but has no per-contact view or API yet;
-// this mock derives one from the batches sent to the contact's tags, deterministically, so screenshots are stable:
-// - a contact with no "Last sent" never received anything (empty state); nothing after that date is shown;
+// Email activity of one contact (R8). The live app keeps per-recipient events for each batch (report Recipients tab)
+// but has no per-contact view or API yet; this mock derives one from the batches sent to the contact's tags,
+// deterministically, so screenshots are stable:
+// - one source with the table: "Last sent" names a real batch (lib/mock/contacts.ts) and the history ends on it, so
+//   a contact with a Last sent always has at least that send here, and one without has none (empty state);
 // - inclusion and engagement follow each batch's own rates (bounces, opens, clicks, unsubscribes);
 // - an unsubscribe ends the history; an unreachable contact's newest batch bounced (or was marked as spam);
 // - replies are boosted over the batch rate so the illustration has some (numbers are illustrative).
@@ -50,12 +52,18 @@ function sentAtMs(b: ReportBatch) {
 
 /** Newest first. How likely the contact was in each batch follows its recipients ÷ the people with its tags. */
 export function contactActivity(contact: Contact, book: Contact[]): ActivityEvent[] {
-  if (!contact.lastSent || contact.unreachable === "bad_format") return [];
+  if (!contact.lastSent) return [];
+  const all = allBatches();
+  // The batch "Last sent" names; a contact edited or imported this session has only the date, so the newest batch
+  // to its tags on or before that day stands in.
   const until = new Date(`${contact.lastSent.on}T23:59:59Z`).getTime();
-  const candidates = allBatches()
+  const named = all.find((b) => b.id === contact.lastSent?.batchId);
+  const candidates = all
     .filter((b) => (b.status === "sent" || b.status === "sending") && withAnyTag([contact], b.tags).length > 0 && sentAtMs(b) <= until)
     .sort((a, b) => sentAtMs(a) - sentAtMs(b));
-  if (candidates.length === 0) return [];
+  const newest = named ?? candidates[candidates.length - 1];
+  if (!newest) return [];
+  const earlier = candidates.filter((b) => b !== newest && sentAtMs(b) <= sentAtMs(newest));
 
   const r = rng(hash(contact.id));
   const sizes = new Map<string, number>();
@@ -64,10 +72,8 @@ export function contactActivity(contact: Contact, book: Contact[]): ActivityEven
     if (!sizes.has(k)) sizes.set(k, withAnyTag(book, tags).length);
     return sizes.get(k) ?? 1;
   };
-  let received = candidates.filter((b) => r() < Math.min(0.95, Math.max(0.25, b.recipients / Math.max(1, sizeOf(b.tags)))));
-  // "Last sent" says they got at least one email: keep the newest batch in.
-  const newest = candidates[candidates.length - 1];
-  if (!received.includes(newest)) received = [...received, newest];
+  // "Last sent" says they got at least that email: the newest batch is always in.
+  let received = [...earlier.filter((b) => r() < Math.min(0.95, Math.max(0.25, b.recipients / Math.max(1, sizeOf(b.tags))))), newest];
 
   const hardBounce = contact.unreachable === "bounced" || contact.unreachable === "no_mailbox" || contact.unreachable === "low_quality";
   // The address failed on its first send: that one bounce is the whole history.
@@ -77,7 +83,7 @@ export function contactActivity(contact: Contact, book: Contact[]): ActivityEven
   for (const b of received) {
     const rb = rng(hash(`${contact.id}|${b.id}`));
     const met = b.metrics;
-    const base = { batchId: b.id, batchTitle: batchTitle(b), template: findTemplate(b.templateId)?.template.name ?? "Untitled template" };
+    const base = { batchId: b.id, batchTitle: batchTitle(b), template: findTemplate(b.templateId)?.template.name ?? "Deleted template" };
     const push = (kind: ActivityKind, at: number, url?: string) => {
       if (at <= NOW) out.push({ id: `${b.id}-${kind}`, kind, at: new Date(at).toISOString(), url, ...base });
     };
@@ -111,7 +117,8 @@ export function contactActivity(contact: Contact, book: Contact[]): ActivityEven
 export function summarize(events: ActivityEvent[]): ActivitySummary {
   const batches = (k: ActivityKind[]) => new Set(events.filter((e) => k.includes(e.kind)).map((e) => e.batchId)).size;
   return {
-    received: batches(["delivered", "bounced"]),
+    // A bounced email never arrived, so it is not "received" (it has its own count).
+    received: batches(["delivered"]),
     opened: batches(["opened"]),
     clicked: batches(["clicked"]),
     replied: batches(["replied"]),

@@ -1,15 +1,18 @@
 "use client";
 
-import { type CSSProperties, Fragment, useEffect, useMemo, useState } from "react";
+import { SCROLL_CARD_TABLE_BOX, SCROLL_DIALOG_LIST } from "@/lib/scroll";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CircleAlertIcon,
+  CirclePauseIcon,
   CopyIcon,
   EyeIcon,
   FolderIcon,
   FileSpreadsheetIcon,
   LockIcon,
+  MailXIcon,
   PencilIcon,
   RotateCwIcon,
   SearchIcon,
@@ -24,12 +27,11 @@ import {
   campaignStatus,
   formatDate,
   formatDateTime,
-  rate,
-  sampleCampaigns,
 } from "@/lib/mock/campaigns";
 import { type RecipientEvent, type RecipientRow, type ReportBatch, allBatches, batchTitle, recipientRows } from "@/lib/mock/batches";
 import { senders } from "@/lib/mock/workspace";
-import { useCreatedCampaigns } from "@/lib/mock/created-campaigns";
+import { WORKSPACE_TZ_LABEL } from "@/lib/time";
+import { useCampaignStore } from "@/lib/mock/created-campaigns";
 import { PageHeader } from "@/components/layout/page-header";
 import { Hint } from "@/components/saella/hint";
 import { KpiStrip, KpiStripItem, type MetricDelta } from "@/components/saella/kpi-strip";
@@ -49,7 +51,8 @@ import { FilterChips, FilterMultiSelect, FilterPopover, FilterSelect } from "@/c
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { LockedTip } from "@/components/features/automate-dialog";
+import { METRIC_COLOR } from "@/lib/metric-colors";
+import { LockedTip } from "@/components/saella/locked-tip";
 import { AutomationPanel } from "@/components/features/automation-panel";
 import { EmailBody } from "@/components/features/email-body";
 import {
@@ -57,47 +60,79 @@ import {
   type Viewer,
   accessFor,
   canEdit,
+  currentCampaigns,
   detailsFor,
   findTemplate,
   ownerName,
   resolveTags,
+  templateLinks,
   viewerFor,
 } from "@/lib/mock/templates";
-import { SendButton, TemplateMenu, sendBlockedReason, useCopyTemplate } from "@/components/features/template-menu";
+import { SendButton, TemplateMenu, sendBlockedReason, useCopyTemplate, useRowOpen } from "@/components/features/template-menu";
 import { useTemplateStore } from "@/lib/mock/use-template-store";
 
 // One template's results across every send (live app EmailTemplateAnalytics; Repo src/lib/email/analytics.ts
-// TemplateRollup). Layout follows the live page (user decision 2026-11-12), section by section: header (name,
-// status; Edit + Send batch), Performance card (sent line + six rates in 3 × 2) with the content preview beside
-// it, Performance trend (one point per batch), Link performance, Send history, All recipients (Resend beside
-// the title; Export, event filter select with counts, search on the right). Added: Automation (schedule + follow-up chain),
-// next to Link performance. Not carried over: the Company / Self-upload audience tabs and the Audience type
-// column (contacts are one tag-grouped book here, decisions.md "Leads › Self-upload").
+// TemplateRollup). Layout follows the live page, section by section: header (name, status; Edit + Send batch),
+// Performance card (sent line + six rates in 3 × 2) with the content preview beside it, Performance trend (one point
+// per batch), Link performance, Send history, All recipients. Added: Automation (schedule + follow-up chain). Not
+// carried over: the Company / Self-upload audience tabs and the Audience type column (contacts are one tag-grouped
+// book here, decisions.md "Leads › Self-upload").
 // Rates: delivery and bounce over sent, the rest over delivered; under 20 sends grey (rate-meter.tsx).
-// Colour accents (kept to two): Reply rate delta, trend lines. Status colour stays on badges only.
+// Colour: trend lines only. The Reply rate delta is grey (Reply has no threshold, DESIGN.md §2); Delivery and Bounce
+// take their warning colours from rateKpi. Status colour stays on badges only.
 // Preview states: ?state=loading | error | paused | locked | member.
 
 const divider = "border-r border-border/50 last:border-r-0";
-// Section card → table frame (Studio Admin "Recent Leads", designer 2026-11-12, PATTERNS 9.1): the table sits in its
-// own rounded bordered frame inside the card's padding; its header row is the warm table-head token (no grey),
-// opaque so scrolled rows pass under it.
+// Section card → table frame (Studio Admin "Recent Leads", PATTERNS 9.1): the table sits in its own rounded bordered
+// frame inside the card's padding; its header row is the table-head token, opaque so scrolled rows pass under it.
 const tableFrame = "overflow-hidden rounded-lg border";
+// A sticky header keeps its bottom rule only when cells draw their own borders (border-collapse leaves the row's line
+// behind on scroll): separate borders, a bottom line on every cell but the last row's (as Leads, companies-table.tsx).
+const stickyRules = "border-separate border-spacing-0 [&_th]:border-b [&_td]:border-b [&_tbody_tr:last-child_td]:border-b-0";
 const n = (x: number) => x.toLocaleString("en-US");
+
+/** Labels that tell apart two items with the same name (two batches sent the same minute share "#0912-0830"): the
+ *  second and later get " (2)", " (3)"…, in the order given. */
+function dedupe(labels: string[]) {
+  const seen = new Map<string, number>();
+  return labels.map((l) => {
+    const k = (seen.get(l) ?? 0) + 1;
+    seen.set(l, k);
+    return k === 1 ? l : `${l} (${k})`;
+  });
+}
+
+/** Batch id → its label on this page (Send history, All recipients, its Batch filter), oldest first. */
+function batchLabels(batches: ReportBatch[]) {
+  const ordered = [...batches].sort((a, b) =>
+    (a.sentAt ?? a.scheduledFor ?? a.createdOn).localeCompare(b.sentAt ?? b.scheduledFor ?? b.createdOn) || a.id.localeCompare(b.id)
+  );
+  const labels = dedupe(ordered.map(batchTitle));
+  return new Map(ordered.map((b, i) => [b.id, labels[i]]));
+}
 
 export function TemplateDetailScreen({ id }: { id: string }) {
   const params = useSearchParams();
-  const created = useCreatedCampaigns();
-  const copyTargets = useMemo(() => [...created, ...sampleCampaigns], [created]);
+  // Campaigns as of now (created, edited, deleted this session); Copy to… leaves out ended and archived ones.
+  useCampaignStore();
+  // Status, owner, shares, deletes and copies from the ⋯ menu (lib/mock/template-store.ts).
+  useTemplateStore();
+  const copyTargets = currentCampaigns();
   const previewState = params.get("state");
   const viewer = viewerFor(previewState);
   const router = useRouter();
-  // Status, owner, shares, deletes and copies from the ⋯ menu (lib/mock/template-store.ts).
-  useTemplateStore();
   const found = findTemplate(id);
   const copyTo = useCopyTemplate(viewer);
-  // /templates/<id>#automation (row menu "Automate" on the Templates list): bring the Automation card into view.
+  // /templates/<id>#automation (row menu "Automate" on the Templates list) and #recipients (a completed schedule's
+  // "See who it reached"): bring that card into view, on arrival and when the link is on this page.
   useEffect(() => {
-    if (window.location.hash === "#automation") document.getElementById("automation")?.scrollIntoView({ block: "start" });
+    const go = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash === "automation" || hash === "recipients") document.getElementById(hash)?.scrollIntoView({ block: "start" });
+    };
+    go();
+    window.addEventListener("hashchange", go);
+    return () => window.removeEventListener("hashchange", go);
   }, []);
 
   const sendingBlocked =
@@ -126,6 +161,8 @@ export function TemplateDetailScreen({ id }: { id: string }) {
   const ended = campaignStatus(campaign) === "ended";
   const sentBatches = myBatches.filter((b) => b.sent > 0 && b.metrics);
   const hasSends = sentBatches.length > 0;
+  // "Not sent yet" is said once, in Send history: until the first send, Performance and Link performance are hidden.
+  const everSent = hasSends || template.recipients > 0;
   const error = previewState === "error";
 
   return (
@@ -181,11 +218,20 @@ export function TemplateDetailScreen({ id }: { id: string }) {
         </dl>
       </PageHeader>
 
+      {/* Same paused alert as Campaigns, Templates, Overview and the batch report: warning + pause icon. */}
       {previewState === "paused" && (
-        <Alert variant="destructive">
-          <CircleAlertIcon />
+        <Alert variant="warning">
+          <CirclePauseIcon />
           <AlertTitle>Sending is paused for this workspace</AlertTitle>
-          <AlertDescription>Too many messages bounced or were marked as spam. An admin can resume sending in Settings.</AlertDescription>
+          <AlertDescription>
+            Too many messages bounced or were marked as spam. Remove those addresses. Saella reviews and lifts the
+            pause; unsent emails go out then.
+          </AlertDescription>
+          <AlertAction>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/settings/sending">Sending health</Link>
+            </Button>
+          </AlertAction>
         </Alert>
       )}
       {previewState === "locked" && (
@@ -214,9 +260,7 @@ export function TemplateDetailScreen({ id }: { id: string }) {
         </Alert>
       )}
 
-      {/* Live order: performance overview with the content preview beside it, trend, link performance, send
-          history, all recipients. */}
-      <div className="grid items-stretch gap-4 md:gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className={cn("grid items-stretch gap-4 md:gap-6", (error || everSent) && "lg:grid-cols-[minmax(0,1fr)_20rem]")}>
         {error ? (
           <Alert variant="destructive" className="self-start">
             <CircleAlertIcon />
@@ -232,15 +276,15 @@ export function TemplateDetailScreen({ id }: { id: string }) {
             </AlertAction>
           </Alert>
         ) : (
-          <PerformanceCard template={template} batches={sentBatches} fallbackReplies={details.replies} />
+          everSent && <PerformanceCard template={template} batches={sentBatches} fallbackReplies={details.replies} />
         )}
-        <ContentCard id={id} mayEdit={mayEdit} />
+        <ContentCard id={id} />
       </div>
 
       {!error && hasSends && <TrendCard batches={sentBatches} />}
 
-      {!error && <LinksCard links={details.links} sent={hasSends} />}
-      {/* Full width, right above Send history: the batches a schedule sends land there (designer 2026-11-13). */}
+      {!error && everSent && <LinksCard links={templateLinks(id)} />}
+      {/* Full width, right above Send history: the batches a schedule sends land there. */}
       <AutomationCard templateId={id} viewer={viewer} />
 
       {!error && <BatchesCard template={template} batches={myBatches} viewer={viewer} sendingBlocked={sendingBlocked} />}
@@ -250,18 +294,17 @@ export function TemplateDetailScreen({ id }: { id: string }) {
   );
 }
 
-// Live app "Performance" card: one line on how much was sent, then five rates (open, click, reply / bounce,
-// unsubscribe; the live app's click-to-open is left out). Delivery sits in that first line; its threshold flag stays on each
-// batch row below. One data source (PATTERNS.md §9.7): sums of the same batches the tables below list; a template
-// whose batches carry no metrics keeps its own totals. Accent: Reply rate (the outcome a template is judged by)
-// carries a delta, latest batch vs the batches before it.
+// Live app "Performance" card: one line on how much was sent, then six rates on one 3 × 2 grid (open, click, reply /
+// delivery, bounce, unsubscribe; the live app's click-to-open is left out). Delivery is a KPI like the others, so its
+// warning under 90% shows (DESIGN.md §2). One data source (PATTERNS.md §9.7): sums of the same batches the tables
+// below list; a template whose batches carry no metrics keeps its own totals. Reply rate (the outcome a template is
+// judged by) carries a delta, latest batch vs the batches before it, in grey: Reply has no threshold.
 function PerformanceCard({ template, batches, fallbackReplies }: { template: Template; batches: ReportBatch[]; fallbackReplies: number }) {
   const sum = (list: ReportBatch[], k: "delivered" | "opens" | "clicks" | "bounces" | "unsubs" | "replies") => list.reduce((x, b) => x + b.metrics![k], 0);
   const t = batches.length
     ? { recipients: batches.reduce((x, b) => x + b.sent, 0), delivered: sum(batches, "delivered"), opens: sum(batches, "opens"), clicks: sum(batches, "clicks"), bounces: sum(batches, "bounces"), unsubs: sum(batches, "unsubs") }
     : template;
   const replies = batches.length ? sum(batches, "replies") : fallbackReplies;
-  const delivery = rate(t.delivered, t.recipients);
 
   // Latest batch vs the ones before it, both with at least 20 delivered (BR-RULE-EC-21).
   const [latest, ...earlier] = batches;
@@ -272,7 +315,7 @@ function PerformanceCard({ template, batches, fallbackReplies }: { template: Tem
     const before = (sum(earlier, "replies") / earlierDelivered) * 100;
     const diff = now - before;
     if (Math.abs(diff) >= 0.1)
-      replyDelta = { value: `${diff > 0 ? "+" : "−"}${Math.abs(diff).toFixed(1)} pts`, direction: diff > 0 ? "up" : "down", good: diff > 0, period: "Latest batch vs earlier batches" };
+      replyDelta = { value: `${diff > 0 ? "+" : "−"}${Math.abs(diff).toFixed(1)} pts`, direction: diff > 0 ? "up" : "down", good: diff > 0, neutral: true, period: "Latest batch vs earlier batches" };
   }
 
   return (
@@ -282,20 +325,18 @@ function PerformanceCard({ template, batches, fallbackReplies }: { template: Tem
           <h2>Performance</h2>
         </CardTitle>
         <CardDescription className="tabular-nums">
-          {t.recipients && template.lastSent
-            ? `${n(batches.length || 1)} ${batches.length === 1 ? "batch" : "batches"} · ${n(t.recipients)} sent · ${delivery?.text ?? "–"} delivered · last sent ${formatDate(template.lastSent)}`
-            : "Not sent yet. Numbers show here after the first batch."}
+          {`${n(batches.length || 1)} ${batches.length === 1 || !batches.length ? "batch" : "batches"} · ${n(t.recipients)} sent`}
+          {template.lastSent && ` · last sent ${formatDate(template.lastSent)}`}
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <KpiStrip>
+      <CardContent>
+        {/* One grid, so the columns line up across both rows. No Click-to-open: it is Click ÷ Open, both shown.
+            Engagement on the first row, the rates with a threshold (and Unsubscribe) on the second. */}
+        <KpiStrip className="grid-flow-row grid-cols-3 [&>*:nth-child(3n)]:border-e-0 [&>*:nth-child(n+4)]:border-t">
           <KpiStripItem label="Open rate" {...rateKpi("open", t.opens, t.delivered)} />
           <KpiStripItem label="Click rate" {...rateKpi("click", t.clicks, t.delivered)} />
           <KpiStripItem label="Reply rate" {...rateKpi("reply", replies, t.delivered)} delta={replyDelta} />
-        </KpiStrip>
-        {/* No Click-to-open (designer 2026-11-13): it is Click ÷ Open, both shown above. Engagement on the first
-            line, the warning rates on the second. */}
-        <KpiStrip>
+          <KpiStripItem label="Delivery rate" {...rateKpi("delivery", t.delivered, t.recipients)} />
           <KpiStripItem label="Bounce rate" {...rateKpi("bounce", t.bounces, t.recipients)} />
           <KpiStripItem label="Unsubscribe" {...rateKpi("unsub", t.unsubs, t.delivered)} />
         </KpiStrip>
@@ -304,8 +345,9 @@ function PerformanceCard({ template, batches, fallbackReplies }: { template: Tem
   );
 }
 
-// Live app: a preview of the template beside the performance card; it opens the editor.
-function ContentCard({ id, mayEdit }: { id: string; mayEdit: boolean }) {
+// Live app: a preview of the template beside the performance card. Edit is in the page header only (one Edit per
+// page).
+function ContentCard({ id }: { id: string }) {
   const details = detailsFor(id);
   return (
     <Card size="sm">
@@ -313,11 +355,6 @@ function ContentCard({ id, mayEdit }: { id: string; mayEdit: boolean }) {
         <CardTitle>
           <h2>Content</h2>
         </CardTitle>
-        <CardAction>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href={`/templates/${id}/edit`}>{mayEdit ? "Edit" : "View"}</Link>
-          </Button>
-        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-col gap-0.5 text-sm">
@@ -337,12 +374,13 @@ function ContentCard({ id, mayEdit }: { id: string; mayEdit: boolean }) {
 // Performance trend (live app "Performance trend"): one point per sent batch, oldest first, rates in %. Batches
 // under 20 delivered are left out (too few to judge). Series picker as on Overview's Send volume.
 
+// Colours from the one metric map (lib/metric-colors.ts), as every other chart.
 const TREND = {
-  open: { label: "Open", color: "var(--chart-2)" },
-  click: { label: "Click", color: "var(--chart-5)" },
-  reply: { label: "Reply", color: "var(--chart-4)" },
-  bounce: { label: "Bounce", color: "var(--chart-1)" },
-  unsub: { label: "Unsubscribe", color: "var(--chart-3)" },
+  open: { label: "Open", color: METRIC_COLOR.opens },
+  click: { label: "Click", color: METRIC_COLOR.clicks },
+  reply: { label: "Reply", color: METRIC_COLOR.replies },
+  bounce: { label: "Bounce", color: METRIC_COLOR.bounces },
+  unsub: { label: "Unsubscribe", color: METRIC_COLOR.unsubs },
 } satisfies ChartConfig;
 type TrendKey = keyof typeof TREND;
 
@@ -350,10 +388,13 @@ function TrendCard({ batches }: { batches: ReportBatch[] }) {
   const [series, setSeries] = useState<TrendKey[]>(["open", "click", "reply"]);
   const usable = batches.filter((b) => b.metrics && b.metrics.delivered >= 20);
   const pct = (part: number, whole: number) => (whole ? Math.round((part / whole) * 1000) / 10 : 0);
-  const points = [...usable].reverse().map((b) => {
+  const oldestFirst = [...usable].reverse();
+  // Two batches on the same day would share an axis label: the later one gets " (2)".
+  const labels = dedupe(oldestFirst.map((b) => (b.sentAt ? formatDate(b.sentAt) : batchTitle(b))));
+  const points = oldestFirst.map((b, i) => {
     const m = b.metrics!;
     return {
-      label: b.sentAt ? formatDate(b.sentAt) : batchTitle(b),
+      label: labels[i],
       open: pct(m.opens, m.delivered),
       click: pct(m.clicks, m.delivered),
       reply: pct(m.replies, m.delivered),
@@ -367,7 +408,6 @@ function TrendCard({ batches }: { batches: ReportBatch[] }) {
         <CardTitle>
           <h2>Performance trend</h2>
         </CardTitle>
-        <CardDescription>One point per batch, oldest first.</CardDescription>
         <CardAction>
           <div role="group" aria-label="Rates to show" className="flex flex-wrap items-center gap-x-4 gap-y-2">
             {(Object.keys(TREND) as TrendKey[]).map((key) => {
@@ -382,9 +422,14 @@ function TrendCard({ batches }: { batches: ReportBatch[] }) {
                     disabled={last}
                     onCheckedChange={(c) => setSeries(c ? [...series, key] : series.filter((k) => k !== key))}
                     style={{ "--series": TREND[key].color } as CSSProperties}
-                    className="border-(--series) data-checked:border-(--series) data-checked:bg-(--series) data-checked:text-background disabled:opacity-100"
+                    // Off: a plain input box; on: the series colour (gold gets a dark tick), as Send volume.
+                    className={cn(
+                      "data-checked:border-(--series) data-checked:bg-(--series) data-checked:text-background disabled:opacity-100",
+                      key === "click" && "data-checked:text-deep"
+                    )}
                   />
-                  <Label htmlFor={cid} className="font-normal">
+                  <Label htmlFor={cid} className="gap-1.5 font-normal">
+                    <span aria-hidden style={{ "--series": TREND[key].color } as CSSProperties} className="w-3 border-t-2 border-(--series)" />
                     {TREND[key].label}
                   </Label>
                 </div>
@@ -416,9 +461,9 @@ function TrendCard({ batches }: { batches: ReportBatch[] }) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // Send history (live app "Send history"): one row per batch, columns in the live order (name, date, status,
-// delivered, open, click, bounce, unsub, reply); the name opens its report. Live "Audience type" is not carried
-// over (one tag-grouped contact book). Recipients count sits on line 2 of the name; tags have their own column. Dates are plain text: the
-// status colour belongs only to the badge.
+// delivered, open, click, bounce, unsub, reply); the name opens its report. Live "Audience type" is not carried over
+// (one tag-grouped contact book). Recipients count sits on line 2 of the name; tags have their own column. Dates are
+// plain text: the status colour belongs only to the badge.
 
 function BatchesCard({
   template,
@@ -431,6 +476,8 @@ function BatchesCard({
   viewer: Viewer;
   sendingBlocked?: string;
 }) {
+  const labels = batchLabels(batches);
+  const rowOpen = useRowOpen();
   return (
     <Card size="sm">
       <CardHeader>
@@ -458,11 +505,11 @@ function BatchesCard({
         </Empty>
         </CardContent>
       ) : (
-        // About five rows, then the table scrolls inside the card under a sticky header (designer 2026-11-12).
+        // The table scrolls inside the card under a sticky header, at the card-table height (lib/scroll.ts).
         <CardContent>
         <div className={tableFrame}>
-        <div className="max-h-80 overflow-auto *:data-[slot=table-container]:overflow-visible">
-          <Table aria-label="Batches sent with this template" className="min-w-[60rem] table-fixed [&_td]:px-3 [&_th]:px-3">
+        <div className={SCROLL_CARD_TABLE_BOX}>
+          <Table aria-label="Batches sent with this template" className={cn("min-w-[56rem] min-[1440px]:min-w-[60rem] max-[1439px]:[&_[data-slot=rate-value]]:flex-wrap max-[1439px]:[&_[data-slot=rate-value]]:gap-y-0 table-fixed [&_td]:px-3 [&_th]:px-3", stickyRules)}>
             {/* Batch takes the rest; the others at content width (px-3). Tags in their own column, as on Leads. */}
             <colgroup>
               <col />
@@ -476,13 +523,14 @@ function BatchesCard({
               <col className="w-20" />
               <col className="w-22" />
             </colgroup>
-            <TableHeader className={"sticky top-0 z-10 bg-table-head shadow-[inset_0_-1px_0_var(--border)]"}>
+            <TableHeader>
               <TableRow>
                 <TableHead className={divider}>Batch</TableHead>
                 <TableHead className={divider}>Tags</TableHead>
-                <TableHead className={divider}>Date</TableHead>
+                {/* One time zone note for the whole column (PATTERNS 9.8). */}
+                <TableHead className={divider}>Date ({WORKSPACE_TZ_LABEL})</TableHead>
                 <TableHead className={divider}>Status</TableHead>
-                <TableHead className={divider}>Delivered</TableHead>
+                <TableHead className={divider}>Delivery</TableHead>
                 <TableHead className={divider}>Open</TableHead>
                 <TableHead className={divider}>Click</TableHead>
                 <TableHead className={divider}>Bounce</TableHead>
@@ -499,15 +547,20 @@ function BatchesCard({
                 const date = when ? formatDateTime(when) : `Created ${formatDate(b.createdOn)}`;
                 const count = b.status === "sending" ? `${n(b.sent)}/${n(b.recipients)} sent` : `${n(b.recipients)} recipients`;
                 const sub = count;
-                const title = batchTitle(b);
+                const title = labels.get(b.id) ?? batchTitle(b);
+                // A row with a report opens it on a click anywhere (PATTERNS 9.1); the name stays the keyboard link.
                 return (
-                  <TableRow key={b.id}>
+                  <TableRow
+                    key={b.id}
+                    className={cn(hasReport && "cursor-pointer")}
+                    onClick={hasReport ? rowOpen(`/batches/${b.id}/report`) : undefined}
+                  >
                     <TableCell className={divider}>
                       <div className="flex min-w-0 flex-col gap-0.5">
                         {hasReport ? (
                           <Link
                             href={`/batches/${b.id}/report`}
-                            className="truncate rounded-sm font-medium tabular-nums underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                            className="truncate rounded-sm font-medium tabular-nums focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                           >
                             {title}
                           </Link>
@@ -574,12 +627,13 @@ function BatchesCard({
 // ---------------------------------------------------------------------------------------------------------------
 // Recipients of every send (live app "All recipients"): one event filter select with counts, search,
 // Excel export of exactly what the filter shows (PRD Master v1.2.8), Resend to people it didn't reach
-// (AC-EC-R-01..04: bounced, as a new batch, one copy per mailbox; addresses that don't exist start unticked).
+// (AC-EC-R-01..04: bounced, as a new batch, one copy per mailbox). Addresses that don't exist are left out and only
+// counted (PRD/live app list them unticked).
 
 type EventFilter = "all" | "delivered" | "opened" | "unopened" | "clicked" | "bounced" | "unsubscribed";
 
 const FILTERS: { value: EventFilter; label: string; test: (r: RecipientRow) => boolean }[] = [
-  { value: "all", label: "Everyone", test: () => true },
+  { value: "all", label: "Any status", test: () => true },
   { value: "delivered", label: "Delivered", test: (r) => r.delivered },
   { value: "opened", label: "Opened", test: (r) => r.opened },
   { value: "unopened", label: "Didn't open", test: (r) => r.delivered && !r.opened },
@@ -603,7 +657,7 @@ const PAGE = 20;
 
 type Row = RecipientRow & { batchId: string; batchName: string };
 
-/** Mock: about half of the bounced addresses no longer exist (live app isDeadAddress); they start unticked. */
+/** Mock: about half of the bounced addresses no longer exist (live app isDeadAddress); Resend leaves them out. */
 const isDead = (r: Row) => r.bounced && r.email.length % 2 === 0;
 
 function RecipientsCard({
@@ -617,6 +671,7 @@ function RecipientsCard({
   viewer: Viewer;
   sendingBlocked?: string;
 }) {
+  const labels = useMemo(() => batchLabels(batches), [batches]);
   const rows = useMemo<Row[]>(
     () =>
       batches
@@ -624,11 +679,11 @@ function RecipientsCard({
         .flatMap((b) =>
           recipientRows(b)
             .filter((r) => r.status !== "pending")
-            .map((r) => ({ ...r, batchId: b.id, batchName: batchTitle(b) }))
+            .map((r) => ({ ...r, batchId: b.id, batchName: labels.get(b.id) ?? batchTitle(b) }))
         )
         // Latest activity first, across every batch.
         .sort((a, b) => (b.lastActivity ?? "").localeCompare(a.lastActivity ?? "")),
-    [batches]
+    [batches, labels]
   );
   const [filter, setFilter] = useState<EventFilter>("all");
   const [batchPick, setBatchPick] = useState<string[]>([]);
@@ -640,11 +695,13 @@ function RecipientsCard({
     () => Object.fromEntries(FILTERS.map((f) => [f.value, rows.filter(f.test).length])) as Record<EventFilter, number>,
     [rows]
   );
-  // One resend per mailbox (live app dedupes by email).
-  const eligible = useMemo(() => {
+  // One resend per mailbox (live app dedupes by email). Only addresses that still exist, so the count on the button is
+  // what goes out.
+  const { eligible, dead } = useMemo(() => {
     const seen = new Map<string, Row>();
     for (const r of rows) if (r.bounced && !seen.has(r.email)) seen.set(r.email, r);
-    return [...seen.values()];
+    const all = [...seen.values()];
+    return { eligible: all.filter((r) => !isDead(r)), dead: all.filter(isDead).length };
   }, [rows]);
 
   const q = query.trim().toLowerCase();
@@ -652,10 +709,13 @@ function RecipientsCard({
   const matched = rows.filter(
     (r) =>
       test(r) &&
-      (!batchPick.length || batchPick.includes(r.batchName)) &&
+      (!batchPick.length || batchPick.includes(r.batchId)) &&
       (!q || r.email.includes(q) || r.name.toLowerCase().includes(q))
   );
-  const batchNames = [...new Set(rows.map((r) => r.batchName))];
+  // The Batch filter keeps ids (two batches can share a name); it shows each batch's label from this page.
+  const batchIds = [...new Set(rows.map((r) => r.batchId))];
+  const labelOf = (id: string) => labels.get(id) ?? id;
+  const idOf = new Map(batchIds.map((id) => [labelOf(id), id]));
   const filterCount = (filter !== "all" ? 1 : 0) + batchPick.length;
   const clearFilters = () => {
     setFilter("all");
@@ -664,17 +724,18 @@ function RecipientsCard({
   };
   const chips = [
     ...(filter !== "all"
-      ? [{ key: "event", label: "Event", value: FILTERS.find((f) => f.value === filter)!.label, remove: () => setFilter("all") }]
+      ? [{ key: "event", label: "Status", value: FILTERS.find((f) => f.value === filter)!.label, remove: () => setFilter("all") }]
       : []),
-    ...batchPick.map((b) => ({ key: `b-${b}`, label: "Batch", value: b, remove: () => setBatchPick(batchPick.filter((x) => x !== b)) })),
+    ...batchPick.map((b) => ({ key: `b-${b}`, label: "Batch", value: labelOf(b), remove: () => setBatchPick(batchPick.filter((x) => x !== b)) })),
   ];
   const shown = matched.slice(0, limit);
-  const resendReason = sendBlockedReason(template, viewer, sendingBlocked) ?? (eligible.length === 0 ? "Everyone it was sent to received it" : undefined);
+  const resendReason = sendBlockedReason(template, viewer, sendingBlocked);
 
   return (
-    <Card size="sm">
-      {/* One line, as the Leads card headers (designer 2026-11-13): title left; search (w-64, shrinks first), Filter,
-          Resend, Export on the right, all h-7 outline, gap-2. Chips under it; the total only in the footer. */}
+    <Card size="sm" id="recipients" className="scroll-mt-20">
+      {/* One line, as the Leads card headers: title left; search, Filter, Export on the right. Chips under it; the total
+          only in the footer. Resend is a note above the table: it sends real email, so it sits next to who it reaches, and
+          only shows while someone is left to resend to. */}
       <CardHeader className="grid-cols-[auto_minmax(0,1fr)]">
         <CardTitle className="self-center">
           <h2>All recipients</h2>
@@ -698,12 +759,12 @@ function RecipientsCard({
               }}
             />
           </InputGroup>
-          {/* The standard Filter button (designer 2026-11-12): Event (7 options → one select with counts) and
-              Batch (several → MultiSelect). Active values show as chips below. */}
+          {/* Filter: Status (one select with counts) and Batch (MultiSelect). Active values show as chips below. */}
           <FilterPopover count={filterCount} onClearAll={clearFilters}>
             <FilterSelect
-              label="Event"
-              allLabel="Everyone"
+              // "Status" like the column it filters, "Any status" like Leads.
+              label="Status"
+              allLabel="Any status"
               allCount={counts.all}
               value={filter === "all" ? undefined : filter}
               options={FILTERS.filter((f) => f.value !== "all").map((f) => ({ value: f.value, label: f.label, count: counts[f.value] }))}
@@ -712,13 +773,13 @@ function RecipientsCard({
                 setLimit(PAGE);
               }}
             />
-            {batchNames.length > 1 && (
+            {batchIds.length > 1 && (
               <FilterMultiSelect
                 label="Batch"
-                options={batchNames}
-                value={batchPick}
+                options={batchIds.map(labelOf)}
+                value={batchPick.map(labelOf)}
                 onChange={(v) => {
-                  setBatchPick(v);
+                  setBatchPick(v.map((l) => idOf.get(l)).filter((x): x is string => Boolean(x)));
                   setLimit(PAGE);
                 }}
                 placeholder="Any batch"
@@ -728,12 +789,6 @@ function RecipientsCard({
           </FilterPopover>
           </>
           )}
-          <LockedTip reason={resendReason}>
-            <Button variant="outline" size="sm" disabled={Boolean(resendReason)} onClick={() => setResending(true)}>
-              <SendIcon data-icon="inline-start" />
-              Resend{eligible.length > 0 && ` (${n(eligible.length)})`}
-            </Button>
-          </LockedTip>
           {rows.length > 0 && (
             <Button
               variant="outline"
@@ -765,6 +820,30 @@ function RecipientsCard({
             }))}
             onClearAll={clearFilters}
           />
+          {eligible.length > 0 && (
+            // Warning amber: mail bounced, worth a look; not an error.
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-warning/40 bg-warning-soft py-2 dark:border-border dark:bg-muted pr-2 pl-3 text-sm">
+              <MailXIcon aria-hidden className="size-4 shrink-0 text-warning-soft-foreground" />
+              <p className="min-w-0 flex-1 text-muted-foreground tabular-nums">
+                <span className="font-medium text-foreground">
+                  {n(eligible.length)} {eligible.length === 1 ? "person" : "people"} didn&apos;t get this email.
+                </span>{" "}
+                {dead > 0 ? "Their mail bounced; addresses that don't exist are left out." : "Their mail bounced."}
+              </p>
+              <LockedTip reason={resendReason}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="tabular-nums"
+                  disabled={Boolean(resendReason)}
+                  onClick={() => setResending(true)}
+                >
+                  <SendIcon data-icon="inline-start" />
+                  Resend to {n(eligible.length)}
+                </Button>
+              </LockedTip>
+            </div>
+          )}
           {matched.length === 0 ? (
             <div className="flex flex-col items-center gap-3 rounded-lg border py-10 text-sm text-muted-foreground">
               No results.
@@ -780,15 +859,15 @@ function RecipientsCard({
               </Button>
             </div>
           ) : (
-            // About seven rows, scrolling inside the card; the next page loads near the bottom (designer 2026-11-12).
+            // Scrolls inside the card at the card-table height (lib/scroll.ts); the next page loads near the bottom.
             <div
-              className={cn(tableFrame, "max-h-96 overflow-auto *:data-[slot=table-container]:overflow-visible")}
+              className={cn(tableFrame, SCROLL_CARD_TABLE_BOX)}
               onScroll={(e) => {
                 const el = e.currentTarget;
                 if (el.scrollTop + el.clientHeight > el.scrollHeight - 120 && limit < matched.length) setLimit((l) => l + PAGE);
               }}
             >
-              <Table aria-label="Recipients of this template" className="min-w-[60rem] table-fixed [&_td]:px-3 [&_th]:px-3">
+              <Table aria-label="Recipients of this template" className={cn("min-w-[56rem] min-[1440px]:min-w-[60rem] table-fixed [&_td]:px-3 [&_th]:px-3", stickyRules)}>
                 {/* Email takes the rest; the others at content width (px-3); Note is mostly empty and wraps. */}
                 <colgroup>
                   <col />
@@ -797,10 +876,10 @@ function RecipientsCard({
                   <col className="w-30" />
                   <col className="w-18" />
                   <col className="w-18" />
-                  <col className="w-34" />
+                  <col className="w-46" />
                   <col className="w-32" />
                 </colgroup>
-                <TableHeader className={"sticky top-0 z-10 bg-table-head shadow-[inset_0_-1px_0_var(--border)]"}>
+                <TableHeader>
                   <TableRow>
                     <TableHead className={divider}>Email</TableHead>
                     <TableHead className={divider}>Name</TableHead>
@@ -808,7 +887,7 @@ function RecipientsCard({
                     <TableHead className={divider}>Status</TableHead>
                     <TableHead className={divider}>Opens</TableHead>
                     <TableHead className={divider}>Clicks</TableHead>
-                    <TableHead className={divider}>Last activity</TableHead>
+                    <TableHead className={divider}>Last activity ({WORKSPACE_TZ_LABEL})</TableHead>
                     <TableHead className={divider}>Note</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -861,13 +940,23 @@ function RecipientsCard({
         </CardContent>
       )}
 
-      {resending && <ResendDialog rows={eligible} onOpenChange={setResending} />}
+      {resending && <ResendDialog rows={eligible} dead={dead} onOpenChange={setResending} />}
     </Card>
   );
 }
 
-function ResendDialog({ rows, onOpenChange }: { rows: Row[]; onOpenChange: (open: boolean) => void }) {
-  const [picked, setPicked] = useState(() => new Set(rows.filter((r) => !isDead(r)).map((r) => r.id)));
+function ResendDialog({
+  rows,
+  dead,
+  onOpenChange,
+}: {
+  /** Bounced addresses that still exist, one per mailbox. */
+  rows: Row[];
+  /** Bounced addresses that don't exist: left out, only counted. */
+  dead: number;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [picked, setPicked] = useState(() => new Set(rows.map((r) => r.id)));
   const toggle = (id: string, on: boolean) =>
     setPicked((s) => {
       const next = new Set(s);
@@ -880,15 +969,17 @@ function ResendDialog({ rows, onOpenChange }: { rows: Row[]; onOpenChange: (open
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Resend to people it didn&apos;t reach</DialogTitle>
-          <DialogDescription>It goes out as a new batch.</DialogDescription>
+          <DialogDescription className="tabular-nums">
+            It goes out as a new batch.
+            {dead > 0 && ` ${n(dead)} ${dead === 1 ? "address doesn't" : "addresses don't"} exist and ${dead === 1 ? "is" : "are"} left out.`}
+          </DialogDescription>
         </DialogHeader>
-        <ul className="-mx-1 flex max-h-72 flex-col overflow-y-auto">
+        <ul className={cn("-mx-1 flex flex-col", SCROLL_DIALOG_LIST)}>
           {rows.map((r) => (
             <li key={r.id}>
               <Label className="flex items-center gap-3 rounded-md px-1 py-2 font-normal hover:bg-muted/50">
                 <Checkbox checked={picked.has(r.id)} onCheckedChange={(v) => toggle(r.id, v === true)} />
                 <span className="min-w-0 flex-1 truncate">{r.email}</span>
-                {isDead(r) && <span className="shrink-0 text-sm text-muted-foreground">Address doesn&apos;t exist</span>}
               </Label>
             </li>
           ))}
@@ -927,7 +1018,7 @@ function AutomationCard({ templateId, viewer }: { templateId: string; viewer: Vi
   );
 }
 
-function LinksCard({ links, sent }: { links: { url: string; clicks: number }[]; sent: boolean }) {
+function LinksCard({ links }: { links: { url: string; clicks: number }[] }) {
   // Live app "Link performance": a table of every link with its clicks. Share = this link's part of all clicks.
   const total = links.reduce((x, l) => x + l.clicks, 0);
   return (
@@ -938,7 +1029,7 @@ function LinksCard({ links, sent }: { links: { url: string; clicks: number }[]; 
         </CardTitle>
       </CardHeader>
       {links.length === 0 ? (
-        <CardContent className="text-sm text-muted-foreground">{sent ? "No link was clicked yet." : "Clicks per link show here after the first send."}</CardContent>
+        <CardContent className="text-sm text-muted-foreground">No link was clicked yet.</CardContent>
       ) : (
         <CardContent>
         <div className={tableFrame}>

@@ -2,14 +2,16 @@
 
 import { useSyncExternalStore } from "react";
 
-// Contacts mock (2026-10-28; one flat book since 2026-11-10). The workspace has one contact book grouped by tag,
+// Contacts mock (one flat book since). The workspace has one contact book grouped by tag,
 // no named lists (PRD Contacts BR-RULE-CON-05, live app email_individual_contacts.tags; decisions.md "Leads ›
 // Contacts"). Contacts are generated here from a few groups, each with its own tags, deterministically so
 // screenshots are stable. A small module store keeps the book across client navigation (/contacts, the batch
 // wizard), which React state alone would lose. Self-upload holds only contacts the user uploads, never registry
-// data (designer decision 2026-11-12). Names are fictional.
+// data. Names are fictional.
 
 import { CURRENT_USER_ID, TODAY } from "@/lib/mock/constants";
+import { type ReportBatch, allBatches } from "@/lib/mock/batches";
+import { findTemplate } from "@/lib/mock/templates";
 export { CURRENT_USER_ID, TODAY };
 
 /** Why an address can't be reached (live app: lib/email/contact-status.ts), plus a manual flag. */
@@ -24,7 +26,7 @@ export const REASON_LABEL: Record<UnreachableReason, string> = {
   flagged: "Flagged by you",
 };
 
-// Email safety (R10, 2026-10-29, Apollo A1 "Email Status"): three levels replace the single unreachable flag in
+// Email safety (R10, Apollo A1 "Email Status"): three levels replace the single unreachable flag in
 // the UI. "Do not send" is exactly `unreachable` (left out when you send, as before); "Send with caution" still
 // sends but may bounce; "Safe to send" means an email has reached it. The data keeps `unreachable` as is, so
 // batches (recipient-check, left-out dialog) read the same field; `caution` is new and only shown.
@@ -79,8 +81,9 @@ export type Contact = {
   /** Set by address checks (catch-all domain, role inbox, new domain). Still sent to; shown as "Send with caution". */
   caution?: Exclude<CautionReason, "not_delivered">;
   addedOn: string;
-  /** Last template sent to this contact (live app: "Templates sent" column). */
-  lastSent?: { template: string; on: string };
+  /** Last template sent to this contact (live app: "Templates sent" column). Seeded from a real batch to the
+   *  contact's tags, so the profile's activity (contact-activity.ts) ends on the same batch. */
+  lastSent?: { template: string; on: string; batchId?: string };
 };
 
 type State = { contacts: Contact[] };
@@ -139,8 +142,6 @@ type Group = {
   positions: string[];
   tld: string;
   phonePrefix: string;
-  /** Template these people last got (live app "Templates sent"). */
-  sentTemplate: string;
 };
 
 const GROUPS: Group[] = [
@@ -155,7 +156,6 @@ const GROUPS: Group[] = [
     positions: ["Purchasing manager", "Procurement officer", "General manager", "F&B manager", "Housekeeping manager"],
     tld: "vn",
     phonePrefix: "84 28",
-    sentTemplate: "Intro – ceramics catalog",
   },
   {
     key: "f",
@@ -168,7 +168,6 @@ const GROUPS: Group[] = [
     positions: ["Owner", "Buyer", "Sales manager", "Showroom manager"],
     tld: "co.th",
     phonePrefix: "60 3",
-    sentTemplate: "Nice to meet you at the fair",
   },
   {
     key: "d",
@@ -181,7 +180,6 @@ const GROUPS: Group[] = [
     positions: ["Purchasing director", "Category manager", "Owner", "Operations manager"],
     tld: "my",
     phonePrefix: "60 3",
-    sentTemplate: "Q4 reorder reminder",
   },
   {
     key: "a",
@@ -194,7 +192,6 @@ const GROUPS: Group[] = [
     positions: ["Principal architect", "Interior designer", "Project architect", "Design director"],
     tld: "sg",
     phonePrefix: "65 6",
-    sentTemplate: "New tile range lookbook",
   },
 ];
 
@@ -204,8 +201,18 @@ const ROLE_INBOXES = ["info", "sales", "purchasing", "contact"];
 
 const slug = (s: string) => s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "");
 
+/** Batches that went out to any of these tags, newest first: the only sends a contact can have had. */
+function batchesTo(tags: string[]): ReportBatch[] {
+  const want = new Set(tags.map((t) => t.toLowerCase()));
+  return allBatches()
+    .filter((b) => (b.status === "sent" || b.status === "sending") && b.sentAt && b.tags.some((t) => want.has(t.toLowerCase())))
+    .sort((a, b) => (b.sentAt ?? "").localeCompare(a.sentAt ?? ""));
+}
+
 function generate(g: Group): Contact[] {
   const r = rng(g.seed * 7919);
+  // "Last sent" is one of the group's latest batches (one source with the profile's activity).
+  const sends = batchesTo(g.tags).slice(0, 4);
   const pick = <T,>(xs: T[]) => xs[Math.floor(r() * xs.length)];
   // Spread the unreachable ones evenly through the group.
   const every = g.unreachable > 0 ? Math.floor(g.size / g.unreachable) : Infinity;
@@ -215,7 +222,6 @@ function generate(g: Group): Contact[] {
     const company = `${pick(COMPANY_A)} ${pick(g.companySuffixes)}`;
     const extra = r() < 0.18 ? [pick(EXTRA_TAGS)] : [];
     const unreachable = i % every === every - 1 && Math.floor(i / every) < g.unreachable ? AUTO_REASONS[i % AUTO_REASONS.length] : undefined;
-    const day = 1 + (i % 27);
     // A few addresses that may bounce (R10); picked by index so the random stream, and every other field, stays as it was.
     const caution: Contact["caution"] = unreachable
       ? undefined
@@ -239,9 +245,17 @@ function generate(g: Group): Contact[] {
       unreachable,
       caution,
       addedOn: g.addedOn,
-      lastSent: r() < 0.7 ? { template: g.sentTemplate, on: `2026-10-${String(day).padStart(2, "0")}` } : undefined,
+      lastSent: lastSentOf(sends, i, r() < 0.7, unreachable),
     };
   });
+}
+
+/** An unusable or hand-flagged address was never sent to; any other address that failed was, by definition. */
+function lastSentOf(sends: ReportBatch[], i: number, roll: boolean, unreachable: UnreachableReason | undefined): Contact["lastSent"] {
+  if (sends.length === 0 || unreachable === "bad_format" || unreachable === "flagged") return undefined;
+  if (!roll && !unreachable) return undefined;
+  const b = sends[i % sends.length];
+  return { template: findTemplate(b.templateId)?.template.name ?? "Untitled template", on: b.sentAt!.slice(0, 10), batchId: b.id };
 }
 
 // Newest first, as the live app lists contacts (CON-SEQ-002 orders by creation time).
@@ -278,10 +292,12 @@ export function withAnyTag<T extends Pick<Contact, "tags">>(contacts: T[], tags:
   return contacts.filter((c) => c.tags.some((t) => want.has(t.toLowerCase())));
 }
 
-/** /contacts filtered by these tags, e.g. the "View contacts" action after saving. */
-export function contactsHref(tags: string[]) {
+/** /contacts filtered by these tags, e.g. the "View contacts" action after saving. The book's tag filter keeps
+ *  contacts carrying every tag; `any` keeps those carrying any of them (a batch's audience, ?match=any). */
+export function contactsHref(tags: string[], { any = false }: { any?: boolean } = {}) {
   if (tags.length === 0) return "/contacts";
   const q = new URLSearchParams(tags.map((t) => ["tag", t]));
+  if (any && tags.length > 1) q.set("match", "any");
   return `/contacts?${q}`;
 }
 

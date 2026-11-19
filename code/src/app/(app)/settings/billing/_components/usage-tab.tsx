@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { CoinsIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Item } from "@/components/ui/item";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,13 +15,13 @@ import { useCreditLedger } from "@/lib/mock/credits";
 import { cn } from "@/lib/utils";
 import { formatDay } from "../../_components/data";
 
-// Billing › Usage (PRD-05; live app app/dashboard/billing/UsageTab.tsx + api/credits/usage, Repo origin/development 2026-11-12):
-// who spent the workspace's credits and on what, merged with the old Recent activity so the ledger is one table.
+// Billing › Usage (PRD-05; live app app/dashboard/billing/UsageTab.tsx + api/credits/usage): who spent the
+// workspace's credits and on what, in one ledger table.
 // - Live app: period picker, action filter, member filter (admin only), summary Used / Added / by action, table with
 //   date, member (admin only), what, credits. A member sees only their own spending; plan grants and purchases with no
 //   member are the admin's. No balance-after column in the live app, so none here.
 // - Credits used/added are flows over the period, not a balance; the remaining balance stays in the sidebar and on
-//   Plans & credits (no X/Y of a total, PATTERNS 9.7). Status column and amounts come from the old Recent activity.
+//   Plans & credits (no X/Y of a total, PATTERNS 9.7).
 // - This session's movements (Leads unlocks, packs bought, plan upgrades) come from the shared credit store
 //   (useCreditLedger) and sit on top of the seeded history; they follow the same period, filters and summary.
 
@@ -61,7 +63,18 @@ const PRESETS = WINDOWS.filter((w) => w.value !== "range");
 const n = (v: number) => v.toLocaleString("en-US");
 const usd = (v: number) => `$${v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function UsageTab({ rows: seeded, isAdmin, members }: { rows: UsageRow[]; isAdmin: boolean; members: string[] }) {
+export function UsageTab({
+  rows: seeded,
+  isAdmin,
+  members,
+  onTopUp,
+}: {
+  rows: UsageRow[];
+  isAdmin: boolean;
+  members: string[];
+  /** Opens the shared Top up dialog (the empty ledger's next step). */
+  onTopUp: () => void;
+}) {
   // Session entries are stamped with the mock clock's today so the period picker (fixed "today") includes them.
   const session = useCreditLedger();
   const rows: UsageRow[] = [
@@ -72,7 +85,7 @@ export function UsageTab({ rows: seeded, isAdmin, members }: { rows: UsageRow[];
       who: ME,
       credits: e.amount,
       price: e.price,
-      status: "Completed",
+      status: e.kind === "refund" ? "Refunded" : "Completed",
     })),
     ...seeded,
   ];
@@ -151,21 +164,32 @@ export function UsageTab({ rows: seeded, isAdmin, members }: { rows: UsageRow[];
         />
       </div>
 
-      <dl className="grid grid-cols-3 divide-x rounded-card border">
-        <Stat label="Credits used" value={n(used)} tone="out" />
-        <Stat label="Credits added" value={n(added)} tone="in" />
-        <Stat label="Most used on" value={top ? KIND_LABEL[top[0]] : "–"} note={top ? `${n(top[1])} credits` : undefined} small />
-      </dl>
+      {rows.length > 0 && (
+        <dl className="grid grid-cols-3 divide-x rounded-card border">
+          <Stat label="Credits used" value={n(used)} />
+          <Stat label="Credits added" value={n(added)} tone="in" />
+          <Stat label="Most used on" value={top ? KIND_LABEL[top[0]] : "–"} note={top ? `${n(top[1])} credits` : undefined} small />
+        </dl>
+      )}
 
-      {list.length === 0 ? (
-        <Item variant="outline" className="block rounded-card px-4 py-3 text-muted-foreground text-[length:inherit]" asChild>
-          <p>
-            {rows.length === 0
-              ? "No activity yet. Purchases, monthly credits and usage show here."
-              : filtered
-                ? "Nothing matches these filters in this period."
-                : "No activity in this period."}
-          </p>
+      {rows.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <CoinsIcon />
+            </EmptyMedia>
+            <EmptyTitle>No credit activity yet</EmptyTitle>
+            <EmptyDescription>Purchases, monthly credits and what you spend show here.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button variant="outline" onClick={onTopUp}>
+              Top up credits
+            </Button>
+          </EmptyContent>
+        </Empty>
+      ) : list.length === 0 ? (
+        <Item variant="outline" className="block rounded-card px-4 py-3 text-base text-muted-foreground" asChild>
+          <p>{filtered ? "Nothing matches these filters in this period." : "No activity in this period."}</p>
         </Item>
       ) : (
         <div className="rounded-card border">
@@ -186,15 +210,14 @@ export function UsageTab({ rows: seeded, isAdmin, members }: { rows: UsageRow[];
                   <TableCell className="tabular-nums">{formatDay(r.at)}</TableCell>
                   <TableCell>{r.what}</TableCell>
                   {isAdmin && <TableCell>{r.who ?? ""}</TableCell>}
-                  <TableCell
-                    className={cn(
-                      "tabular-nums",
-                      r.credits !== null && (r.credits > 0 ? "text-success-soft-foreground" : "text-destructive-soft-foreground")
-                    )}
-                  >
+                  {/* Spending is normal use, not an error: plain text; credits coming in are green. */}
+                  <TableCell className={cn("tabular-nums", r.credits !== null && r.credits > 0 && "text-success-soft-foreground")}>
                     {r.credits === null ? "" : `${r.credits > 0 ? "+" : "−"}${n(Math.abs(r.credits))}`}
                   </TableCell>
-                  <TableCell className="tabular-nums">{r.price ?? (r.amount === undefined ? "" : usd(r.amount))}</TableCell>
+                  {/* A failed payment charged nothing: blank, not the price. */}
+                  <TableCell className="tabular-nums">
+                    {r.status === "Failed" ? "" : (r.price ?? (r.amount === undefined ? "" : usd(r.amount)))}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[r.status]}>{r.status}</Badge>
                   </TableCell>
@@ -215,7 +238,7 @@ export function UsageTab({ rows: seeded, isAdmin, members }: { rows: UsageRow[];
   );
 }
 
-function Stat({ label, value, note, small, tone }: { label: string; value: string; note?: string; small?: boolean; tone?: "in" | "out" }) {
+function Stat({ label, value, note, small, tone }: { label: string; value: string; note?: string; small?: boolean; tone?: "in" }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5 px-4 py-3">
       <dt className="text-sm text-muted-foreground">{label}</dt>
@@ -224,8 +247,7 @@ function Stat({ label, value, note, small, tone }: { label: string; value: strin
           className={cn(
             "leading-none font-medium tracking-display tabular-nums",
             small ? "text-lg" : "text-2xl",
-            tone === "in" && "text-success-soft-foreground",
-            tone === "out" && "text-destructive-soft-foreground"
+            tone === "in" && "text-success-soft-foreground"
           )}
         >
           {value}

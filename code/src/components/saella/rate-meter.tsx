@@ -3,7 +3,7 @@ import { TableCell } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-// Email rates (DESIGN.md §2 "Số liệu", PATTERNS.md §9.7; 2026-11-03/05): a plain number, the count behind it grey in brackets
+// Email rates (DESIGN.md §2 "Số liệu"; PATTERNS.md §9.7): a plain number, the count behind it grey in brackets
 // ("38.3% (467)"), the denominator in a tooltip. Only Bounce and Delivery are ever coloured, from RATE_BANDS below,
 // always with an icon and the threshold in the tooltip. Under 20 sends the number is grey: too few to judge.
 // Use RateCell in tables (one left-aligned column per rate), RateValue inline, rateKpi for a KpiStripItem.
@@ -28,7 +28,7 @@ export const RATE_LABELS: Record<RateKind, string> = {
 
 /**
  * Cut points (0–1 ratios), copied from the live app (Repo src/lib/email/health.ts HEALTH_THRESHOLDS, which mirrors
- * AWS SES reputation limits; user decision 2026-11-05): bounce warning from 5%, danger from 10% (the auto-pause
+ * AWS SES reputation limits): bounce warning from 5%, danger from 10% (the auto-pause
  * level); delivery warning under 90%, never danger. Open, click, reply and unsubscribe have no threshold in the
  * live app or the PRD, so they are never flagged.
  */
@@ -93,7 +93,7 @@ export type RateInfo = {
 };
 
 export function rateInfo(kind: RateKind, part: number, whole: number): RateInfo {
-  // X/Y under a rate (user request 2026-11-12): shorter than "X of Y"; the unit word stays so the base is clear.
+  // X/Y under a rate: shorter than "X of Y"; the unit word stays so the base is clear.
   const note = `${num(part)}/${num(whole)} ${DENOMINATOR[kind]}`;
   if (!whole) return { low: true, note, detail: "Nothing sent yet" };
   const r = part / whole;
@@ -144,6 +144,8 @@ export function RateValue({
   const Icon = i.flag ? FlagIcon[i.flag] : null;
   const value = (
         <span
+          // Hook for narrow tables: they may let "(1,409)" wrap under the rate (laptops ≥1280).
+          data-slot="rate-value"
           // Flagged values take focus so the threshold is reachable from the keyboard.
           tabIndex={i.flag ? 0 : undefined}
           className={cn(
@@ -158,9 +160,8 @@ export function RateValue({
           {i.flag && <span className="sr-only">{i.flag === "danger" ? ", danger" : ", warning"}</span>}
         </span>
   );
-  // A tooltip only where it says something the cell can't (user request 2026-11-12: too many hovers on numbers):
-  // a flagged rate (the threshold) or too few sends. Plain cells explain themselves; the denominator lives in
-  // the column header or KPI caption.
+  // A tooltip only where it says something the cell can't: a flagged rate (the threshold) or too few sends. The
+  // denominator lives in the column header or KPI caption.
   if (!i.flag && !i.low) return value;
   return (
     <Tooltip>

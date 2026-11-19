@@ -1,30 +1,35 @@
 "use client";
 
+import { SCROLL_SHEET_BODY } from "@/lib/scroll";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckIcon, CircleAlertIcon, MinusIcon } from "lucide-react";
+import { CheckIcon, CircleAlertIcon, ListIcon, MinusIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SectionHeader } from "../../_components/section-header";
 import { Item } from "@/components/ui/item";
 
-// Settings → Notifications (PRD Notification, read 2026-10-28).
+// Settings → Notifications (PRD Notification, read).
 // - The only preference that exists is marketing opt-out: it silences tips and offers only; transactional,
 //   policy and security notices always arrive (AC-NTF-L-05, BR-RULE-NTF-06, EC-NTF-05). The PRD doesn't give its
 //   default; we show it on.
 // - Everything lands in the in-app feed; email only for actionable or must-not-miss events (BR-RULE-NTF-02,
 //   AC-NTF-F-04). Users can't turn those off, so the table is read-only: it tells people what to expect.
-// - Events, recipients and channels follow what the live app dispatches (Repo 2026-11-03: notifyAdmins, template-notify,
+// - Events, recipients and channels follow what the live app dispatches (notifyAdmins, template-notify,
 //   campaign-expiry, membership, domain-recheck, auto-pause). Owners get template activity by email too; sending pauses
 //   and domain changes go to the admin. There is no "batch finished" notification. Admin transfer and send-as are
 //   in-app only (PRD AC-NTF-M-06 says email). The marketing opt-out is stored (notification_prefs) but the live app
 //   has no screen for it yet; the default is on.
-// Preview with ?state= loading | error | saving-error
+// - The page keeps the one choice (Tips) and one line on what to expect; the event-by-event list (read-only) sits
+//   behind "See the full list" in a Sheet.
+// Preview with ?state= loading | error | saving-error | list (the Sheet open)
 type Row = { event: string; who: string; inApp: boolean; email: boolean };
 
 const ROWS: { group: string; rows: Row[] }[] = [
@@ -47,6 +52,9 @@ const ROWS: { group: string; rows: Row[] }[] = [
       { event: "A template is shared with you, or your access ends", who: "You", inApp: true, email: true },
       { event: "A campaign ends", who: "People on its templates", inApp: true, email: true },
       { event: "Sending is paused for the workspace", who: "Admin", inApp: true, email: true },
+      // The bell entry that opens the template's Automation card; live app credits.schedule_paused goes to whoever set the
+      // schedule up.
+      { event: "A schedule is waiting for credits", who: "Who set it up", inApp: true, email: false },
     ],
   },
   {
@@ -66,6 +74,7 @@ export function NotificationsScreen() {
   const [loadError, setLoadError] = useState(preview === "error");
   const [tips, setTips] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [listOpen, setListOpen] = useState(preview === "list");
   const failSave = preview === "saving-error";
 
   function changeTips(on: boolean) {
@@ -111,8 +120,18 @@ export function NotificationsScreen() {
   return (
     <>
       <section className="flex flex-col gap-4" aria-labelledby="pref-title">
-        <SectionHeader id="pref-title" title="Email from Saella" />
-        <Item variant="outline" className="block rounded-card px-4 py-3 text-[length:inherit]">
+        <SectionHeader
+          id="pref-title"
+          title="Notifications"
+          description="Everything shows under the bell; things to act on also come by email."
+          actions={
+            <Button variant="outline" onClick={() => setListOpen(true)}>
+              <ListIcon data-icon="inline-start" />
+              See the full list
+            </Button>
+          }
+        />
+        <Item variant="outline" className="block rounded-card px-4 py-3 text-base">
           <Field orientation="horizontal">
             <FieldContent>
               <FieldLabel htmlFor="ntf-tips">Tips and offers</FieldLabel>
@@ -125,21 +144,21 @@ export function NotificationsScreen() {
         </Item>
       </section>
 
-      <section className="flex flex-col gap-4" aria-labelledby="what-title">
-        <SectionHeader
-          id="what-title"
-          title="What you're told about"
-          description="Everything shows under the bell. Things you need to act on also come by email."
-          info="These can't be turned off. They cover your account, team and sending."
-        />
-        <div className="rounded-card border">
-          <Table>
+      <Sheet open={listOpen} onOpenChange={setListOpen}>
+        <SheetContent className="w-full gap-0 data-[side=right]:sm:max-w-3xl">
+          <SheetHeader className="border-b">
+            <SheetTitle>What you&apos;re told about</SheetTitle>
+            <SheetDescription>These can&apos;t be turned off.</SheetDescription>
+          </SheetHeader>
+          <div className={cn("p-4", SCROLL_SHEET_BODY)}>
+          <div className="rounded-card border">
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
                 <TableHead>Event</TableHead>
-                <TableHead className="w-44">Who</TableHead>
-                <TableHead className="w-24 text-center">In app</TableHead>
-                <TableHead className="w-24 text-center">Email</TableHead>
+                <TableHead className="w-40">Who</TableHead>
+                <TableHead className="w-20 text-center">In app</TableHead>
+                <TableHead className="w-20 text-center">Email</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -148,8 +167,10 @@ export function NotificationsScreen() {
               ))}
             </TableBody>
           </Table>
-        </div>
-      </section>
+          </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
@@ -164,8 +185,8 @@ function Group({ group, rows }: { group: string; rows: Row[] }) {
       </TableRow>
       {rows.map((r) => (
         <TableRow key={r.event}>
-          <TableCell>{r.event}</TableCell>
-          <TableCell className="text-muted-foreground">{r.who}</TableCell>
+          <TableCell className="whitespace-normal">{r.event}</TableCell>
+          <TableCell className="whitespace-normal text-muted-foreground">{r.who}</TableCell>
           <Channel on={r.inApp} label="in app" />
           <Channel on={r.email} label="by email" />
         </TableRow>
@@ -180,7 +201,7 @@ function Channel({ on, label }: { on: boolean; label: string }) {
       {on ? (
         <CheckIcon className="mx-auto size-4 text-success-soft-foreground" aria-label={`Sent ${label}`} />
       ) : (
-        <MinusIcon className="mx-auto size-4 text-subtle-foreground" aria-label={`Not sent ${label}`} />
+        <MinusIcon className="mx-auto size-4 text-muted-foreground" aria-label={`Not sent ${label}`} />
       )}
     </TableCell>
   );
