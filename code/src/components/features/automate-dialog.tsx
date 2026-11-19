@@ -32,6 +32,7 @@ import {
   monthlyFor,
   newScheduleId,
   nextRun,
+  scheduleClash,
   useAutomation,
 } from "@/components/features/automation";
 import {
@@ -90,8 +91,8 @@ export function ScheduleDialog({
   const mayEdit = canEdit(accessFor(template, who));
   const schedule = scheduleId ? (store.schedules.find((x) => x.id === scheduleId && x.templateId === templateId) ?? null) : null;
   if (scheduleId && !schedule) return null;
-  // Another schedule of this template is running: a paused one can't be turned on (one at a time).
-  const otherRunning = store.schedules.some((x) => x.templateId === templateId && x.status === "active" && x.id !== schedule?.id);
+  // The template's other running schedules: several may run, never at the same day and hour.
+  const busy = store.schedules.filter((x) => x.templateId === templateId && x.status === "active" && x.id !== schedule?.id);
   // Only an active template sends: the schedule stays editable and waits (live automation-run).
   const inactive = liveStatus(templateId, template.status, templates) === "inactive";
   // Its campaign has ended (off for good) or is archived (off until unarchived; decisions.md): no run goes out.
@@ -109,7 +110,7 @@ export function ScheduleDialog({
           campaign={campaign}
           schedule={schedule}
           viewerEmail={who.email}
-          otherRunning={otherRunning}
+          busy={busy}
           disabled={!mayEdit}
           notice={
             !mayEdit ? (
@@ -151,7 +152,7 @@ function ScheduleForm({
   campaign,
   schedule,
   viewerEmail,
-  otherRunning,
+  busy,
   disabled,
   notice,
   onDone,
@@ -162,7 +163,7 @@ function ScheduleForm({
   /** null = a new schedule. */
   schedule: Schedule | null;
   viewerEmail: string;
-  otherRunning: boolean;
+  busy: Schedule[];
   disabled: boolean;
   notice: React.ReactNode;
   onDone: () => void;
@@ -229,18 +230,32 @@ function ScheduleForm({
   const firstDay = campaign.startsOn && campaign.startsOn > TODAY ? campaign.startsOn : TODAY;
   const [runOn, setRunOn] = useState(schedule?.runOn ?? firstDay);
   const [days, setDays] = useState<string[]>(schedule?.days.map(String) ?? []);
-  const [sendHour, setSendHour] = useState(schedule?.sendHour ?? 9);
+  // A new schedule starts at 09:00, or the first later hour no running schedule of this template uses.
+  const [sendHour, setSendHour] = useState(() => {
+    if (schedule) return schedule.sendHour;
+    const tz = campaignTimezone(campaign);
+    for (let i = 0; i < 24; i++) {
+      const h = (9 + i) % 24;
+      if (!busy.some((o) => scheduleClash({ cadence: "daily", days: [], sendHour: h, timezone: tz }, o))) return h;
+    }
+    return 9;
+  });
   const [showErrors, setShowErrors] = useState(false);
   // Send zone (PATTERNS 9.8): the campaign's country when it targets one, else the workspace's; saved on the schedule.
   const [timezone, setTimezone] = useState(() => schedule?.timezone ?? campaignTimezone(campaign));
   const { daysError, dateError } = timingErrors({ cadence, days, runOn });
   const perRunErr = perRunError(target, Math.max(1, fits), minTarget);
   const nothing = creating && reach.total === 0;
-  // Set schedule rules: the campaign hasn't ended (or been archived), one running schedule per template.
-  const createBlocked = !creating
-    ? undefined
-    : (campaignOffReason(templateId) ??
-      (otherRunning ? "Pause the current schedule to set a new one" : undefined));
+  // Set schedule rules: the campaign hasn't ended (or been archived); no running schedule of this template already sends
+  // at the same day and hour (a paused one may keep a clash; it can't resume until it's moved).
+  const clash =
+    (creating || schedule?.status === "active") &&
+    busy.some((o) => scheduleClash({ cadence, days: days.map(Number), runOn, sendHour, timezone }, o));
+  const createBlocked = clash
+    ? "Pick a day or time no other running schedule uses"
+    : creating
+      ? (campaignOffReason(templateId) ?? undefined)
+      : undefined;
 
   function pickSender(id: string) {
     setSenderId(id);
@@ -364,6 +379,7 @@ function ScheduleForm({
             disabled={disabled}
             showErrors={showErrors}
             onceBlocked={onceBlocked}
+            busy={busy}
           />
 
           {!perRunErr && (

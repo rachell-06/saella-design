@@ -1,412 +1,412 @@
 # DESIGN.md: Saella Platform
 
-Quy tắc và pattern giao diện của app Saella: **làm thế nào**. Vì sao làm vậy và cho ai: `PRODUCT.md`. Giá trị màu, cỡ, bóng: `tokens.css` (file này chỉ ghi vai trò, không chép giá trị). Bản đồ đầy đủ các tài liệu: `CLAUDE.md`.
+UI rules and patterns for the Saella app: **how to do it**. Why, and for whom: `PRODUCT.md`. Color, size and shadow values: `tokens.css` (this file records roles only, it does not copy values). The full map of docs: `CLAUDE.md`.
 
-**Phạm vi so với Studio Admin** (CLAUDE.md bước 4): màn dựng từ Studio Admin giữ bố cục và cách thể hiện element của nó; các mẫu trình bày trong file này và `PATTERNS.md` áp cho phần Studio Admin không có. Màu, font, bo góc và logic số liệu (mục 2 "Số liệu", "Bảng") thì luôn theo file này.
+**Scope relative to Studio Admin** (CLAUDE.md step 4): screens built from Studio Admin keep its layout and the way it presents elements; the presentation patterns in this file and in `PATTERNS.md` apply to the parts Studio Admin does not cover. Color, font, corner radius and metric logic (§2 "Metrics", "Tables") always follow this file.
 
-Số mục trong file này được code và docs trích dẫn (`DESIGN.md §2`, `PATTERNS.md §9.7`…): **thêm mục mới thì đánh số tiếp, không đánh số lại**.
+Section numbers in this file are cited by code and docs (`DESIGN.md §2`, `PATTERNS.md §9.7`…): **number new sections onward, never renumber**.
 
-**Tra nhanh: đang làm gì thì đọc mục nào.** "PATTERNS 9.x" là mục trong `PATTERNS.md`.
+**Quick reference: what you are doing → which section to read.** "PATTERNS 9.x" is a section in `PATTERNS.md`.
 
-| Đang làm | Đọc |
+| Doing | Read |
 |---|---|
-| Bất kỳ màn nào | Mục 2, rồi mục 10 trước khi báo xong |
-| Bảng, danh sách, bộ lọc | Mục 2 "Bảng", PATTERNS 9.1 |
-| Số liệu, tỉ lệ, biểu đồ | Mục 2 "Số liệu", PATTERNS 9.7 |
-| Mở chi tiết, tạo mới: trang, sheet hay dialog | PATTERNS 9.9 |
-| Lưu, xoá, báo thành công hoặc lỗi | PATTERNS 9.10 |
-| Form, trường nhập | PATTERNS 9.11 (một bước), 9.2 (nhiều bước) |
-| Nút người dùng không được bấm, giới hạn gói | PATTERNS 9.12 |
-| Hành động tốn credit (unlock, export), hết credit | PATTERNS 9.18 |
-| Ngày giờ, số, chữ dài, ngôn ngữ | PATTERNS 9.8, 9.13 |
-| Import, xác minh domain, gửi batch, export | PATTERNS 9.14 |
-| Trang hoặc khối dữ liệu tải chậm | PATTERNS 9.17 |
-| Màn trống | PATTERNS 9.5 |
-| Viết chữ trên màn: tiêu đề, mô tả, nhãn, nội dung ô | PATTERNS 9.15 |
+| Any screen | §2, then §10 before reporting done |
+| Tables, lists, filters | §2 "Tables", PATTERNS 9.1 |
+| Metrics, rates, charts | §2 "Metrics", PATTERNS 9.7 |
+| Opening details, creating new: page, sheet or dialog | PATTERNS 9.9 |
+| Save, delete, report success or error | PATTERNS 9.10 |
+| Forms, input fields | PATTERNS 9.11 (single step), 9.2 (multi-step) |
+| Buttons the user may not press, plan limits | PATTERNS 9.12 |
+| Actions that cost credits (unlock, export), out of credits | PATTERNS 9.18 |
+| Dates and times, numbers, long text, language | PATTERNS 9.8, 9.13 |
+| Import, domain verification, batch sending, export | PATTERNS 9.14 |
+| Slow-loading pages or data blocks | PATTERNS 9.17 |
+| Empty screens | PATTERNS 9.5 |
+| Writing text on screen: titles, descriptions, labels, cell content | PATTERNS 9.15 |
 | Agent | PATTERNS 9.4 |
-| Mật độ, đầu trang, phân trang, form, biểu đồ: chi tiết chưa ghi ở đâu khác | PATTERNS 9.16 (theo Studio Admin) |
+| Density, page header, pagination, forms, charts: details not recorded elsewhere | PATTERNS 9.16 (following Studio Admin) |
 
-## 1. Tinh thần
+## 1. Spirit
 
-Saella Platform là bản "công cụ" của saella.ai: **sáng, sạch, có hệ thống, thân thiện mà không phô trương**. Nguyên tắc sản phẩm (duyệt trước rồi mới chạy, số liệu trung thực, giấu kỹ thuật nhưng không giấu sự thật, mỗi màn một việc chính, dày mà dễ quét) ở `PRODUCT.md` mục 6. Mục này chỉ thêm hai nguyên tắc thị giác:
+Saella Platform is the "tool" version of saella.ai: **bright, clean, systematic, friendly without showing off**. Product principles (review before running, honest metrics, hide the technical but never the truth, one main job per screen, dense yet easy to scan) are in `PRODUCT.md` §6. This section adds only two visual principles:
 
-| Nguyên tắc | Nghĩa là | Vì sao |
+| Principle | Meaning | Why |
 |---|---|---|
-| **Một điểm nhấn** | Một họ màu cam, một nút cam đặc mỗi trang | Mắt biết ngay việc chính; màu cam còn giá trị khi hiếm |
-| **Phân lớp bằng đường, không bằng bóng** | Hairline tách vùng; bóng chỉ cho thứ nổi trên trang | Màn dày dữ liệu cần yên tĩnh; bóng dành để báo "lớp tạm" |
+| **One accent** | One orange family, one solid orange button per page | The eye sees the main job at once; orange keeps its value when it is rare |
+| **Layer with lines, not shadows** | Hairlines separate areas; shadows only for things floating above the page | Data-dense screens need calm; shadows are reserved to signal a "temporary layer" |
 
-Kế thừa từ LP: chữ ink xanh mực (không đen tuyền), một họ cam, Geist, bo góc vừa, hairline thay bóng, focus ring cam. Khác LP: chữ nhỏ và dày hơn, ít chuyển động, không trang trí marketing.
+Inherited from the LP: ink-blue text (not pure black), one orange family, Geist, medium corner radius, hairlines instead of shadows, orange focus ring. Different from the LP: smaller and denser text, less motion, no marketing decoration.
 
-**Phạm vi.** Next.js + Tailwind 4 + shadcn/ui (`radix-nova`). Light và dark (khối `.dark` trong `tokens.css`), mặc định light. Desktop; mobile tạm hoãn.
+**Scope.** Next.js + Tailwind 4 + shadcn/ui (`radix-nova`). Light and dark (the `.dark` block in `tokens.css`), light by default. Desktop; mobile postponed.
 
-## 2. Quy tắc đã chốt
+## 2. Settled rules
 
-Các quyết định đã qua duyệt. Không thay đổi nếu chưa ghi lại ở đây.
+Decisions that have been approved. Do not change them unless the change is recorded here.
 
-**Bố cục**
-- Không bóng cho nền, card, khung, bảng trong trang; tách lớp bằng hairline. Bóng chỉ cho phần tử nổi: popover, menu, toast, dialog, sheet, nút nổi.
-- Mỗi trang **một** nút cam đặc; mọi nút khác `outline` hoặc `ghost`. Dialog, sheet và khung agent là bề mặt riêng, được có nút chính cam của mình (designer 2026-11-18). Ngoại lệ thứ hai: nút "Write with Saella" trên thanh công cụ của trình soạn giữ cam đặc như app thật, có icon ✨ động (designer 2026-11-18); các nút AI khác vẫn dùng biến thể `ai`.
-- Nội dung rộng tối đa 1536px, căn giữa. Thanh header và vạch kẻ dưới nó trải hết bề ngang (chỉ phần bên trong bị giới hạn).
-- Đầu trang luôn là `PageHeader`; màn mới đặt trong `code/src/app/(app)/<màn>/`.
-- Dữ liệu cha–con (campaign → template) dùng master–detail (`PATTERNS.md` 9.6).
-- Thanh hành động dính đáy màn (Save của Settings › Company, chân Review của New batch) gắn `data-sticky-actions`: nút nổi "Ask the agent" tự nâng lên ngay trên thanh khi thanh nằm dưới chỗ của nó, nên không che Save / Send (designer 2026-11-18, `components/layout/app-shell.tsx`).
+**Layout**
+- No shadows on in-page backgrounds, cards, frames or tables; separate layers with hairlines. Shadows only for floating elements: popover, menu, toast, dialog, sheet, floating button.
+- Each page has **one** solid orange button; every other button is `outline` or `ghost`. Dialogs, sheets and the agent panel are separate surfaces and may have their own orange primary button (designer 2026-11-18). Second exception: the "Write with Saella" button in the editor toolbar stays solid orange as in the live app, with an animated ✨ icon (designer 2026-11-18); other AI buttons still use the `ai` variant.
+- Content max width 1536px, centered. The header bar and the line below it span the full width (only the inner content is constrained).
+- The top of every page is a `PageHeader`; new screens go in `code/src/app/(app)/<screen>/`.
+- Parent–child data (campaign → template) uses master–detail (`PATTERNS.md` 9.6).
+- Action bars stuck to the bottom of the screen (Save in Settings › Company, the Review footer in New batch) carry `data-sticky-actions`: the floating "Ask the agent" button lifts itself just above the bar when the bar sits below its position, so it does not cover Save / Send (designer 2026-11-18, `components/layout/app-shell.tsx`).
 
-**Bảng**
-- **Không bảng nào trải hết danh sách ra trang** (người dùng chốt 2026-11-14, áp cho mọi bảng): bảng nằm trong một vùng giới hạn chiều cao, các dòng cuộn bên trong, hàng tiêu đề dính ở trên. Mặc định trong `components/ui/table.tsx` (cao tối đa `max(20rem, 100svh − 14rem)`); bảng chiếm hết cột flex (Leads, New batch) thì vùng là phần còn lại của màn, phân trang/đếm ở chân khung. Không tự viết bảng ngoài `Table`/`DataTable`. Ngoại lệ có ghi nhận (designer 2026-11-18): danh sách bài ở **Posts** (`social/_components/campaigns-screen.tsx`) giữ danh sách dựng tay theo kiểu "List" của kanban Studio Admin (nhóm campaign thu gọn được, bài là dòng bên dưới, mở ra từng mạng), không đổi sang `Table`.
-- **Chiều cao vùng cuộn bên trong theo loại vùng** (designer 2026-11-19): giữ thanh cuộn gốc của trình duyệt (không dùng ScrollArea, không đổi kiểu thanh cuộn); cuộn cả trang giữ nguyên. Lấy hằng trong `code/src/lib/scroll.ts`, không viết `max-h-*`/`overflow-*` riêng cho vùng cuộn mới:
+**Tables**
+- **No table spreads its whole list across the page** (user decision 2026-11-14, applies to every table): the table sits in a height-limited area, rows scroll inside, the header row sticks at the top. Default in `components/ui/table.tsx` (max height `max(20rem, 100svh − 14rem)`); a table filling a whole flex column (Leads, New batch) gets the rest of the screen as its area, with pagination/count in the frame footer. Do not hand-write tables outside `Table`/`DataTable`. Recorded exception (designer 2026-11-18): the post list in **Posts** (`social/_components/campaigns-screen.tsx`) keeps a hand-built list in the style of Studio Admin's kanban "List" view (collapsible campaign groups, posts as rows below, expandable per network), not switched to `Table`.
+- **Inner scroll area height by area type** (designer 2026-11-19): keep the browser's native scrollbar (no ScrollArea, no scrollbar restyling); whole-page scrolling stays as is. Take the constants in `code/src/lib/scroll.ts`; do not write custom `max-h-*`/`overflow-*` for a new scroll area:
 
-  | Loại vùng | Chiều cao | Hằng |
+  | Area type | Height | Constant |
   |---|---|---|
-  | Bảng trên trang | tối đa `max(20rem, 100svh − 14rem)` (mặc định của `Table`) | `SCROLL_TABLE` |
-  | Bảng chiếm hết cột flex (Leads, `TableFrame`) | phần còn lại của màn, tiêu đề dính, chỉ dòng cuộn | `SCROLL_TABLE_FILL` (đặt ở cha của `Table`) |
-  | Bảng trong card ở trang chi tiết (Send history, All recipients, tab báo cáo batch) | `min(60vh, 40rem)` | `SCROLL_CARD_TABLE` (cha), `SCROLL_CARD_TABLE_BOX` (khung tự cuộn) |
-  | Danh sách hoặc bảng trong dialog | `clamp(18rem, 40vh, 26rem)` | `SCROLL_DIALOG_LIST`, `SCROLL_DIALOG_TABLE` |
-  | Danh sách trong popover, dropdown, combobox, multi-select, tree-select | tối đa 320px (`max-h-80`) | `SCROLL_POPOVER_LIST` |
-  | Thân sheet | header, footer cố định; chỉ thân cuộn | `SCROLL_SHEET_BODY` |
+  | Table on a page | max `max(20rem, 100svh − 14rem)` (default of `Table`) | `SCROLL_TABLE` |
+  | Table filling a whole flex column (Leads, `TableFrame`) | rest of the screen, sticky header, only rows scroll | `SCROLL_TABLE_FILL` (set on the parent of `Table`) |
+  | Table in a card on a detail page (Send history, All recipients, batch report tabs) | `min(60vh, 40rem)` | `SCROLL_CARD_TABLE` (parent), `SCROLL_CARD_TABLE_BOX` (self-scrolling frame) |
+  | List or table in a dialog | `clamp(18rem, 40vh, 26rem)` | `SCROLL_DIALOG_LIST`, `SCROLL_DIALOG_TABLE` |
+  | List in a popover, dropdown, combobox, multi-select, tree-select | max 320px (`max-h-80`) | `SCROLL_POPOVER_LIST` |
+  | Sheet body | header, footer fixed; only the body scrolls | `SCROLL_SHEET_BODY` |
 
-  Vùng cuộn nằm trong trang hoặc dialog đang cuộn thì có `overscroll-contain` (đã gồm trong hằng). Không áp: khung app, thanh bên, khung tin nhắn agent, khung xem email và canvas soạn thảo.
-- Tối đa 2 tầng chữ mỗi dòng. Một cột một kiểu hiển thị: không lẫn badge với chữ.
-- Rê chuột lên dòng: nền `muted/50` như Studio Admin (đổi 2026-11-10, trước đây không đổi nền). Checkbox chọn dòng luôn hiện (như Studio Admin, đổi 2026-11-10); nút thao tác dòng ⋯ hiện khi rê chuột hoặc Tab tới; bảng gọn có thể cho thao tác nổi đè lên cột cuối.
-- Một trang chỉ một hàng tab gạch chân. Bộ lọc phụ có đếm bên dưới (vd. Total / New / Already saved ở Find companies) dùng chip `ToggleGroup`.
-- Chỉ hiện nhãn trạng thái khi khác trạng thái bình thường; ngoại lệ: bảng template, bảng công ty (Find companies) bảng Recipients của báo cáo batch và bảng Follow-up của thẻ Automation (designer 2026-11-18) luôn có cột Status, mọi dòng đều có badge, kể cả khi đang Active.
-- Ô bảng không có số thì để trống (không "0%", không "–"). Ô KPI chưa có số thì hiện "–". Cả hai không bao giờ hiện "0" thay cho "chưa biết" (PRD Master v1.6.8). Chỉ phân trang khi dài hơn một trang.
+  A scroll area inside a page or dialog that is itself scrolling gets `overscroll-contain` (already included in the constant). Does not apply to: the app frame, sidebar, agent message pane, email preview frame and editor canvas.
+- At most 2 lines of text per row. One display style per column: do not mix badges with text.
+- Row hover: `muted/50` background as in Studio Admin (changed 2026-11-10, previously no background change). The row-select checkbox is always visible (as in Studio Admin, changed 2026-11-10); the row action button ⋯ appears on hover or when tabbed to; compact tables may let actions float over the last column.
+- Only one row of underlined tabs per page. Secondary filters with counts below it (e.g. Total / New / Already saved in Find companies) use `ToggleGroup` chips.
+- Show a status label only when it differs from the normal state; exception: the template table, the company table (Find companies), the Recipients table of the batch report and the Follow-up table of the Automation card (designer 2026-11-18) always have a Status column, every row has a badge, even when Active.
+- A table cell with no number stays empty (no "0%", no "–"). A KPI tile with no number yet shows "–". Neither ever shows "0" in place of "unknown" (PRD Master v1.6.8). Paginate only when longer than one page.
 
-**Số liệu**
-- Tỉ lệ email (Delivery, Open, Click, Reply, Unsub, Bounce) là con số, chữ thường, không thanh, không thang nấc. Thanh chỉ dùng cho "phần của một tổng", vd. lượt bấm từng link (`PATTERNS.md` 9.7).
-- Chỉ hai tỉ lệ có ngưỡng, lấy từ app thật (`HEALTH_THRESHOLDS`, Repo `src/lib/email/health.ts`, theo giới hạn AWS SES), khai báo một nơi ở `RATE_BANDS` (`components/saella/rate-meter.tsx`):
+**Metrics**
+- Email rates (Delivery, Open, Click, Reply, Unsub, Bounce) are numbers, plain text, no bar, no tier scale. Bars are only for "part of a total", e.g. clicks per link (`PATTERNS.md` 9.7).
+- Only two rates have thresholds, taken from the live app (`HEALTH_THRESHOLDS`, Repo `src/lib/email/health.ts`, per AWS SES limits), declared in one place in `RATE_BANDS` (`components/saella/rate-meter.tsx`):
 
-| Tỉ lệ | Cảnh báo | Nguy hiểm |
+| Rate | Warning | Danger |
 |---|---|---|
-| Bounce | ≥ 5% | ≥ 10% (mức tự dừng gửi) |
+| Bounce | ≥ 5% | ≥ 10% (auto-pause sending level) |
 | Delivery | < 90% | |
 
-  Cảnh báo: chữ `warning-soft-foreground`; nguy hiểm: chữ `destructive-soft-foreground`; cả hai kèm icon và tooltip ghi ngưỡng. Open, Click, Reply, Unsub **không có ngưỡng nên không bao giờ tô màu**.
-- Dưới 20 lượt gửi: số xám, không đánh dấu, tooltip "too few to judge".
-- Nơi nào còn thanh `Progress`, độ dài thanh luôn bằng đúng con số. Ngoại lệ duy nhất: thanh chờ tải ước tính (`PATTERNS.md` 9.17), luôn ghi "~" trước %.
-- Mọi thời gian hiện theo múi giờ của workspace, mặc định GMT+7; giờ gắn với hành động luôn ghi kèm múi giờ (`PATTERNS.md` 9.8).
+  Warning: `warning-soft-foreground` text; danger: `destructive-soft-foreground` text; both with an icon and a tooltip stating the threshold. Open, Click, Reply, Unsub **have no threshold, so they are never colored**.
+- Under 20 sends: grey number, no marking, tooltip "too few to judge".
+- Wherever a `Progress` bar remains, its length always equals the exact number. The only exception: the estimated loading bar (`PATTERNS.md` 9.17), which always shows "~" before the %.
+- All times show in the workspace time zone, default GMT+7; times tied to an action always state the time zone (`PATTERNS.md` 9.8).
 
-**Nội dung**
-- Chỉ hiện chữ người dùng **dùng để làm gì đó**; logic nghiệp vụ thể hiện qua cách UI hoạt động, không viết thành chữ giải thích. Chi tiết: `PATTERNS.md` 9.15.
-- Thông tin phụ vào ⓘ hoặc tooltip, tối đa 1–2 câu. Không đặt đoạn chú thích phương pháp cuối trang.
-- Gọi là **agent**, không bao giờ "assistant". Giọng chữ: `PRODUCT.md` mục 4.
-- Nhân vật chibi toàn thân **chỉ** ở màn đăng nhập / đăng ký (đứng cạnh form ở cột trái, chỉ tay vào form, có chuyển động) và màn chào onboarding (vẫy tay trên tiêu đề) (người dùng chốt 2026-11-12). Component: `(auth)/_components/saella-character.tsx`. Panel thương hiệu các màn auth: nền tối `deep` (dark mode `deep-2`) + `WarpBackground` (lưới trắng mờ, tia `brand`, mỗi tia có một phong bì thư màu sáng ở đầu, tia là vệt đuôi: prop `beamHead`; reduced motion: chỉ lưới), giữa panel là thẻ chào (Card nền trong mờ). Agent dùng Saella mini. Màn trống dùng icon.
-- Dữ liệu mẫu: tên người, công ty hư cấu, không dùng khách thật (FTK, Vinex, VMA, Exquee, Aegis); số liệu chỉ minh hoạ, không phải claim marketing; đủ để hiện mọi trạng thái cần duyệt.
+**Content**
+- Show only text the user **uses to do something**; business logic is expressed through how the UI behaves, not written out as explanatory text. Details: `PATTERNS.md` 9.15.
+- Secondary information goes in ⓘ or a tooltip, at most 1–2 sentences. No methodology footnote paragraph at the end of a page.
+- Call it **agent**, never "assistant". Voice: `PRODUCT.md` §4.
+- The full-body chibi character appears **only** on the sign-in / sign-up screens (standing beside the form in the left column, pointing at the form, animated) and the onboarding welcome screen (waving above the title) (user decision 2026-11-12). Component: `(auth)/_components/saella-character.tsx`. Brand panel on auth screens: dark `deep` background (dark mode `deep-2`) + `WarpBackground` (faint white grid, `brand` beams, each beam with a light-colored envelope at its head, the beam being its trailing streak: prop `beamHead`; reduced motion: grid only), with a welcome card in the middle of the panel (translucent Card). The agent uses Saella mini. Empty screens use icons.
+- Sample data: fictional people and company names, no real customers (FTK, Vinex, VMA, Exquee, Aegis); numbers are illustrative only, not marketing claims; enough to show every state that needs review.
 
-**Control**
-- Component lấy từ `components/ui/` hoặc `components/saella/`; thiếu thì `npx shadcn@latest add`, không tự vẽ.
-- Không control native: không `<input type="date|time">` (dùng `DatePicker`, `DateRangePicker`, `TimePicker`), không `<select>` thô.
-- Không `<button>`, `<input>` thô ngoài `components/ui/`: nút dùng `Button` (chữ bấm được trong câu hoặc trong bảng: `variant="link"` + `h-auto border-0 p-0`), dòng bấm được dùng `Item` hoặc `ListRow`. Bọc thẻ thô bằng component shadcn qua `asChild` thì được. Hai ngoại lệ: `<input type="file">` ẩn, mở bằng một `Button`; khối nội dung chọn được trong trình soạn email (`email-body.tsx`). `npm run lint` tự chặn: luật `saella/no-raw-control` (thẻ thô) và `saella/no-native-title` (`title=` ngoài chữ bị cắt) trong `code/eslint.config.mjs`. Ngoại lệ khác phải ghi `eslint-disable-next-line` kèm lý do.
+**Controls**
+- Components come from `components/ui/` or `components/saella/`; if missing, `npx shadcn@latest add`, do not draw your own.
+- No native controls: no `<input type="date|time">` (use `DatePicker`, `DateRangePicker`, `TimePicker`), no raw `<select>`.
+- No raw `<button>`, `<input>` outside `components/ui/`: buttons use `Button` (clickable text inside a sentence or table: `variant="link"` + `h-auto border-0 p-0`), clickable rows use `Item` or `ListRow`. Wrapping a raw tag in a shadcn component via `asChild` is fine. Two exceptions: a hidden `<input type="file">` opened by a `Button`; the selectable content blocks in the email editor (`email-body.tsx`). `npm run lint` blocks these automatically: rules `saella/no-raw-control` (raw tags) and `saella/no-native-title` (`title=` outside truncated text) in `code/eslint.config.mjs`. Any other exception needs `eslint-disable-next-line` with a reason.
 
-**Không nên**
+**Don't**
 
-| Không | Thay bằng |
+| Don't | Use instead |
 |---|---|
-| Mã màu, `text-[..px]`, `rounded-[..]`, `shadow-[..]`, màu mặc định Tailwind (`gray-*`, `red-*`) | Token. Thiếu thì thêm vào `tokens.css` |
-| Màu nhấn thứ hai, gradient, glow, đen tuyền, icon nhiều màu, emoji làm icon | Một họ cam, ink, icon Lucide một màu |
-| `primary` làm chữ trên `primary-soft`; `warning` hoặc `chart-5` làm chữ | `primary-soft-foreground`, `warning-soft-foreground`, nhãn/legend |
-| Truyền đạt chỉ bằng màu | Màu + chữ hoặc icon |
-| Animation lặp vô hạn trên control; animation không tắt theo reduced motion | Mục 7 |
-| `shadcn apply` / `init --preset` (ghi đè token Saella) | Sửa `tokens.css` |
+| Color codes, `text-[..px]`, `rounded-[..]`, `shadow-[..]`, Tailwind default colors (`gray-*`, `red-*`) | Tokens. If missing, add to `tokens.css` |
+| A second accent color, gradients, glow, pure black, multi-color icons, emoji as icons | One orange family, ink, single-color Lucide icons |
+| `primary` as text on `primary-soft`; `warning` or `chart-5` as text | `primary-soft-foreground`, `warning-soft-foreground`, label/legend |
+| Conveying meaning by color alone | Color + text or icon |
+| Infinitely looping animation on controls; animation that does not turn off under reduced motion | §7 |
+| `shadcn apply` / `init --preset` (overwrites Saella tokens) | Edit `tokens.css` |
 
-Ngoại lệ duy nhất cho mã màu và icon nhiều màu: logo nhà cung cấp trên nút đăng nhập (Google, Microsoft) và logo mạng xã hội (mục 7 "Icon") giữ màu chính thức của họ, cả light lẫn dark (designer 2026-11-18).
+The only exception for color codes and multi-color icons: provider logos on sign-in buttons (Google, Microsoft) and social network logos (§7 "Icons") keep their official colors, in both light and dark (designer 2026-11-18).
 
-## 3. Token
+## 3. Tokens
 
-Đặt tên theo **vai trò**, không theo màu: đổi giá trị không phải đổi code.
+Named by **role**, not by color: changing a value does not mean changing code.
 
-| Token | Vai trò |
+| Token | Role |
 |---|---|
-| `background`, `card`, `popover` | Nền trang, card, lớp nổi |
-| `foreground` | Chữ chính |
-| `muted-foreground` | Chữ phụ, mô tả, nhãn |
-| `subtle-foreground` | Placeholder, timestamp, caption: mức mờ nhất còn đạt AA |
-| `muted` / `secondary` / `accent` | Nền phụ, header bảng, hover menu và nút ghost |
-| `primary` / `primary-foreground` / `primary-hover` | Nút chính, link, control đang bật |
-| `brand` | Icon nhấn, số lớn, vạch nhấn. Không làm nền nút có chữ nhỏ |
-| `primary-soft` / `primary-soft-foreground` | Nền nhấn nhạt, mục đang chọn, badge cam |
-| `primary-subtle` | Dòng bảng đang chọn, chip giá trị filter |
-| `border` / `input` / `ring` | Hairline / viền ô nhập / focus |
-| `destructive`, `success`, `warning`, `info` (+ `-foreground`, `-soft`, `-soft-foreground`) | Ngữ nghĩa trạng thái (mục 4.1) |
-| `status-{draft,scheduled,sending,sent,paused,failed}` | Badge trạng thái batch (mục 4.2) |
-| `chart-1..6` | Biểu đồ (mục 4.3) |
+| `background`, `card`, `popover` | Page, card, floating-layer background |
+| `foreground` | Primary text |
+| `muted-foreground` | Secondary text, descriptions, labels |
+| `subtle-foreground` | Placeholder, timestamp, caption: the faintest level that still passes AA |
+| `muted` / `secondary` / `accent` | Secondary background, table header, menu and ghost button hover |
+| `primary` / `primary-foreground` / `primary-hover` | Primary button, link, active control |
+| `brand` | Accent icons, big numbers, accent lines. Not a background for buttons with small text |
+| `primary-soft` / `primary-soft-foreground` | Light accent background, selected item, orange badge |
+| `primary-subtle` | Selected table row, filter value chip |
+| `border` / `input` / `ring` | Hairline / input border / focus |
+| `destructive`, `success`, `warning`, `info` (+ `-foreground`, `-soft`, `-soft-foreground`) | Status semantics (§4.1) |
+| `status-{draft,scheduled,sending,sent,paused,failed}` | Batch status badges (§4.2) |
+| `chart-1..6` | Charts (§4.3) |
 | `sidebar*`, `sidebar-hover` | Sidebar |
-| `cream`, `peach`, `deep` | Nền nhấn nhẹ (hiện chưa dùng; trước là panel trang đăng nhập) / highlight chữ / overlay dialog |
-| `rounded-lg`, `rounded-md`, `rounded-sm`, `rounded-card`, `rounded-full` | Bo góc (mục 6) |
-| `shadow-card` / `shadow-float` | Độ nổi (mục 6) |
-| `text-dense`, `tracking-title`, `tracking-display` | Bảng dày 13px / tiêu đề 18–24px / số ≥ 30px |
-| `ease-standard`, `ease-emphasized`, `--motion-fast/base/slow` | Chuyển động (mục 7) |
-| `--email-*` (`.email-canvas`) | Khung xem email, chỉ light (`PATTERNS.md` 9.3) |
+| `cream`, `peach`, `deep` | Light accent background (currently unused; formerly the sign-in page panel) / text highlight / dialog overlay |
+| `rounded-lg`, `rounded-md`, `rounded-sm`, `rounded-card`, `rounded-full` | Corner radius (§6) |
+| `shadow-card` / `shadow-float` | Elevation (§6) |
+| `text-dense`, `tracking-title`, `tracking-display` | Dense table 13px / titles 18–24px / numbers ≥ 30px |
+| `ease-standard`, `ease-emphasized`, `--motion-fast/base/slow` | Motion (§7) |
+| `--email-*` (`.email-canvas`) | Email preview frame, light only (`PATTERNS.md` 9.3) |
 
-**Token mới không phải màu** (bo góc, bóng, cỡ chữ, giãn chữ, easing, họ font) phải khai báo thêm trong `src/lib/utils.ts`, để `cn` biết nó xung đột với class nào. Thiếu bước này, `cn` giữ cả hai class xung đột hoặc xoá nhầm (từng làm mọi tiêu đề cột bảng mất cỡ `text-dense`). `tsconfig.json` trỏ `import { cn } from "cn"` của component shadcn về file này.
+**New non-color tokens** (radius, shadow, font size, letter spacing, easing, font family) must also be declared in `src/lib/utils.ts`, so `cn` knows which classes they conflict with. Without this step, `cn` keeps both conflicting classes or removes the wrong one (this once made every table column header lose its `text-dense` size). `tsconfig.json` points shadcn components' `import { cn } from "cn"` to this file.
 
-## 4. Màu
+## 4. Color
 
-### 4.1 Nguyên tắc
-- **Một họ nhấn.** Nền trắng, khung phụ fog, chữ ink xanh mực, một họ cam.
-- **Hai sắc cam, hai việc.** `brand` (cam của LP) cho icon nhấn, số lớn, focus. Nút chính dùng `primary` đậm hơn vì chữ trắng trên `brand` không đạt AA. Hover nút chính tối đi ở light, sáng lên ở dark: luôn "ra xa nền".
-- **Mức chữ mờ nhất vẫn đạt AA.** `subtle-foreground` thay ink-3 của LP (3.77:1, trượt AA). `input` đậm hơn hairline để viền ô nhập đạt 3:1.
-- **Họ ngữ nghĩa** (áp như nhau cho `destructive`, `success`, `warning`, `info`, `primary`):
+### 4.1 Principles
+- **One accent family.** White background, fog secondary frames, ink-blue text, one orange family.
+- **Two shades of orange, two jobs.** `brand` (the LP orange) for accent icons, big numbers, focus. The primary button uses the darker `primary` because white text on `brand` does not pass AA. Primary button hover gets darker in light, lighter in dark: always "away from the background".
+- **The faintest text level still passes AA.** `subtle-foreground` replaces the LP's ink-3 (3.77:1, fails AA). `input` is darker than the hairline so input borders reach 3:1.
+- **Semantic families** (applied the same way to `destructive`, `success`, `warning`, `info`, `primary`):
 
-| Token | Dùng cho |
+| Token | Used for |
 |---|---|
-| `X` | Nền đặc, icon, viền |
-| `X-foreground` | Chữ trên nền đặc |
-| `X-soft` | Nền nhạt |
-| `X-soft-foreground` | Chữ và icon trên nền nhạt **và trên trắng** |
+| `X` | Solid background, icon, border |
+| `X-foreground` | Text on solid background |
+| `X-soft` | Light background |
+| `X-soft-foreground` | Text and icons on light background **and on white** |
 
-  Chữ cảnh báo luôn `warning-soft-foreground`, không bao giờ `warning`.
+  Warning text is always `warning-soft-foreground`, never `warning`.
 
-### 4.2 Trạng thái
+### 4.2 Status
 
-| Batch | Token | Họ màu |
+| Batch | Token | Color family |
 |---|---|---|
-| Draft | `status-draft` | trung tính |
+| Draft | `status-draft` | neutral |
 | Scheduled | `status-scheduled` | info-soft |
 | Sending | `status-sending` | primary-soft |
 | Sent | `status-sent` | success-soft |
-| Paused | `status-paused` | warning-soft (gồm tự dừng do bounce/complaint, nhãn "Auto-paused") |
+| Paused | `status-paused` | warning-soft (includes auto-pause due to bounce/complaint, label "Auto-paused") |
 | Failed | `status-failed` | destructive-soft |
 
-Campaign (Not started / Active / Ended / Archived) và template (Active / Inactive) dùng họ `-soft` qua `StatusBadge`. Badge luôn có chấm + chữ; chấm **tĩnh**, kể cả Sending (màu cam đã đủ báo "đang chạy", không animation lặp trên control).
+Campaign (Not started / Active / Ended / Archived) and template (Active / Inactive) use the `-soft` family via `StatusBadge`. Badges always have a dot + text; the dot is **static**, even for Sending (orange is enough to say "running", no looping animation on controls).
 
-### 4.3 Biểu đồ
+### 4.3 Charts
 
-| Token | Màu | Ghi chú |
+| Token | Color | Note |
 |---|---|---|
-| `chart-1` | cam | |
-| `chart-2` | teal | Cặp gần nhất với cam khi mù màu |
+| `chart-1` | orange | |
+| `chart-2` | teal | Closest pair to orange under color blindness |
 | `chart-3` | blue | |
 | `chart-4` | plum | |
-| `chart-5` | gold | 2.16:1 trên trắng: luôn kèm nhãn hoặc legend |
+| `chart-5` | gold | 2.16:1 on white: always with a label or legend |
 | `chart-6` | rose | Bounce |
 
-Mỗi chỉ số giữ một màu ở cả light và dark, trên mọi biểu đồ: bảng chỉ số → màu khai báo một nơi, `src/lib/metric-colors.ts` (Sent cam, Delivered blue, Opens teal, Clicks gold, Replies plum, Bounce rose; 2026-11-18). Biểu đồ không tự chọn màu cho chỉ số. Đã kiểm phân biệt khi mù màu (OKLab, mô phỏng deutan/protan).
+Each metric keeps one color in both light and dark, on every chart: metric → color table declared in one place, `src/lib/metric-colors.ts` (Sent orange, Delivered blue, Opens teal, Clicks gold, Replies plum, Bounce rose; 2026-11-18). Charts do not pick metric colors themselves. Checked for color-blind distinguishability (OKLab, deutan/protan simulation).
 
 ### 4.4 Dark mode
-- Nền, chữ, viền lấy bảng dark "neutral" của shadcn; độ sáng tăng dần: trang < card, popover, sidebar < muted.
-- Giữ bản sắc Saella: cam làm nút chính (cam sáng hơn, chữ tối), focus cam, viền ô nhập đạt 3:1, màu biểu đồ, nền `-soft` chọn tay. `status-*` trỏ về họ màu nên tự đổi.
-- Mọi cặp chữ/nền đạt AA trên **cả** nền trang và card.
+- Background, text, borders take shadcn's "neutral" dark palette; lightness increases: page < card, popover, sidebar < muted.
+- Keep Saella's identity: orange primary button (lighter orange, dark text), orange focus, input borders at 3:1, chart colors, hand-picked `-soft` backgrounds. `status-*` points to the color families, so it switches automatically.
+- Every text/background pair passes AA on **both** the page background and cards.
 
-### 4.5 Contrast các cặp chính
+### 4.5 Contrast of key pairs
 
-Con số contrast của từng token ghi trong `tokens.css`, cạnh giá trị. Mục này chỉ ghi các cặp **bị cấm hoặc có điều kiện**:
+Each token's contrast figure is recorded in `tokens.css`, next to its value. This section only records pairs that are **forbidden or conditional**:
 
-| Cặp | Quy tắc |
+| Pair | Rule |
 |---|---|
-| `subtle-foreground` trên `primary-soft` | Không dùng: trượt AA |
-| `primary` làm chữ trên `primary-soft` | Không dùng; thay bằng `primary-soft-foreground` |
-| `warning`, `chart-5` làm chữ hoặc icon đứng một mình | Không dùng: dưới 3:1 trên trắng |
-| `border` làm ranh giới duy nhất của control | Không dùng: chỉ để phân vùng; viền control dùng `input` (đạt 3:1) |
-| Chữ soft trên nền soft (mọi họ), chữ trên nền đặc | Đạt AA ở cả light và dark, dùng tự do |
+| `subtle-foreground` on `primary-soft` | Don't use: fails AA |
+| `primary` as text on `primary-soft` | Don't use; use `primary-soft-foreground` instead |
+| `warning`, `chart-5` as standalone text or icon | Don't use: under 3:1 on white |
+| `border` as a control's only boundary | Don't use: for dividing areas only; control borders use `input` (passes 3:1) |
+| Soft text on soft background (every family), text on solid background | Passes AA in both light and dark, use freely |
 
-## 5. Chữ
+## 5. Type
 
-Font **Geist** (`next/font`). Giao diện có ba ngôn ngữ: **English, Tiếng Việt, 简体中文** (PRD Language BR-RULE-LNG-03; app thật `lib/i18n/messages.ts`); tiếng Thái, Indonesia không phải ngôn ngữ giao diện. Chữ Trung dùng fallback CJK (PingFang SC, Hiragino Sans GB, Microsoft YaHei, Noto Sans SC). Dấu tiếng Việt phải hiện bằng chính Geist, không rơi sang font khác (chưa kiểm, xem "Chưa chốt" ở `decisions.md`). Body bật `font-feature-settings: "ss01"` như LP. Số trong bảng và KPI: `tabular-nums`.
+Font **Geist** (`next/font`). The UI has three languages: **English, Tiếng Việt, 简体中文** (PRD Language BR-RULE-LNG-03; live app `lib/i18n/messages.ts`); Thai and Indonesian are not UI languages. Chinese uses a CJK fallback (PingFang SC, Hiragino Sans GB, Microsoft YaHei, Noto Sans SC). Vietnamese diacritics must render in Geist itself, not fall back to another font (not yet checked, see "Not settled" in `decisions.md`). Body enables `font-feature-settings: "ss01"` as in the LP. Numbers in tables and KPIs: `tabular-nums`.
 
-| Class | Cỡ / dòng | Weight | Dùng cho |
+| Class | Size / line | Weight | Used for |
 |---|---|---|---|
-| `text-xs` | 12 / 16 | 500–600 | Chỉ badge, kbd, trục biểu đồ, nhãn nhóm và siêu dữ liệu ngắn không bấm được (quy tắc 12px dưới bảng) |
-| `text-dense` | 13 / 18 | 400 | Ô bảng dày |
-| `text-sm` | 14 / 20 | 400; nút, nhãn 500 | **Body mặc định**, ô nhập, nút, menu |
-| `text-base` | 16 / 24 | 400 | Đoạn đọc dài (chat agent, mô tả) |
-| `text-lg`, `text-xl` | 18, 20 | 600, `tracking-title` | Tiêu đề khối, dialog, card lớn |
-| `text-2xl` | 24 / 32 | 500, `tracking-tight` | **Tiêu đề trang** (`PageHeader`; người dùng chốt 2026-11-13: 30px nét 400 trông như landing page; giữ Geist, không đổi Inter vì hai font gần như giống nhau ở cùng cỡ), tiêu đề khối lớn |
-| `text-3xl` | 30 / 36 | 500, `tracking-title` | Tiêu đề màn đăng nhập / onboarding |
-| `text-3xl`+ | ≥ 30 | 400, `tracking-display` | Số KPI, onboarding |
+| `text-xs` | 12 / 16 | 500–600 | Only badges, kbd, chart axes, group labels and short non-clickable metadata (12px rule below the table) |
+| `text-dense` | 13 / 18 | 400 | Dense table cells |
+| `text-sm` | 14 / 20 | 400; buttons, labels 500 | **Default body**, inputs, buttons, menus |
+| `text-base` | 16 / 24 | 400 | Long reading text (agent chat, descriptions) |
+| `text-lg`, `text-xl` | 18, 20 | 600, `tracking-title` | Block titles, dialogs, large cards |
+| `text-2xl` | 24 / 32 | 500, `tracking-tight` | **Page title** (`PageHeader`; user decision 2026-11-13: 30px at weight 400 looked like a landing page; keep Geist, no switch to Inter since the two fonts look nearly the same at the same size), large block titles |
+| `text-3xl` | 30 / 36 | 500, `tracking-title` | Sign-in / onboarding screen titles |
+| `text-3xl`+ | ≥ 30 | 400, `tracking-display` | KPI numbers, onboarding |
 
-- Phân cấp bằng cỡ và màu trước, weight sau; hạn chế 700.
-- Không viết hoa cả câu. Nhãn nhóm: 12px, 600, `muted-foreground`.
-- **Quy tắc 12px** (designer 2026-11-18): 12px chỉ cho badge, kbd, trục biểu đồ, nhãn nhóm và **siêu dữ liệu ngắn không bấm được** (giờ, bộ đếm, "3 credits used", "+600 on Dec 12"), tối đa ~8 từ, màu `muted-foreground` (≥ 4.5:1), không bao giờ `subtle-foreground`. Không bao giờ 12px cho chữ bấm được (link, nút), tiêu đề, câu giải thích hay lỗi, và thông tin dùng để quyết định (giá, số credit cần nạp): những chữ đó tối thiểu 14px. **Ngoại lệ: tooltip** (`Hint`, `LockedTip`) giữ 12px như shadcn: nền tối tương phản cao, câu ngắn (designer 2026-11-18).
+- Build hierarchy with size and color first, weight second; limit 700.
+- No all-caps sentences. Group labels: 12px, 600, `muted-foreground`.
+- **12px rule** (designer 2026-11-18): 12px only for badges, kbd, chart axes, group labels and **short non-clickable metadata** (times, counters, "3 credits used", "+600 on Dec 12"), at most ~8 words, color `muted-foreground` (≥ 4.5:1), never `subtle-foreground`. Never 12px for clickable text (links, buttons), titles, explanatory sentences or errors, or information used to decide (prices, credits to top up): those are at least 14px. **Exception: tooltips** (`Hint`, `LockedTip`) keep 12px as in shadcn: high-contrast dark background, short sentences (designer 2026-11-18).
 
-## 6. Khoảng cách, bo góc, viền
+## 6. Spacing, radius, borders
 
-**Khoảng cách.** Thang 4px.
+**Spacing.** 4px scale.
 
-| Vị trí | Giá trị |
+| Position | Value |
 |---|---|
-| Trong control | 8 / 12px |
-| Giữa các trường form | 16px |
-| Giữa các khối trên trang | 16px; từ `md` 24px (`gap-4 md:gap-6`, theo Studio Admin) |
-| Lề nội dung | 16px; từ `md` 24px (`p-4 md:p-6`) |
+| Inside controls | 8 / 12px |
+| Between form fields | 16px |
+| Between blocks on a page | 16px; from `md` 24px (`gap-4 md:gap-6`, following Studio Admin) |
+| Content padding | 16px; from `md` 24px (`p-4 md:p-6`) |
 
-**Kích thước.**
+**Sizes.**
 
-| Phần tử | Cao |
+| Element | Height |
 |---|---|
-| Nút, ô nhập (mặc định `h-8`) | 32px; nhỏ 28px; lớn 36px |
-| Hàng bảng | ~48px (ô `px-4 py-3.5`); hàng tên cột 40px. Theo Studio Admin |
-| Vùng bấm tối thiểu | 24×24px |
+| Buttons, inputs (default `h-8`) | 32px; small 28px; large 36px |
+| Table row | ~48px (cell `px-4 py-3.5`); column header row 40px. Following Studio Admin |
+| Minimum hit area | 24×24px |
 
-Nút `sm` / `xs` có chữ < 14px: chỉ dùng cho nút icon hoặc trong bảng.
+`sm` / `xs` buttons have text < 14px: only for icon buttons or inside tables.
 
-**Bo góc.**
+**Radius.**
 
-| Token | Giá trị | Dùng cho |
+| Token | Value | Used for |
 |---|---|---|
-| `rounded-lg` (`--radius`) | 8px | Nút, ô nhập, popover, dropdown |
-| `rounded-md` | 6.4px | Item menu, chip filter, nút icon nhỏ |
+| `rounded-lg` (`--radius`) | 8px | Buttons, inputs, popovers, dropdowns |
+| `rounded-md` | 6.4px | Menu items, filter chips, small icon buttons |
 | `rounded-sm` | 4.8px | Checkbox, kbd |
-| `rounded-card` | 12px | Card (`card.tsx`), dialog, khối Saella |
-| `rounded-full` | pill | Badge, tag, avatar, chấm trạng thái |
+| `rounded-card` | 12px | Card (`card.tsx`), dialog, Saella blocks |
+| `rounded-full` | pill | Badge, tag, avatar, status dot |
 
-**Khung lồng nhau: ngoài bo lớn hơn trong.** Khối có viền đứng thẳng trên trang (khung bao bảng, khối thông tin, panel) bo `rounded-card` như Card. Khối có viền nằm **bên trong** một khung khác (dialog, card, bước wizard, panel chi tiết, tin nhắn agent) bo `rounded-lg`. Cùng là khung bao bảng nhưng bo theo vị trí, không theo nội dung.
+**Nested frames: outer radius larger than inner.** A bordered block standing directly on the page (table frame, info block, panel) uses `rounded-card` like Card. A bordered block **inside** another frame (dialog, card, wizard step, detail panel, agent message) uses `rounded-lg`. Two table frames may differ: radius follows position, not content.
 
-**Viền và độ nổi.**
+**Borders and elevation.**
 
-| Lớp | Cách tách |
+| Layer | How it is separated |
 |---|---|
-| Card, bảng, panel, sidebar | Hairline 1px `border`, **không bóng** |
-| Ô nhập, checkbox, select | Viền `input`; focus ring cam đặc 2px; lỗi viền `destructive` + câu lỗi dưới trường |
+| Card, table, panel, sidebar | 1px `border` hairline, **no shadow** |
+| Input, checkbox, select | `input` border; solid 2px orange focus ring; error: `destructive` border + error sentence below the field |
 | Popover, menu, toast | `shadow-card` |
-| Dialog, sheet, command palette | `shadow-float`; overlay `deep` 40% |
+| Dialog, sheet, command palette | `shadow-float`; `deep` overlay at 40% |
 
-Không glow, không bóng màu.
+No glow, no colored shadows.
 
-## 7. Chuyển động và icon
+## 7. Motion and icons
 
-**Chuyển động** chỉ để giải thích thay đổi trạng thái, không để trang trí.
+**Motion** only explains state changes, never decorates.
 
-| Việc | Thời lượng | Easing |
+| Action | Duration | Easing |
 |---|---|---|
-| Hover, đổi màu | 150–200ms | `ease-standard` |
-| Mở popover, dialog, sheet | 200–300ms | `ease-emphasized` |
-| Đang tải | skeleton hoặc spinner | |
+| Hover, color change | 150–200ms | `ease-standard` |
+| Opening popover, dialog, sheet | 200–300ms | `ease-emphasized` |
+| Loading | skeleton or spinner | |
 
-- Không mang từ LP sang: vệt sáng trên nút, chữ cuộn khi hover, reveal khi cuộn, parallax.
-- Mọi animation tắt khi `prefers-reduced-motion`. Không animation lặp vô hạn trên control.
+- Not carried over from the LP: shine sweep on buttons, text scrolling on hover, reveal on scroll, parallax.
+- Every animation turns off under `prefers-reduced-motion`. No infinitely looping animation on controls.
 
-**Icon.** Lucide, stroke 1.75–2; 16px trong control, 20px trong nav. Màu theo chữ đi kèm; icon nhấn dùng `brand`. Icon mang nghĩa phải đạt 3:1. **Ngoại lệ: logo mạng xã hội** (Facebook, Instagram, Threads, LinkedIn, TikTok, YouTube, Pinterest…) giữ màu thương hiệu của chính mạng đó, phải nhận ra được ở cả light và dark; chỉ dùng để chỉ mạng đó, không dùng trang trí. Mọi logo mạng là **hình tròn** cùng cỡ: nền màu thương hiệu, hình trắng ở giữa; khi xếp chồng, mỗi logo có viền 2px màu nền để tách nhau. Định nghĩa ở `code/src/app/(app)/social/_components/network-icon.tsx` (chốt 2026-11-11).
+**Icons.** Lucide, stroke 1.75–2; 16px in controls, 20px in nav. Color follows the accompanying text; accent icons use `brand`. Meaningful icons must reach 3:1. **Exception: social network logos** (Facebook, Instagram, Threads, LinkedIn, TikTok, YouTube, Pinterest…) keep the network's own brand color and must be recognizable in both light and dark; used only to indicate that network, never as decoration. Every network logo is a **circle** of the same size: brand-color background, white glyph in the middle; when stacked, each logo has a 2px border in the background color to separate them. Defined in `code/src/app/(app)/social/_components/network-icon.tsx` (settled 2026-11-11).
 
-## 8. Component
+## 8. Components
 
-Chỉ ghi phần Saella **khác** shadcn/ui; phần còn lại theo docs shadcn.
+Only records where Saella **differs** from shadcn/ui; everything else follows the shadcn docs.
 
-| Thư mục | Chứa | Quy tắc |
+| Folder | Contains | Rule |
 |---|---|---|
-| `src/components/ui/` | Component shadcn gốc | Chỉ chỉnh theme qua token; được sửa class cho đúng DS, không đổi API |
-| `src/components/saella/` | Component DS riêng Saella | Ghép từ `ui/`, chỉ dùng token |
-| `src/components/layout/` | Khung app | |
-| `src/components/features/` | Component tính năng dùng từ hai màn trở lên (dialog, bảng con…) | |
-| `src/app/(app)/<màn>/` | Màn sản phẩm: `page.tsx` + `_components/` chỉ màn đó dùng | Dùng chung `AppShell`, đầu trang `PageHeader`. Không import `_components/` của màn khác: dùng từ hai màn trở lên thì đưa lên `features/` hoặc `saella/` |
-| `src/lib/mock/` | Dữ liệu giả và kiểu dữ liệu dùng chung | Giá trị chung (TODAY, NOW, user hiện tại, quốc gia) chỉ khai báo ở `constants.ts` |
-| `src/lib/format.ts`, `src/lib/time.ts` | Hàm định dạng, giờ theo múi giờ workspace | Không tự viết lại trong màn |
+| `src/components/ui/` | Original shadcn components | Theme only via tokens; classes may be edited to match the DS, do not change the API |
+| `src/components/saella/` | Saella-specific DS components | Composed from `ui/`, tokens only |
+| `src/components/layout/` | App frame | |
+| `src/components/features/` | Feature components used by two or more screens (dialogs, sub-tables…) | |
+| `src/app/(app)/<screen>/` | Product screens: `page.tsx` + `_components/` used only by that screen | Share `AppShell`, page header `PageHeader`. Do not import another screen's `_components/`: if used by two or more screens, move it up to `features/` or `saella/` |
+| `src/lib/mock/` | Mock data and shared data types | Shared values (TODAY, NOW, current user, countries) declared only in `constants.ts` |
+| `src/lib/format.ts`, `src/lib/time.ts` | Formatting functions, times in the workspace time zone | Do not rewrite them inside screens |
 
-**Thư viện ngoài shadcn:** soạn thư (Letter) dùng **TipTap 3.34.0** (`@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-text-style`, `@tiptap/extension-image`, `@tiptap/extensions`; ghim đúng phiên bản, designer duyệt 2026-11-14), dùng headless: thanh công cụ ghép từ component `ui/`, chữ trong thư theo `EMAIL_PROSE` (`components/features/email-body.tsx`), không dùng CSS mặc định của TipTap, không dùng extension trả phí. Thêm thư viện khác phải được duyệt.
+**Libraries beyond shadcn:** the letter editor (Letter) uses **TipTap 3.34.0** (`@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-text-style`, `@tiptap/extension-image`, `@tiptap/extensions`; exact version pinned, approved by designer 2026-11-14), used headless: the toolbar is composed from `ui/` components, letter text follows `EMAIL_PROSE` (`components/features/email-body.tsx`), no TipTap default CSS, no paid extensions. Any other library must be approved.
 
-Component có file `<tên>.meta.ts` (khuôn `components/meta.ts`): đọc trước khi dùng, vì nó ghi biến thể nào dùng khi nào và tổ hợp bị cấm. Component mới hoặc hay bị dùng sai thì viết thêm meta.
+Components with a `<name>.meta.ts` file (template `components/meta.ts`): read it before use, since it records which variant to use when and forbidden combinations. Write a meta for new components or ones often misused.
 
-Áp cho mọi component trong `ui/`, kể cả khi thêm mới:
-- Focus `ring-2 ring-ring` (bản shadcn `ring-3 ring-ring/50` không đạt 3:1).
-- Viền overlay và card `ring-border`; bóng theo mục 6.
-- Bỏ các lớp `dark:bg-input/30`… vì token `.dark` đã xử lý.
+Applies to every component in `ui/`, including newly added ones:
+- Focus `ring-2 ring-ring` (shadcn's `ring-3 ring-ring/50` does not reach 3:1).
+- Overlay and card borders `ring-border`; shadows per §6.
+- Remove `dark:bg-input/30`… classes since the `.dark` tokens already handle it.
 
-### 8.1 Khác shadcn
+### 8.1 Differences from shadcn
 
 | Component | Saella |
 |---|---|
-| Button | `default` = `primary`, hover `primary-hover`. `outline` viền `input`. `destructive` nền `destructive-soft`. `ai` = hành động AI (✨): nền `peach` đặc, chữ và icon `primary-soft-foreground`, không viền (designer 2026-11-18: bản viền nhạt quá mờ); không bao giờ cam đặc, không tính là nút cam duy nhất của trang |
-| Input, Textarea | Viền `input`; placeholder `subtle-foreground` |
-| Select | Popover `shadow-card`; mục đang chọn có dấu check |
-| Checkbox, Radio, Switch | Bật = `primary`, tắt viền `input`. Checkbox có trạng thái "chọn một phần" |
-| Badge | Pill 12px, weight 500 (người dùng chốt 2026-11-13; trước là 600). Tông: trung tính, `brand`, `success`, `warning`, `info`, `destructive` (họ `-soft`) |
-| Table | Theo Studio Admin: hàng tên cột không nền, chữ 14px 500 màu chữ chính; ô lề 16px; rê chuột nền `muted/50`; dòng chọn `primary-subtle`, badge xám (tag) trong dòng chọn chuyển nền `card` (trắng) cho khỏi chìm; badge trạng thái giữ nguyên (designer 2026-11-18). Tiêu đề dính khi cuộn thì thêm nền `background` |
-| Tabs | Mặc định gạch dưới màu `brand`, tab chưa chọn `muted-foreground`. Chuyển chế độ xem (Rates / Counts) dùng `TabsList variant="default"` |
-| Toggle, ToggleGroup | Mục đang chọn nền `primary-soft`. Chip chọn nhiều (series biểu đồ, lọc sự kiện) |
-| Dialog, AlertDialog | Bo 12px, `shadow-float`, overlay `deep` 40%. `DialogContent` có `grid-cols-[minmax(0,1fr)]` để nội dung rộng cuộn bên trong |
-| Sheet | `shadow-float`. Chi tiết contact, công ty |
-| Alert | Thêm tông `info`, `success`, `warning`. Alert cho thông báo cần nằm lại; toast cho xác nhận ngắn |
-| Toast (`sonner`) | Icon theo họ ngữ nghĩa; warning dùng `warning-soft-foreground`; hiện ở giữa phía trên (`top-center`, designer 2026-11-19) |
+| Button | `default` = `primary`, hover `primary-hover`. `outline` border `input`. `destructive` background `destructive-soft`. `ai` = AI action (✨): solid `peach` background, text and icon `primary-soft-foreground`, no border (designer 2026-11-18: the light-border version was too faint); never solid orange, does not count as the page's single orange button |
+| Input, Textarea | `input` border; placeholder `subtle-foreground` |
+| Select | Popover `shadow-card`; selected item has a check mark |
+| Checkbox, Radio, Switch | On = `primary`, off = `input` border. Checkbox has an "indeterminate" state |
+| Badge | 12px pill, weight 500 (user decision 2026-11-13; previously 600). Tones: neutral, `brand`, `success`, `warning`, `info`, `destructive` (`-soft` family) |
+| Table | Following Studio Admin: column header row without background, 14px 500 text in the primary text color; 16px cell padding; hover background `muted/50`; selected row `primary-subtle`, grey badges (tags) in a selected row switch to `card` background (white) so they don't sink; status badges stay unchanged (designer 2026-11-18). A header that sticks on scroll gets a `background` fill |
+| Tabs | Default underline in `brand`, unselected tabs `muted-foreground`. View switching (Rates / Counts) uses `TabsList variant="default"` |
+| Toggle, ToggleGroup | Selected item background `primary-soft`. Multi-select chips (chart series, event filters) |
+| Dialog, AlertDialog | 12px radius, `shadow-float`, `deep` overlay at 40%. `DialogContent` has `grid-cols-[minmax(0,1fr)]` so wide content scrolls inside |
+| Sheet | `shadow-float`. Contact and company details |
+| Alert | Adds `info`, `success`, `warning` tones. Alert for notices that need to stay; toast for short confirmations |
+| Toast (`sonner`) | Icon by semantic family; warning uses `warning-soft-foreground`; shown at top center (`top-center`, designer 2026-11-19) |
 | Card | `rounded-card` (12px) |
-| Message, Bubble, MessageScroller, Trace, Attachment, Marker | Bộ chat của shadcn cho Agent; không cài AI Elements (Vercel, sắp gộp vào shadcn). Attachment bo `rounded-card`, trạng thái đang tải dùng `shimmer` của shadcn (tự tắt khi giảm chuyển động). Marker cho mốc trong hội thoại |
+| Message, Bubble, MessageScroller, Trace, Attachment, Marker | shadcn's chat set for the Agent; AI Elements not installed (Vercel, soon merging into shadcn). Attachment uses `rounded-card`, loading state uses shadcn's `shimmer` (turns off under reduced motion). Marker for milestones in the conversation |
 
-### 8.2 Component Saella (`components/saella/`)
+### 8.2 Saella components (`components/saella/`)
 
-| Component | Vai trò |
+| Component | Role |
 |---|---|
-| `StatusBadge` | Trạng thái campaign / template / batch: chấm tĩnh + chữ (mục 4.2) |
-| `KpiStrip` | Mẫu KPI hiện dùng (Overview, Campaigns, báo cáo batch, Billing); màn dựng lại từ Studio Admin thì dùng kiểu KPI của trang mẫu: một dải liền khối chia bằng hairline, không icon trang trí. Ô có `href` thì bấm được; `detail` vào tooltip; tông `warning` / `danger` khi vượt ngưỡng |
-| `RateCell`, `RateValue`, `rateKpi` | Cách duy nhất để hiện tỉ lệ email (`rate-meter.tsx`): "38.3% (466)", mẫu số trong tooltip, màu theo `RATE_BANDS`. `RateCell` cho bảng, `RateValue` nội dòng, `rateKpi` cho ô `KpiStrip` |
-| `DataTable` | Bảng TanStack v9: sắp xếp, chọn nhiều + thanh thao tác phía trên, phân trang, loading, empty, mở rộng dòng (`renderExpanded`), checkbox chọn dòng luôn hiện (mục 2); thao tác dòng (`…`) luôn hiện, màu nhạt (`revealOnRowHover`) |
-| `FilterBar` | Ô tìm + menu lọc + chip giá trị + Clear all; điều khiển được từ ngoài (URL, agent) |
-| `MultiSelect`, `TreeSelect`, `TagInput` | Chọn nhiều (Popover + Command; danh sách trên 7 mục có ô tìm, khớp theo chuỗi), chọn theo cây, nhập tag (tag có sẵn hiện thành dropdown khi focus, gõ để lọc, Enter thêm; không bày chip gợi ý) |
-| `DatePicker`, `DateRangePicker`, `TimePicker` | Chọn ngày giờ thay ô native, theo múi giờ workspace (`PATTERNS.md` 9.8) |
-| `ChartCard`, `Sparkline` | Khung biểu đồ, đường xu hướng nhỏ |
-| `Stepper` | Form nhiều bước (`PATTERNS.md` 9.2) |
-| `ApprovalCard`, `AgentSteps` | Đề xuất chờ duyệt, các bước agent đang chạy (`PATTERNS.md` 9.4) |
-| `SaellaMini` | Gương mặt agent: nền tròn `primary-soft`, 20–96px, `state` idle / thinking |
-| `CopyButton`, `LanguagePicker` | Copy giá trị (DNS record…), chọn ngôn ngữ |
-| `Hint` | Tooltip ngắn cho mọi phần tử, thay `title=` native (`PATTERNS.md` 9.13) |
-| `ListRow` | Một dòng chọn được trong danh sách bên trái của master–detail (campaign, thread agent, hàng chờ duyệt), dựng trên `Item` (`PATTERNS.md` 9.6) |
-| `ChipRemove` | Nút × trong chip hoặc `Badge` để gỡ nó (giá trị lọc, tag, file đính kèm) |
-| `RouteProgress` | Thanh 2px màu `brand` ở mép trên khi chuyển trang; mục sidebar vừa bấm sáng ngay (`data-nav-pending`). Gắn một lần ở `app/layout.tsx` (`PATTERNS.md` 9.17) |
-| `SectionLoader`, `useSectionLoad` | Một khối dữ liệu tự tải: skeleton đúng hình → trạng thái + thanh % sau 1s → Alert + Retry sau 15s hoặc khi lỗi; quay lại trong phiên hiện bản trước (`PATTERNS.md` 9.17) |
-| `LoadingStatus`, `UpdatedIndicator` | Dòng trạng thái khi chờ lâu (`aria-live`), tông "đang chạy" như trạng thái Sending: nền `primary-subtle`, viền `brand`/25, chữ `primary-soft-foreground`, spinner `brand`; "Updating… · Updated 2 min ago" khi đang làm mới bản cũ |
+| `StatusBadge` | Campaign / template / batch status: static dot + text (§4.2) |
+| `KpiStrip` | The current KPI pattern (Overview, Campaigns, batch report, Billing); screens rebuilt from Studio Admin use the template page's KPI style: one continuous strip divided by hairlines, no decorative icons. Tiles with `href` are clickable; `detail` goes in a tooltip; `warning` / `danger` tone when over threshold |
+| `RateCell`, `RateValue`, `rateKpi` | The only way to show email rates (`rate-meter.tsx`): "38.3% (466)", denominator in the tooltip, color per `RATE_BANDS`. `RateCell` for tables, `RateValue` inline, `rateKpi` for `KpiStrip` tiles |
+| `DataTable` | TanStack v9 table: sorting, multi-select + action bar above, pagination, loading, empty, row expansion (`renderExpanded`), row-select checkbox always visible (§2); row actions (`…`) always visible, faint (`revealOnRowHover`) |
+| `FilterBar` | Search box + filter menu + value chips + Clear all; controllable from outside (URL, agent) |
+| `MultiSelect`, `TreeSelect`, `TagInput` | Multi-select (Popover + Command; lists over 7 items have a search box, substring match), tree select, tag input (existing tags show as a dropdown on focus, type to filter, Enter to add; no suggestion chips laid out) |
+| `DatePicker`, `DateRangePicker`, `TimePicker` | Date and time pickers replacing native inputs, in the workspace time zone (`PATTERNS.md` 9.8) |
+| `ChartCard`, `Sparkline` | Chart frame, small trend line |
+| `Stepper` | Multi-step forms (`PATTERNS.md` 9.2) |
+| `ApprovalCard`, `AgentSteps` | Proposals awaiting approval, agent steps in progress (`PATTERNS.md` 9.4) |
+| `SaellaMini` | The agent's face: round `primary-soft` background, 20–96px, `state` idle / thinking |
+| `CopyButton`, `LanguagePicker` | Copy a value (DNS record…), pick a language |
+| `Hint` | Short tooltip for any element, replaces native `title=` (`PATTERNS.md` 9.13) |
+| `ListRow` | A selectable row in the left list of a master–detail (campaign, agent thread, approval queue), built on `Item` (`PATTERNS.md` 9.6) |
+| `ChipRemove` | The × button in a chip or `Badge` to remove it (filter value, tag, attachment) |
+| `RouteProgress` | 2px `brand` bar at the top edge during page transitions; the sidebar item just clicked lights up immediately (`data-nav-pending`). Mounted once in `app/layout.tsx` (`PATTERNS.md` 9.17) |
+| `SectionLoader`, `useSectionLoad` | A self-loading data block: correctly shaped skeleton → status + % bar after 1s → Alert + Retry after 15s or on error; returning within the session shows the previous version (`PATTERNS.md` 9.17) |
+| `LoadingStatus`, `UpdatedIndicator` | Status line during long waits (`aria-live`), "running" tone like the Sending status: `primary-subtle` background, `brand`/25 border, `primary-soft-foreground` text, `brand` spinner; "Updating… · Updated 2 min ago" while refreshing an old version |
 
-**Đang bỏ (không dùng cho màn mới)**
+**Being retired (not for new screens)**
 
-| Component | Thay bằng | Ghi chú |
+| Component | Replace with | Note |
 |---|---|---|
-| `MetricCard` | `KpiStrip` | Đã xoá; số nào cần nổi bật thì vào một ô `KpiStrip` |
-| `RateMeters` (thang 3 nấc) | `RateCell` / `RateValue` | Đã xoá 2026-11-05 |
-| `TableFill` | Tuỳ chọn `fill` / `stickyHeader` của `DataTable` (chưa làm) | Tạm dùng cho bảng cao hết trang; nợ kỹ thuật vì chỉnh `DataTable` từ bên ngoài |
+| `MetricCard` | `KpiStrip` | Deleted; a number that needs emphasis goes in a `KpiStrip` tile |
+| `RateMeters` (3-tier scale) | `RateCell` / `RateValue` | Deleted 2026-11-05 |
+| `TableFill` | `DataTable`'s `fill` / `stickyHeader` option (not built yet) | Temporarily used for full-page-height tables; technical debt because it adjusts `DataTable` from outside |
 
-### 8.3 Khung app (`components/layout/`)
+### 8.3 App frame (`components/layout/`)
 
-| Component | Vai trò |
+| Component | Role |
 |---|---|
-| `AppShell` | Sidebar + header + panel agent kéo 320–900px |
-| `AppSidebar` | Thu gọn thành icon, nhóm có nhãn, menu tài khoản có Light / Dark / System |
-| `PageHeader` | Breadcrumb (tuỳ chọn), tiêu đề 24px (mục 5), một dòng ngữ cảnh `text-sm`, thao tác bên phải: nút `size="sm"`, nút phụ (outline) trước, nút cam chính cuối, menu ⋯ (nếu có) sau cùng |
+| `AppShell` | Sidebar + header + agent panel resizable 320–900px |
+| `AppSidebar` | Collapses to icons, labeled groups, account menu with Light / Dark / System |
+| `PageHeader` | Breadcrumb (optional), 24px title (§5), one `text-sm` context line, actions on the right: `size="sm"` buttons, secondary buttons (outline) first, main orange button last, ⋯ menu (if any) at the very end |
 | `SearchCommand` | Command palette (Ctrl/⌘K) |
-| `NotificationsMenu` | Thông báo |
-| `AgentPanel` + nút nổi "Ask the agent" | Lối vào agent (`PATTERNS.md` 9.4). Nút nổi là tính năng chính nên to và tương phản cao: pill nền `foreground` (ink) cao 48px, Saella mini 30px, `shadow-float`; không dùng cam đặc để không tranh nút chính của trang (2026-11-11) |
-| `LeadsTabs` | Tab của nhóm Leads |
-| `ThemeProvider` | Theme, mặc định light |
+| `NotificationsMenu` | Notifications |
+| `AgentPanel` + floating "Ask the agent" button | Entry point to the agent (`PATTERNS.md` 9.4). The floating button is a key feature, so it is large and high-contrast: `foreground` (ink) pill 48px tall, Saella mini 30px, `shadow-float`; not solid orange so it does not compete with the page's primary button (2026-11-11) |
+| `LeadsTabs` | Tabs of the Leads group |
+| `ThemeProvider` | Theme, light by default |
 
-### 8.4 Trạng thái bắt buộc
+### 8.4 Required states
 
-Mọi component, gốc hay ghép, phải thiết kế đủ:
+Every component, original or composed, must be designed with all of:
 
-| Trạng thái | Cách thể hiện |
+| State | How it is shown |
 |---|---|
-| hover | Nền `accent` hoặc `primary-hover`, 150–200ms |
-| focus | `focus-visible` ring cam 2px |
-| disabled | Opacity 50%, không hover |
-| loading | Spinner hoặc skeleton, giữ nguyên kích thước, `aria-busy` |
-| empty | Câu nói vì sao trống + một hành động tiếp theo |
-| error | Viền + chữ `destructive`, thông báo nói cách sửa |
+| hover | `accent` or `primary-hover` background, 150–200ms |
+| focus | `focus-visible` 2px orange ring |
+| disabled | 50% opacity, no hover |
+| loading | Spinner or skeleton, same size kept, `aria-busy` |
+| empty | A sentence saying why it is empty + one next action |
+| error | `destructive` border + text, message says how to fix it |
 
-## 9. Pattern
+## 9. Patterns
 
-Đã chuyển sang `PATTERNS.md` (cùng thư mục), giữ nguyên số 9.1–9.15. Mục cần đọc: bảng "Tra nhanh" ở đầu file này.
+Moved to `PATTERNS.md` (same folder), numbers 9.1–9.15 kept. Which section to read: the "Quick reference" table at the top of this file.
 
-## 10. Kiểm tra trước khi báo xong
+## 10. Checks before reporting done
 
-**Token và trạng thái**
-- [ ] Chỉ class từ token; chữ trên nền `*-soft` dùng `*-soft-foreground`.
-- [ ] Đủ trạng thái mục 8.4. Loading giữ nguyên layout; empty và error có câu giải thích + hành động tiếp theo.
+**Tokens and states**
+- [ ] Only token classes; text on `*-soft` backgrounds uses `*-soft-foreground`.
+- [ ] All states in §8.4. Loading keeps the layout; empty and error have an explanation + next action.
 
-**Truy cập**
-- [ ] Body ≥ 14px, bảng dày ≥ 13px. 12px chỉ cho badge, kbd, trục, nhãn nhóm và siêu dữ liệu ngắn không bấm được, màu `muted-foreground` (mục 5 "Quy tắc 12px"); link, nút, tiêu đề, lỗi, giá không bao giờ 12px. Số dùng `tabular-nums`.
-- [ ] Chữ ≥ 4.5:1; viền control, icon mang nghĩa, focus ≥ 3:1.
-- [ ] Focus thấy được trên mọi phần tử tương tác; control có nhãn (`aria-label` cho nút chỉ có icon); vùng bấm ≥ 24×24px.
+**Accessibility**
+- [ ] Body ≥ 14px, dense tables ≥ 13px. 12px only for badges, kbd, axes, group labels and short non-clickable metadata, color `muted-foreground` (§5 "12px rule"); links, buttons, titles, errors, prices are never 12px. Numbers use `tabular-nums`.
+- [ ] Text ≥ 4.5:1; control borders, meaningful icons, focus ≥ 3:1.
+- [ ] Focus visible on every interactive element; controls have labels (`aria-label` for icon-only buttons); hit area ≥ 24×24px.
 
-**Hiển thị**
-- [ ] Chụp 1440px light + dark (`scripts/screenshot.mjs`, lưu vào thư mục tạm): không cuộn ngang, dòng phụ không bị cắt, cột tên không bị bóp.
-- [ ] Laptop nhỏ (người dùng chốt 2026-11-18): đo thêm 1280×800 và 1366×768. Không cuộn ngang cả trang, và bảng vừa khung không phải kéo ngang. Dưới 1440: thu cột, cho số trong ngoặc của ô tỉ lệ xuống dòng (`[data-slot=rate-value]`), tên dài tối đa 2 dòng, tag chỉ hiện 1 + "+N". Chiều cao 768: nút chính và modal vẫn thấy đủ.
-- [ ] **Lượt cắt gọt chữ** trên ảnh chụp, theo `PATTERNS.md` 9.15: rà từng chữ bằng phép thử "người dùng làm gì với nó?"; bỏ dữ liệu thô, câu giải thích logic, số liệu lặp, khối chỉ một mục. Có thể dùng skill `distill` (bớt thành phần thừa) và `clarify` (sửa câu chữ). Báo lại những gì đã bỏ.
+**Display**
+- [ ] Screenshot at 1440px light + dark (`scripts/screenshot.mjs`, saved to a temp folder): no horizontal scroll, secondary lines not cut off, name column not squeezed.
+- [ ] Small laptops (user decision 2026-11-18): also measure 1280×800 and 1366×768. No whole-page horizontal scroll, and tables fit their frame without horizontal dragging. Below 1440: shrink columns, let the bracketed number in rate cells wrap (`[data-slot=rate-value]`), long names max 2 lines, tags show only 1 + "+N". At 768 height: primary buttons and modals still fully visible.
+- [ ] **Text-trimming pass** on the screenshot, per `PATTERNS.md` 9.15: go through every piece of text with the test "what does the user do with it?"; remove raw data, sentences explaining logic, repeated metrics, single-item blocks. You may use the `distill` skill (remove excess elements) and `clarify` (fix wording). Report what was removed.
 
-**Kỹ thuật**
-- [ ] Typecheck và lint sạch; console không lỗi, không warning (kể cả hydration). Đổi nhiều file thì khởi động lại `npm run dev` rồi kiểm lại.
+**Technical**
+- [ ] Typecheck and lint clean; console free of errors and warnings (including hydration). After changing many files, restart `npm run dev` and check again.
 
-## 11. Tham chiếu
+## 11. References
 
-Nguồn ngoài để học hỏi (chốt 2026-11-10). Không ghi đè quy tắc Saella; mỗi nguồn chỉ dùng đúng việc ghi bên cạnh. Nền của Saella không nằm ở đây: style là `tokens.css` (mục 3), component là shadcn (mục 8).
+External sources to learn from (settled 2026-11-10). They do not override Saella rules; each source is used only for the job listed beside it. Saella's foundation is not here: style is `tokens.css` (§3), components are shadcn (§8).
 
-| Khi nào | Nguồn | Học gì |
+| When | Source | What to learn |
 |---|---|---|
-| Hay dùng, khi dựng màn | **Studio Admin** (bản clone chỉ đọc `D:\Workspace\Saella\Studio Admin`, demo https://studio-admin.arhamkhnz.com) | Bố cục và cách thể hiện element. Được chép `page.tsx` + `_components/`, giữ cách thể hiện, chỉ đổi màu, nhận diện, dữ liệu, logic số liệu (CLAUDE.md bước 4); không chép `components/ui/`, `globals.css`, theme preset |
-| Hay dùng, khi dựng màn | **Đối thủ** (Mailchimp, Apollo, HubSpot, Clay, Unify, Hunter, Buffer, qua Mobbin) | Luồng nghiệp vụ; ghi ở `01 Docs/Research/Competitor.md` |
-| Chỉ khi cần | **saella.ai** (source `D:\Workspace\Saella\Saella LP`) | Thêm token mới cho hợp brand, tài sản brand (logo, chibi, Saella mini), giọng văn |
-| Chỉ khi cần | Shopify Polaris | Empty state, UI copy |
-| Chỉ khi cần | IBM Carbon | Bảng dày, nhãn nội dung AI |
+| Often, when building screens | **Studio Admin** (read-only clone `D:\Workspace\Saella\Studio Admin`, demo https://studio-admin.arhamkhnz.com) | Layout and how elements are presented. `page.tsx` + `_components/` may be copied, keeping the presentation, changing only color, identity, data, metric logic (CLAUDE.md step 4); do not copy `components/ui/`, `globals.css`, theme presets |
+| Often, when building screens | **Competitors** (Mailchimp, Apollo, HubSpot, Clay, Unify, Hunter, Buffer, via Mobbin) | Business flows; recorded in `01 Docs/Research/Competitor.md` |
+| Only when needed | **saella.ai** (source `D:\Workspace\Saella\Saella LP`) | New tokens that fit the brand, brand assets (logo, chibi, Saella mini), voice |
+| Only when needed | Shopify Polaris | Empty states, UI copy |
+| Only when needed | IBM Carbon | Dense tables, AI content labels |

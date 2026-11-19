@@ -10,6 +10,7 @@ import { DatePicker } from "@/components/saella/date-picker";
 import { Hint } from "@/components/saella/hint";
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldLabel,
   FieldLegend,
@@ -29,12 +30,14 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   type MonthlyLimit,
   type Schedule,
+  type ScheduleTiming,
   TIMEZONES,
   WEEKDAYS,
   hhmm,
   planRuns,
   runDays,
   runsCovered,
+  scheduleClash,
 } from "@/components/features/automation";
 
 // Pieces of the schedule dialog (automate-dialog.tsx; Set schedule and Edit): the "When to send" sentence, Emails per
@@ -84,6 +87,7 @@ export function WhenToSend({
   disabled,
   showErrors,
   onceBlocked,
+  busy = [],
   children,
 }: {
   cadence: Schedule["cadence"];
@@ -102,9 +106,14 @@ export function WhenToSend({
   showErrors: boolean;
   /** Why Once is off (more companies than one day's limit), if it is. */
   onceBlocked?: string;
+  /** The template's other running schedules: their day and hour can't be taken again. */
+  busy?: ScheduleTiming[];
   children?: React.ReactNode;
 }) {
   const { daysError, dateError } = timingErrors({ cadence, days, runOn });
+  const now = { cadence, days: days.map(Number), runOn, sendHour, timezone };
+  const taken = (t: ScheduleTiming) => busy.some((o) => scheduleClash(t, o));
+  const clash = taken(now);
   // Send zone (PATTERNS 9.8): defaults to the campaign's country, saved on the schedule.
   const tz = (
     <Select value={timezone} onValueChange={onTimezone} disabled={disabled}>
@@ -176,7 +185,7 @@ export function WhenToSend({
             <SelectContent>
               <SelectGroup>
                 {HOURS.map((h) => (
-                  <SelectItem key={h} value={String(h)}>
+                  <SelectItem key={h} value={String(h)} disabled={taken({ ...now, sendHour: h })}>
                     {hhmm(h)}
                   </SelectItem>
                 ))}
@@ -200,6 +209,7 @@ export function WhenToSend({
                 key={d.value}
                 value={String(d.value)}
                 className="w-12"
+                disabled={!days.includes(String(d.value)) && taken({ ...now, cadence: "custom", days: [d.value] })}
               >
                 {d.short}
               </ToggleGroupItem>
@@ -210,6 +220,10 @@ export function WhenToSend({
           <FieldError>{dateError}</FieldError>
         ) : showErrors && daysError ? (
           <FieldError>{daysError}</FieldError>
+        ) : clash ? (
+          <FieldError>Another running schedule already sends at this day and time</FieldError>
+        ) : busy.length > 0 ? (
+          <FieldDescription>Times and days another running schedule uses are greyed out.</FieldDescription>
         ) : null}
       </Field>
       {children}

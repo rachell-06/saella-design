@@ -138,6 +138,40 @@ const dayLabel = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
 
 /** "Every day · 09:00", "Tue, Thu · 09:00" or "On Fri, Oct 30 · 09:00" (live app scheduleWhen). */
+export type ScheduleTiming = Pick<Schedule, "cadence" | "days" | "runOn" | "sendHour" | "timezone">;
+
+const WEEK = 7 * 1440;
+/** Minutes east of UTC, read from the zone's "(GMT+7)" label. */
+function tzOffset(tz: string) {
+  const m = TIMEZONES.find((z) => z.value === tz)?.label.match(/GMT([+−-])(\d+)(?::(\d+))?/);
+  if (!m) return 0;
+  const mins = Number(m[2]) * 60 + Number(m[3] ?? 0);
+  return m[1] === "+" ? mins : -mins;
+}
+/** When a schedule sends, in UTC: minutes of the week (0 = Sunday 00:00) for a repeating one, one instant for Once. */
+function sendSlots(t: ScheduleTiming): { weekly: Set<number> } | { at: number } {
+  const off = tzOffset(t.timezone);
+  const wrap = (m: number) => ((m % WEEK) + WEEK) % WEEK;
+  if (t.cadence === "once") {
+    if (!t.runOn) return { weekly: new Set() };
+    const [y, mo, d] = t.runOn.split("-").map(Number);
+    return { at: Date.UTC(y, mo - 1, d) / 60000 + t.sendHour * 60 - off };
+  }
+  const days = t.cadence === "daily" ? [0, 1, 2, 3, 4, 5, 6] : t.days;
+  return { weekly: new Set(days.map((d) => wrap(d * 1440 + t.sendHour * 60 - off))) };
+}
+/** Two schedules of one template may run together, but never send at the same day and hour. */
+export function scheduleClash(a: ScheduleTiming, b: ScheduleTiming) {
+  const sa = sendSlots(a);
+  const sb = sendSlots(b);
+  // 1970-01-01 was a Thursday: shift so a Once instant lands on the same week grid.
+  const weekOf = (at: number) => (((at + 4 * 1440) % WEEK) + WEEK) % WEEK;
+  if ("at" in sa && "at" in sb) return sa.at === sb.at;
+  if ("at" in sa) return "weekly" in sb && sb.weekly.has(weekOf(sa.at));
+  if ("at" in sb) return sa.weekly.has(weekOf(sb.at));
+  return [...sa.weekly].some((m) => sb.weekly.has(m));
+}
+
 export function scheduleWhen(s: Pick<Schedule, "cadence" | "days" | "sendHour" | "runOn">) {
   if (s.cadence === "daily") return `Every day · ${hhmm(s.sendHour)}`;
   if (s.cadence === "once") return s.runOn ? `On ${dayLabel(s.runOn)} · ${hhmm(s.sendHour)}` : "No date picked";

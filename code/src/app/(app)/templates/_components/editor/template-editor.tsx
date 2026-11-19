@@ -1008,22 +1008,18 @@ function Editor({ id }: { id: string }) {
               <SendIcon data-icon="inline-start" />
               Send a batch now
             </Button>
-            {/* One running schedule per template. */}
-            <LockedTip reason={scheduleRunning ? "Pause the current schedule to set a new one" : undefined}>
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                disabled={scheduleRunning}
-                onClick={() => {
-                  setReady(false);
-                  if (params.get("ready")) router.replace(`/templates/${id}/edit`);
-                  setScheduling(true);
-                }}
-              >
-                <CalendarClockIcon data-icon="inline-start" />
-                Set a schedule
-              </Button>
-            </LockedTip>
+            <Button
+              variant="outline"
+              className="justify-start"
+              onClick={() => {
+                setReady(false);
+                if (params.get("ready")) router.replace(`/templates/${id}/edit`);
+                setScheduling(true);
+              }}
+            >
+              <CalendarClockIcon data-icon="inline-start" />
+              Set a schedule
+            </Button>
           </div>
           <DialogFooter>
             <DialogClose asChild>

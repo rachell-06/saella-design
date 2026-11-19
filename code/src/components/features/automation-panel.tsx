@@ -65,6 +65,7 @@ import {
   delayLabel,
   flowTriggerLabel,
   nextRun,
+  scheduleClash,
   scheduleProgress,
   scheduleState,
   tzLabel,
@@ -168,18 +169,12 @@ export function AutomationPanel({
   const balance = useCreditBalance();
   const gmt = (tz: string) => tzLabel(tz).match(/\((GMT[^)]*)\)/)?.[1] ?? tzLabel(tz);
   // Several schedules and follow-ups per template (the live app allows one of each: its POST refuses a second schedule
-  // and the engine dedupes per template; open question in decisions.md). One running schedule at a time: Set schedule
-  // opens again once the running one is paused.
-  const running = schedules.find((x) => x.status === "active");
+  // and the engine dedupes per template; open question in decisions.md). Several may run at once, never at the same day
+  // and hour: the dialog greys out what a running one uses, and a paused one that clashes can't resume.
+  const running = schedules.filter((x) => x.status === "active");
+  const clashesWithRunning = (sc: Schedule) => running.some((o) => o.id !== sc.id && scheduleClash(sc, o));
   const scheduleReason =
-    lockedReason ??
-    (ended
-      ? ended
-      : inactive
-        ? "Mark it active in the editor to schedule it"
-        : running
-          ? "Pause the current schedule to set a new one"
-          : undefined);
+    lockedReason ?? (ended ? ended : inactive ? "Mark it active in the editor to schedule it" : undefined);
   const followUpReason = lockedReason;
   const toggle = (id: string) =>
     setExpanded((x) => {
@@ -278,7 +273,8 @@ export function AutomationPanel({
                     resumeReason={
                       sc.status !== "paused"
                         ? undefined
-                        : (lockedReason ?? (running ? "Pause the running schedule to resume this one" : undefined))
+                        : (lockedReason ??
+                          (clashesWithRunning(sc) ? "Another running schedule sends at this day and time" : undefined))
                     }
                     onResume={() => {
                       automation.saveSchedule({ ...sc, status: "active" });
@@ -291,7 +287,7 @@ export function AutomationPanel({
                         lockedReason={lockedReason}
                         onEdit={sc.status === "completed" ? undefined : () => openSchedule(sc.id)}
                         paused={sc.status === "completed" ? undefined : sc.status === "paused"}
-                        resumeBlocked={sc.status === "paused" && Boolean(running)}
+                        resumeBlocked={sc.status === "paused" && clashesWithRunning(sc)}
                         onTogglePause={() => {
                           automation.saveSchedule({ ...sc, status: sc.status === "paused" ? "active" : "paused" });
                           toast.success(sc.status === "paused" ? "Schedule resumed" : "Schedule paused");
@@ -568,13 +564,9 @@ function ScheduleCard({
               </>
             )}
           </span>
-          {/* The run count opens the run list, only once the schedule is completed; before that it's plain text. One run:
-              the share instead. */}
-          {runs > 1 && state !== "completed" ? (
-            <span className="text-muted-foreground tabular-nums">
-              {n(runsDone)} of {n(runs)} runs sent
-            </span>
-          ) : runs > 1 ? (
+          {/* The run count shows only once the schedule is completed, as the toggle for the run list; before that the
+              segments carry it. One run: the share instead. */}
+          {runs > 1 && state !== "completed" ? null : runs > 1 ? (
             <Button
               variant="ghost"
               size="xs"
