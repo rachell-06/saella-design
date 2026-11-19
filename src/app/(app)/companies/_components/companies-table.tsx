@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { SCROLL_TABLE_FILL } from "@/lib/scroll";
+import { useImperativeHandle, useMemo, useState } from "react";
 import { type OnChangeFn, type PaginationState, type RowSelectionState, type SortingState, useTable } from "@tanstack/react-table";
 import {
   ArrowDownIcon,
@@ -17,17 +18,15 @@ import {
 } from "lucide-react";
 import type { DataTableColumn } from "@/components/saella/data-table";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { dataTableFeatures } from "@/lib/data-table-features";
 import { cn } from "@/lib/utils";
 import { type Company, MAX_OFFSET } from "@/lib/mock/companies";
 
-// Companies table: the table fills the rest of the page and scrolls under a sticky header, cells are split by
-// hairlines, column names carry a small icon, and a footer row keeps the count and paging in view.
-// Saella rules on top: row hover muted/50, checkbox and row menu appear on hover or focus,
-// paging only when there is more than one page; sorting kept from the previous screen.
+// Companies table, structure and presentation from Studio Admin /dashboard/products (products-table.tsx): the table
+// fills the rest of the page and scrolls under a sticky header, cells split by hairlines, column names carry a small
+// icon, and a footer row keeps the count and paging in view. Saella rules on top (DESIGN §2 "Bảng").
 
 const HEADER_ICONS: Record<string, typeof Building2Icon> = {
   name: Building2Icon,
@@ -39,11 +38,26 @@ const HEADER_ICONS: Record<string, typeof Building2Icon> = {
   phone: PhoneIcon,
 };
 
-const PAGE_SIZES = [20, 50, 100];
+/** Rows a page (50 everywhere, no Rows per page). */
+const PAGE_SIZE = 50;
+// Fixed layout: short columns get the width their content needs; Company, Industry and Email share the rest.
+const COL_WIDTH: Record<string, string> = {
+  select: "w-10",
+  name: "w-[22%]",
+  taxCode: "w-36",
+  industry: "w-[20%]",
+  status: "w-30",
+  founded: "w-32",
+  email: "w-[20%]",
+  phone: "w-32",
+};
+const HAS_EMAIL = "hasEmail";
 const NARROW = new Set(["select", "actions"]);
 // Same exclusions as the shared DataTable's onRowClick.
 const ROW_CLICK_IGNORE =
   "button, a, input, label, select, textarea, [role=checkbox], [role=menuitem], [data-no-row-click]";
+
+export type CompaniesTableHandle = { sortedRows: () => Company[] };
 
 export function CompaniesTable({
   data,
@@ -54,6 +68,7 @@ export function CompaniesTable({
   onRowSelectionChange,
   onRowClick,
   activeRowId,
+  handle,
 }: {
   data: Company[];
   columns: DataTableColumn<Company>[];
@@ -66,10 +81,23 @@ export function CompaniesTable({
   onRowClick?: (c: Company) => void;
   /** Row whose sheet is open: kept highlighted so the user sees which one they are reading. */
   activeRowId?: string;
+  /** The rows in the table's current sort, for Export (the file follows what the user sees). */
+  handle?: React.Ref<CompaniesTableHandle>;
 }) {
   // Newest first, like the live app (activate_date desc).
   const [sorting, setSorting] = useState<SortingState>([{ id: "founded", desc: true }]);
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: PAGE_SIZES[0] });
+  // Companies with an email come first, whatever the column sort: only they can be unlocked and sent to. A hidden
+  // column leads every sort; the header arrows show only the user's sort.
+  const allColumns = useMemo<DataTableColumn<Company>[]>(
+    () => [...columns, { id: HAS_EMAIL, accessorFn: (c) => (c.email ? 1 : 0), enableHiding: false }],
+    [columns],
+  );
+  const fullSorting = useMemo<SortingState>(() => [{ id: HAS_EMAIL, desc: true }, ...sorting], [sorting]);
+  const onSortingChange: OnChangeFn<SortingState> = (next) => {
+    const value = typeof next === "function" ? next(fullSorting) : next;
+    setSorting(value.filter((s) => s.id !== HAS_EMAIL));
+  };
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: PAGE_SIZE });
 
   // New results start from page 1 (reset during render, not in an effect).
   const [prevData, setPrevData] = useState(data);
@@ -81,17 +109,18 @@ export function CompaniesTable({
   const table = useTable({
     features: dataTableFeatures,
     data,
-    columns,
-    state: { sorting, rowSelection, pagination },
-    // Tax code is hidden by default: it stays searchable and in the sheet, and its
-    // width goes to Company, Industry, Email and Phone.
-    initialState: { columnVisibility: { taxCode: false } },
+    columns: allColumns,
+    state: { sorting: fullSorting, rowSelection, pagination },
+    // Tax code is hidden by default: it stays searchable and in the sheet.
+    initialState: { columnVisibility: { taxCode: false, [HAS_EMAIL]: false } },
     getRowId: (c) => c.id,
     enableRowSelection: true,
-    onSortingChange: setSorting,
+    onSortingChange,
     onRowSelectionChange,
     onPaginationChange: setPagination,
   });
+
+  useImperativeHandle(handle, () => ({ sortedRows: () => table.getPrePaginatedRowModel().rows.map((r) => r.original) }), [table]);
 
   const { pageIndex, pageSize } = pagination;
   const total = data.length;
@@ -106,10 +135,10 @@ export function CompaniesTable({
 
   return (
     <div
-      className="group/dt flex min-h-0 flex-1 flex-col *:data-[slot=table-container]:min-h-0 *:data-[slot=table-container]:flex-1 *:data-[slot=table-container]:overflow-auto"
+      className={cn("group/dt flex min-h-0 flex-1 flex-col", SCROLL_TABLE_FILL)}
       data-selecting={selected > 0 || undefined}
     >
-      <Table aria-label="Companies" aria-busy={loading || undefined} className="border-separate border-spacing-0">
+      <Table aria-label="Companies" aria-busy={loading || undefined} className="table-fixed border-separate border-spacing-0">
         <TableHeader className="sticky top-0 z-10 bg-table-head">
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id} className="group/row border-border/60 hover:bg-transparent">
@@ -131,7 +160,7 @@ export function CompaniesTable({
                     aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
                     className={cn(
                       "border-r border-b border-border/50 bg-table-head last:border-r-0",
-                      NARROW.has(id) && "w-10 min-w-10",
+                      COL_WIDTH[id],
                       id === "select" && "px-0 text-center [&:has([role=checkbox])]:pr-0",
                       id === "actions" && "px-1.5"
                     )}
@@ -182,8 +211,8 @@ export function CompaniesTable({
                 onClick={
                   onRowClick &&
                   ((e) => {
-                    // Controls in the row (checkbox, name button, "+N" card, "…" menu, portalled menu items) keep their
-                    // own click; selecting text doesn't open the sheet either.
+                    // Controls in the row (checkbox, name button, "+N" card, "…" menu, portalled menu items) keep their own click;
+                    // selecting text doesn't open the sheet either.
                     const target = e.target as HTMLElement;
                     if (!e.currentTarget.contains(target)) return;
                     if (target.closest(ROW_CLICK_IGNORE)) return;
@@ -235,32 +264,15 @@ export function CompaniesTable({
               <span className="tabular-nums" aria-live="polite">
                 {total ? (pageIndex * pageSize + 1).toLocaleString("en-US") : 0} – {Math.min((pageIndex + 1) * pageSize, total).toLocaleString("en-US")} of{" "}
                 {total.toLocaleString("en-US")} companies
-                {selected > 0 && ` · ${selected.toLocaleString("en-US")} selected`}
                 {capped && pageIndex === pageCount - 1 && " · Narrow the filters to see the rest"}
               </span>
             )
           )}
-          {!loading && total > PAGE_SIZES[0] && (
-            <div className="flex items-center gap-2">
-              <span id="companies-page-size">Rows per page</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => setPagination({ pageIndex: 0, pageSize: Number(v) })}
-              >
-                <SelectTrigger size="sm" className="w-18" aria-labelledby="companies-page-size">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent side="top">
-                  <SelectGroup>
-                    {PAGE_SIZES.map((size) => (
-                      <SelectItem key={size} value={String(size)}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* the header checkbox takes this page; with the page taken and more on other pages, every match. */}
+          {!loading && table.getIsAllPageRowsSelected() && selected < total && rows.length < total && (
+            <Button variant="link" className="h-auto min-h-6 border-0 p-0 tabular-nums" onClick={() => table.toggleAllRowsSelected(true)}>
+              Select all {total.toLocaleString("en-US")} matching
+            </Button>
           )}
         </div>
         {!loading && pageCount > 1 && (

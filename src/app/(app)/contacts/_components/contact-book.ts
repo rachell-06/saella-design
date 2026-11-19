@@ -14,8 +14,7 @@ import {
 } from "@/lib/mock/contacts";
 import type { ContactDraft } from "./contact-dialog";
 
-// One contact book per workspace, grouped by tag (PRD Contacts BR-CON-04;
-// no named lists, tags like the live app). The shared mock (lib/mock/contacts.ts) keeps the flat book;
+// One contact book per workspace, grouped by tag (PRD Contacts BR-CON-04). The shared mock (lib/mock/contacts.ts) keeps the flat book;
 // this file gives the screen the book, its tags and the write actions.
 
 export type BookContact = Contact;

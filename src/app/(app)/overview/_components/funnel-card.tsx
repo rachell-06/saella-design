@@ -1,12 +1,15 @@
 "use client";
 
-// Funnel (Campaign view, next to the KPIs): how the email narrows from Sent to Replied.
-// Funnel card (recharts FunnelChart in a card,
+// Funnel (Campaign view; next to the KPIs): how the email narrows from Sent to Replied.
+// Shape from Studio Admin's "Sales Pipeline" card (crm-v1 operational-cards.tsx: recharts FunnelChart in a card,
 // stage on one side, value on the other, card-coloured stroke between stages). Saella changes: stage names left and
 // "count · rate" right in the margins so thin stages stay readable; a brand-orange ramp, light at the top to full
 // brand at Replied (no grey); rates on the KPI cards' denominators: Delivered over sent, Opened,
 // Clicked and Replied over delivered, so "40.8%" here is the Open rate card's 40.8%. Same data and filters as the
 // KPIs. No footer line.
+// The labels show counts only: each stage's rate is the KPI card beside it, so the rate lives in the tooltip. The
+// thinnest stage keeps a minimum width (MIN_SHARE of Sent) so Replied stays visible; widths are drawn from `plot`,
+// every number shown comes from `value`.
 
 import { Funnel, FunnelChart, LabelList } from "recharts";
 import { type ChartConfig, ChartContainer, ChartTooltip } from "@/components/ui/chart";
@@ -20,10 +23,11 @@ const pct = (part: number, whole: number) => (whole > 0 ? `${((part / whole) * 1
 const shade = (p: number) => `color-mix(in oklch, var(--chart-1) ${p}%, var(--card))`;
 const SHADES = [shade(28), shade(42), shade(58), shade(78), "var(--chart-1)"];
 
-const MARGIN = { left: 76, right: 104, top: 4, bottom: 4 };
+const MARGIN = { left: 76, right: 64, top: 4, bottom: 4 };
+const MIN_SHARE = 0.04;
 const config = { value: { label: "Emails", color: "var(--chart-1)" } } satisfies ChartConfig;
 
-type Stage = { stage: string; value: number; rate: string; detail: string; fill: string };
+type Stage = { stage: string; value: number; plot: number; rate: string; detail: string; fill: string };
 
 export function funnelStages(t: Totals): Stage[] {
   const rows: [string, number, number | null, string][] = [
@@ -33,9 +37,11 @@ export function funnelStages(t: Totals): Stage[] {
     ["Clicked", t.clicks, t.delivered, "delivered"],
     ["Replied", t.replies, t.delivered, "delivered"],
   ];
+  const floor = t.sends * MIN_SHARE;
   return rows.map(([stage, value, whole, unit], i) => ({
     stage,
     value,
+    plot: Math.max(value, floor),
     rate: whole === null ? "" : pct(value, whole),
     detail: whole === null ? `${n(value)} sent` : `${n(value)} of ${n(whole)} ${unit}`,
     fill: SHADES[i],
@@ -60,9 +66,8 @@ export function FunnelCard({ totals }: { totals: Totals }) {
           </text>
         );
       return (
-        <text x={2 * cx - MARGIN.left + 10} y={cy} dominantBaseline="central" className="fill-foreground text-xs tabular-nums">
-          <tspan className="font-medium">{n(s.value)}</tspan>
-          {s.rate && <tspan className="fill-muted-foreground">{` · ${s.rate}`}</tspan>}
+        <text x={2 * cx - MARGIN.left + 10} y={cy} dominantBaseline="central" className="fill-foreground text-xs font-medium tabular-nums">
+          {n(s.value)}
         </text>
       );
     };
@@ -90,7 +95,7 @@ export function FunnelCard({ totals }: { totals: Totals }) {
                 );
               }}
             />
-            <Funnel className="stroke-card stroke-2" dataKey="value" data={data} isAnimationActive={false}>
+            <Funnel className="stroke-card stroke-2" dataKey="plot" data={data} isAnimationActive={false}>
               <LabelList dataKey="stage" content={label("left")} />
               <LabelList dataKey="value" content={label("right")} />
             </Funnel>

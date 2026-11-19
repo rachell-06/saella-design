@@ -8,9 +8,10 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
-// Approval for the agent's gated writes (PRD-03 AC-AG-G-01): create campaign, create template,
-// edit template, activate template, send. Controls follow AC-AG-G-04: Approve, "Always allow
-// this step", No. A live send also needs an explicit confirmation (AC-AG-G-06): pass `confirmLabel`.
+// Approval for the agent's gated writes (PRD-03 AC-AG-G-01): create campaign, create template, edit template,
+// activate template, send. Controls follow AC-AG-G-04: Approve, "Always allow this step", No. A live send also needs
+// an explicit confirmation (AC-AG-G-06): pass `confirmLabel`.
+// A step that costs credits says so before it runs (`cost`): "Costs 1 credit ($0.09)" beside the buttons.
 export type ApprovalState = "pending" | "running" | "approved" | "declined";
 
 export type ApprovalDetail = { label: string; value: React.ReactNode };
@@ -22,6 +23,7 @@ export function ApprovalCard({
   confirmLabel,
   state = "pending",
   result,
+  cost,
   onApprove,
   onAlwaysAllow,
   onDecline,
@@ -37,6 +39,8 @@ export function ApprovalCard({
   state?: ApprovalState;
   /** Shown once approved, e.g. "Campaign created as a draft." */
   result?: string;
+  /** What approving costs, e.g. "Costs 1 credit ($0.09)". Omit for a free step. */
+  cost?: string;
   onApprove?: () => void;
   onAlwaysAllow?: () => void;
   onDecline?: () => void;
@@ -120,6 +124,7 @@ export function ApprovalCard({
         <Button variant="ghost" onClick={onDecline} disabled={running}>
           No
         </Button>
+        {cost && <span className="ml-auto text-sm text-muted-foreground tabular-nums">{cost}</span>}
       </div>
     </div>
   );

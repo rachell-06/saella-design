@@ -7,8 +7,8 @@ import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader,
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-// Chart in a card with a time-range switch and an optional link to the full report.
-// The chart itself is passed as children: ChartContainer from ui/chart with chart-1..5 colors.
+// Chart in a card with a time-range switch and an optional link to the full report (Studio Admin's "Customer
+// Activity" card). The chart itself is passed as children: ChartContainer from ui/chart with chart-1..5 colors.
 export type ChartRange = { value: string; label: string };
 
 export function ChartCard({
@@ -37,7 +37,10 @@ export function ChartCard({
   return (
     <Card aria-busy={loading || undefined}>
       <CardHeader>
-        <CardTitle className="font-heading text-base font-medium">{title}</CardTitle>
+        {/* A heading under the page's h1, so card titles show in the outline. */}
+        <CardTitle className="font-heading text-base font-medium">
+          <h2>{title}</h2>
+        </CardTitle>
         {description && <CardDescription>{description}</CardDescription>}
         {action && !ranges && <CardAction>{action}</CardAction>}
         {ranges && (

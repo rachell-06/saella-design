@@ -1,13 +1,15 @@
 import type { ApprovalState } from "@/components/saella/approval-card";
 import type { AgentStep } from "@/components/saella/agent-steps";
-import { getBatch } from "@/lib/mock/batches";
-import { rate, sampleCampaigns } from "@/lib/mock/campaigns";
+import { type Campaign, rate, sampleCampaigns } from "@/lib/mock/campaigns";
+import { isArchived } from "@/lib/mock/campaign-store";
+import { initialTemplateStore } from "@/lib/mock/template-store";
+import { applyTemplateStore, currentCampaigns, templateBatches } from "@/lib/mock/templates";
 import { RATE_BANDS } from "@/components/saella/rate-meter";
-import { batches } from "@/lib/mock/workspace";
 
-// Full-page agent mock (PRD-03). Threads, message parts and scripted replies. Replies are picked by
-// keyword from the user's text and play their steps on timers, so the live step list, Stop and approvals can be
-// tried without a backend. Numbers come from the shared campaign mock; names are fictional. "Now" is fixed.
+// Agent mock (PRD-03). Threads, message parts and scripted replies. Replies are picked by keyword from the user's
+// text and play their steps on timers, so the live step list, Stop and approvals can be
+// tried without a backend. Numbers come from the shared campaign mock as of now (this session's changes included);
+// names are fictional. "Now" is fixed.
 
 import { NOW } from "@/lib/mock/constants";
 export { NOW };
@@ -30,7 +32,51 @@ export const FLOW_STEPS: { step: FlowStep; label: string; tool: string }[] = [
 export const REPO_GATES: FlowStep[] = ["activate", "send"];
 
 /**
- * The email an approval saves or sends. Variables are {{name}};
+ * What the agent charges for (PRD-05 "Billable AI actions"; live app lib/credits/agent-actions.ts).
+ * 1 credit each: a question, a dashboard or a recipient filter once per prompt
+ * (a question only when the prompt ran nothing else billable), template content per template, a campaign, template,
+ * schedule or follow-up per item created, a send per batch, a report file per file asked for. Free: dry runs, a prompt
+ * that stops for approval, navigating, remembering, deleting. A failed or stopped prompt is refunded.
+ */
+export type BillableAction = "question" | "dashboard" | "filter" | "draft" | "campaign" | "template" | "schedule" | "followup" | "send" | "report";
+/** How the Usage tab and the turn's tooltip name them (live app cr116.ai.*). */
+export const ACTION_LABEL: Record<BillableAction, string> = {
+  question: "Question",
+  dashboard: "Dashboard",
+  filter: "Recipient filter",
+  draft: "Email draft",
+  campaign: "Campaign",
+  template: "Template",
+  schedule: "Schedule",
+  followup: "Follow-up",
+  send: "Send",
+  report: "Report file",
+};
+export const CREDITS_PER_ACTION = 1;
+export const creditsFor = (actions: readonly BillableAction[] = []) => actions.length * CREDITS_PER_ACTION;
+export const creditWord = (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? "credit" : "credits"}`;
+/** "Campaign, Template, Email draft"; repeats counted: "Template ×2, Email draft ×3". */
+export function actionList(actions: readonly BillableAction[]) {
+  const counts = new Map<BillableAction, number>();
+  for (const a of actions) counts.set(a, (counts.get(a) ?? 0) + 1);
+  return [...counts].map(([a, k]) => (k > 1 ? `${ACTION_LABEL[a]} ×${k}` : ACTION_LABEL[a])).join(", ");
+}
+
+/**
+ * Steps and time of a whole turn, for the line that closes it: every step list in the message counts, not only the
+ * first, e.g. "4 steps · 3.1s".
+ */
+export function turnUsage(parts: readonly Part[]) {
+  const steps = parts.flatMap((p) => (p.kind === "steps" ? p.steps : []));
+  const seconds = steps.reduce((s, x) => s + (Number.parseFloat(x.duration ?? "") || 0), 0);
+  return `${steps.length} ${steps.length === 1 ? "step" : "steps"}${seconds ? ` · ${seconds.toFixed(1)}s` : ""}`;
+}
+
+/** What one turn charged: its own actions plus approvals that ran without asking. `refunded`: it failed or was stopped. */
+export type TurnCharge = { actions: BillableAction[]; refunded?: boolean };
+
+/**
+ * The email an approval saves or sends (R17). Variables are {{name}};
  * `sample` fills them so the preview reads as one real recipient will see it.
  */
 export type DraftPreview = {
@@ -47,7 +93,11 @@ export type Cell = string | { text: string; badge?: { label: string; variant: "s
 
 export type Part =
   | { kind: "text"; text: string }
-  | { kind: "steps"; steps: AgentStep[]; usage?: string }
+  /**
+   * The turn's first step list. `finished`: the turn is over, so one line closes it ("4 steps · 3.1s · 2 credits used",
+   * turnUsage); `charge`: the credits the turn used (no tokens).
+   */
+  | { kind: "steps"; steps: AgentStep[]; finished?: boolean; charge?: TurnCharge }
   | { kind: "table"; caption: string; columns: { label: string; align?: "end" }[]; rows: Cell[][] }
   | { kind: "verdict"; text: string }
   | { kind: "advice"; items: string[] }
@@ -64,15 +114,17 @@ export type Part =
       result: string;
       /** What the agent does once approved. */
       after: Part[];
+      /** What approving costs (1 credit each), charged when it runs; none for a free step (activate). */
+      charges?: BillableAction[];
       /** Ran without asking because the user set "Always allow" for this step. */
       auto?: boolean;
-      /** What gets saved or sent. */
+      /** What gets saved or sent (R17). */
       preview?: DraftPreview;
       /** A live send runs an existing template: Edit opens it in the editor instead of editing here. */
       editHref?: string;
       /** The last Approve failed; the approval stays pending so it can be tried again. */
       error?: string;
-      /** A live send's audience. From LARGE_SEND people up it can go to the first TEST_SEND_SIZE only. */
+      /** A live send's audience. From LARGE_SEND people up it can go to the first TEST_SEND_SIZE only (R18). */
       /** `who` names the people by their contact tags, e.g. tagged “hotel” (contacts have no named lists). */
       audience?: { count: number; who: string; template: string };
       /** Large sends only: "first" sends to TEST_SEND_SIZE people now, "all" to everyone. Unset means "first". */
@@ -82,11 +134,14 @@ export type Part =
     }
   | { kind: "companies"; total: number; rows: { name: string; city: string; industry: string }[]; href: string }
   | { kind: "links"; items: { label: string; href?: string; prompt?: string }[] }
-  | { kind: "error"; text: string }
+  /** `refunded`: credits given back because the turn failed, said inside the alert. */
+  | { kind: "error"; text: string; refunded?: number }
+  /** The turn (or an approval) was refused before running: the balance is short of `cost` (PRD-03 AC-AG-W-01/02). */
+  | { kind: "credits"; cost: number; on: "turn" | "approval" }
   | { kind: "notice"; text: string }
-  /** Several approvals from one turn: says nothing ran yet; each card below is approved on its own. */
+  /** Several approvals from one turn: says nothing ran yet; each card below is approved on its own (R17). */
   | { kind: "queue"; count: number }
-  /** What happened to the first few of a large send. */
+  /** What happened to the first few of a large send (R18). */
   | { kind: "testSend"; result: TestSendResult; href: string }
   /** A file the agent made (PRD-03 AC-AG-X-01; live export_report: signed link, 1 hour). */
   | { kind: "download"; filename: string; format: "xlsx" | "docx" | "pdf" | "csv"; size: string };
@@ -116,7 +171,9 @@ export const ASK_RATING_AFTER = 4;
 // ---------------------------------------------------------------------------------------------------------
 // Answers built from the campaign mock
 
-const hotel = sampleCampaigns.find((c) => c.id === "c1")!;
+/** The campaign the scripted answers are about. */
+const HOTEL_ID = "c1";
+const HOTEL_NAME = sampleCampaigns.find((c) => c.id === HOTEL_ID)!.name;
 /** Illustrative benchmarks for B2B email in the region; the live agent pulls these from its tools. Bounce has no
  *  benchmark of its own: it is measured against the app's warning level (RATE_BANDS, 5%; sending pauses at 10%). */
 const BENCH = { open: 25, click: 3 };
@@ -127,29 +184,79 @@ function pct(part: number, whole: number) {
   return whole ? (part / whole) * 100 : 0;
 }
 
-// Numbers per template come from the campaign's batches as the Batches screen has them at NOW (b1 sent, b2 still
-// sending 412 of 640), so the agent, the template page and the batch report agree.
-const hotelResults = hotel.templates.flatMap((t) => {
-  const own = batches.filter((b) => b.templateId === t.id && b.sent > 0);
-  if (own.length === 0) return [];
-  const sum = (k: "delivered" | "opens" | "clicks" | "bounces") => own.reduce((n, b) => n + (getBatch(b.id)?.metrics?.[k] ?? 0), 0);
+// Numbers per template are its batches as the Batches screen has them (applyTemplateStore: sent so far, so b2 counts
+// 412 of 640), so the agent, Templates, Overview and the batch report agree.
+function resultsOf(c: Campaign) {
+  return c.templates.flatMap((t) => {
+    const own = templateBatches(t.id);
+    if (own.length === 0) return [];
+    return [
+      {
+        name: t.name,
+        batches: own.length,
+        sent: t.recipients,
+        /** Its batch still going out (b2: 412 of 640), if any. */
+        sending: own.find((b) => b.status === "sending"),
+        delivered: t.delivered,
+        opens: t.opens,
+        clicks: t.clicks,
+        bounces: t.bounces,
+      },
+    ];
+  });
+}
+
+type Found = { campaign: Campaign; results: ReturnType<typeof resultsOf> } | { missing: "archived" | "deleted" };
+
+/** What the agent finds for the campaign. Live (default): campaigns as of now (renamed, templates moved, deleted or
+ *  switched off this session); archived and deleted campaigns are not found. `seed`: the seeded threads, which are
+ *  history and render on the server too, read the seed. */
+function findHotel(seed = false): Found {
+  const campaign = (seed ? applyTemplateStore(sampleCampaigns, initialTemplateStore()) : currentCampaigns()).find((c) => c.id === HOTEL_ID);
+  if (!campaign) return { missing: "deleted" };
+  if (!seed && isArchived(HOTEL_ID)) return { missing: "archived" };
+  return { campaign, results: resultsOf(campaign) };
+}
+
+function missingParts(missing: "archived" | "deleted"): Part[] {
   return [
     {
-      name: t.name,
-      sent: own.reduce((n, b) => n + b.sent, 0),
-      recipients: own.reduce((n, b) => n + b.recipients, 0),
-      sending: own.some((b) => b.status === "sending"),
-      delivered: sum("delivered"),
-      opens: sum("opens"),
-      clicks: sum("clicks"),
-      bounces: sum("bounces"),
+      kind: "text",
+      text:
+        missing === "archived"
+          ? `“${HOTEL_NAME}” is archived, so I've left it out. Restore it on Campaigns to see its results here.`
+          : `I couldn't find a campaign called “${HOTEL_NAME}”. It may have been deleted.`,
     },
+    { kind: "links", items: [{ label: "Open Campaigns", href: "/campaigns" }] },
   ];
-});
+}
 
-export function performanceParts(): Part[] {
+/** The suggestion to ask about the campaign, while the agent can find it. */
+function campaignAsk(): { label: string; prompt: string }[] {
+  const found = findHotel();
+  if ("missing" in found) return [];
+  const ask = `How is ${found.campaign.name} doing?`;
+  return [{ label: ask, prompt: ask }];
+}
+
+/** "N templates with sends, M batches." for the step that fetched them. */
+function fetchedDetail(found: Found) {
+  if ("missing" in found) return undefined;
+  const t = found.results.length;
+  const b = found.results.reduce((n, r) => n + r.batches, 0);
+  return `${t} ${t === 1 ? "template" : "templates"} with sends, ${b} ${b === 1 ? "batch" : "batches"}.`;
+}
+
+export function performanceParts(found: Found = findHotel()): Part[] {
+  if ("missing" in found) return missingParts(found.missing);
+  const { campaign, results } = found;
+  if (results.length === 0)
+    return [
+      { kind: "text", text: `Nothing has been sent from “${campaign.name}” yet, so there are no results to compare.` },
+      { kind: "links", items: [{ label: "Open the campaign", href: `/campaigns?c=${campaign.id}` }] },
+    ];
   // Plain numbers: the benchmark row does the comparing, no badges in rate cells.
-  const rows: Cell[][] = hotelResults.map((t) => [
+  const rows: Cell[][] = results.map((t) => [
     t.name,
     t.delivered.toLocaleString("en-US"),
     rate(t.opens, t.delivered)!.text,
@@ -157,29 +264,34 @@ export function performanceParts(): Part[] {
     rate(t.bounces, t.sent)!.text,
   ]);
   rows.push(["Benchmark", "", `${BENCH.open}%`, `${BENCH.click}%`, `under ${BOUNCE_WARN}%`]);
-  const bounces = hotelResults.map((t) => rate(t.bounces, t.sent)!.text).join(" and ");
-  const sending = hotelResults.find((t) => t.sending);
+  const bounces = results.map((t) => rate(t.bounces, t.sent)!.text).join(" and ");
+  const sending = results.find((t) => t.sending);
   const sendingNote = sending
-    ? ` “${sending.name}” is still sending (${sending.sent.toLocaleString("en-US")} of ${sending.recipients.toLocaleString("en-US")} so far), so its numbers will move.`
+    ? ` “${sending.name}” is still sending (${sending.sending!.sent.toLocaleString("en-US")} of ${sending.sending!.recipients.toLocaleString("en-US")} so far), so its numbers will move.`
     : "";
+  const above = results.every((t) => pct(t.opens, t.delivered) >= BENCH.open && pct(t.clicks, t.delivered) >= BENCH.click);
+  const which = results.length === 1 ? "its template" : results.length === 2 ? "both templates" : `all ${results.length} templates`;
+  const lowBounce = results.every((t) => pct(t.bounces, t.sent) < BOUNCE_WARN);
+  // Advice about the inactive holiday template only while it sits here, inactive.
+  const holiday = campaign.templates.find((t) => t.id === "t3" && t.status === "inactive");
   return [
-    { kind: "text", text: `Here is how “${hotel.name}” is doing. Opens and clicks exclude bots and link scanners.${sendingNote}` },
+    { kind: "text", text: `Here is how “${campaign.name}” is doing. Opens and clicks exclude bots and link scanners.${sendingNote}` },
     {
       kind: "table",
-      caption: `${hotel.name}: results per template`,
+      caption: `${campaign.name}: results per template`,
       columns: [{ label: "Template" }, { label: "Delivered", align: "end" }, { label: "Open", align: "end" }, { label: "Click", align: "end" }, { label: "Bounce", align: "end" }],
       rows,
     },
     {
       kind: "verdict",
-      text: `Opens and clicks are above benchmark on both templates. Bounce is ${bounces}, well under the ${BOUNCE_WARN}% warning level (sending pauses at ${BOUNCE_PAUSE}%).`,
+      text: `${above ? `Opens and clicks are above benchmark on ${which}.` : "Not every template is above benchmark yet."} Bounce is ${bounces}, ${lowBounce ? "well under" : "at or over"} the ${BOUNCE_WARN}% warning level (sending pauses at ${BOUNCE_PAUSE}%).`,
     },
     {
       kind: "advice",
       items: [
         "Send the catalog reminder to the 752 people who haven't opened the intro yet. It opens less than the intro but is still above benchmark.",
         `Clean the 22 unreachable addresses in “Hotel purchasing – Vietnam” before the next batch, so bounce stays well under ${BOUNCE_WARN}%.`,
-        "“Holiday pricing note” is inactive. Activate it before mid-November if you want it out before the holidays.",
+        ...(holiday ? [`“${holiday.name}” is inactive. Activate it before mid-November if you want it out before the holidays.`] : []),
       ],
     },
     {
@@ -187,18 +299,20 @@ export function performanceParts(): Part[] {
       items: [
         { label: "Show as a dashboard", prompt: "Show it as a dashboard" },
         { label: "Export to Excel", prompt: "Export these results to Excel" },
-        { label: "Open the campaign", href: "/campaigns?c=c1" },
+        { label: "Open the campaign", href: `/campaigns?c=${campaign.id}` },
       ],
     },
   ];
 }
 
 export function dashboardParts(): Part[] {
+  const found = findHotel();
+  if ("missing" in found) return missingParts(found.missing);
   return [
     {
       kind: "dashboard",
-      title: `${hotel.name}: open and click rate per template`,
-      data: hotelResults.map((t) => ({ name: t.name.split(" – ")[0], open: +pct(t.opens, t.delivered).toFixed(1), click: +pct(t.clicks, t.delivered).toFixed(1) })),
+      title: `${found.campaign.name}: open and click rate per template`,
+      data: found.results.map((t) => ({ name: t.name.split(" – ")[0], open: +pct(t.opens, t.delivered).toFixed(1), click: +pct(t.clicks, t.delivered).toFixed(1) })),
     },
     { kind: "text", text: "Drawn from the numbers above, nothing was fetched again." },
   ];
@@ -230,10 +344,11 @@ function sendApproval(id = uid("ap")): Extract<Part, { kind: "approval" }> {
       { label: "When", value: "Now" },
       { label: "Left out", value: "22 unreachable, 4 unsubscribed" },
     ],
-    note: "Emails start going out as soon as you approve. Caps, duplicates and unsubscribes are still checked.",
+    note: "Caps, duplicates and unsubscribes are still checked.",
     confirmLabel: "I understand 752 emails will be sent now",
     state: "pending",
     result: "Batch started, 752 recipients",
+    charges: ["send"],
     audience: { count: 752, who: "tagged “hotel”", template: "Follow-up 1 – catalog reminder" },
     preview: {
       from: SENDER,
@@ -289,6 +404,7 @@ function gatedDraft(step: "campaign" | "template", rest: Part[]): Part {
         note: "Saved as a campaign with no templates yet.",
         state: "pending",
         result: "Campaign created",
+        charges: ["campaign"],
         after: rest,
       }
     : {
@@ -303,19 +419,20 @@ function gatedDraft(step: "campaign" | "template", rest: Part[]): Part {
         note: "Saved as an inactive draft.",
         state: "pending",
         result: "Draft saved",
+        charges: ["template", "draft"],
         preview: LOOKBOOK_PREVIEW,
         after: rest,
       };
 }
 
 // ---------------------------------------------------------------------------------------------------------
-// Send to a few first: a large live send can
-// go to the first TEST_SEND_SIZE people, show what happened to them, and leave the rest as a new approval in
-// the chat. It is a choice on the one send approval, not a second way to approve.
+// Send to a few first (R18, Competitor.md §6): a large live send can go to the first TEST_SEND_SIZE people, show what
+// happened to them, and leave the rest as a new approval in the chat. It is a choice on the one send approval, not a
+// second way to approve.
 
-/** from this many recipients a live send offers "Send to 20 first". Not in PRD-03; the team to confirm. */
+/** From this many recipients a live send offers "Send to 20 first". Not in PRD-03 (proposal, to confirm). */
 export const LARGE_SEND = 100;
-/** how many go out in the first part. 20 matches the "too few to judge" line on Overview's KPI cards. */
+/** How many go out in the first part. 20 matches the "too few to judge" line on Overview's KPI cards. */
 export const TEST_SEND_SIZE = 20;
 
 export type SendSplit = "first" | "all";
@@ -344,7 +461,8 @@ export function confirmLabelOf(a: Approval) {
 export function noteOf(a: Approval) {
   if (splitOf(a) !== "first") return a.note;
   const rest = (a.audience!.count - TEST_SEND_SIZE).toLocaleString("en-US");
-  return `${TEST_SEND_SIZE} emails go out as soon as you approve. The other ${rest} wait until you approve again, after you've seen how the first ${TEST_SEND_SIZE} did.`;
+  // The tick already says how many go now; the note adds only what happens to the rest.
+  return `The other ${rest} wait until you approve again, after you've seen how the first ${TEST_SEND_SIZE} did.`;
 }
 
 // Fictional recipients for the first part; one mailbox doesn't exist so a bounce shows.
@@ -400,7 +518,7 @@ export function testSendRun(a: Approval, id: string): { result: string; parts: P
       ...a.details.map((d) => (d.label === "To" ? { ...d, value: `The other ${rest} people ${who}` } : d)),
       { label: `First ${TEST_SEND_SIZE}`, value: `${delivered} delivered · ${bounced} bounced` },
     ],
-    note: "Emails start going out as soon as you approve. Caps, duplicates and unsubscribes are still checked.",
+    note: "Caps, duplicates and unsubscribes are still checked.",
     confirmLabel: `I understand ${rest} emails will be sent now`,
     state: "pending",
     result: `Batch started, ${rest} more recipients`,
@@ -429,27 +547,56 @@ export function testSendRun(a: Approval, id: string): { result: string; parts: P
 // Scripts
 
 export type ScriptStep = { title: string; ms: number; detail?: string };
-export type Script = { steps: ScriptStep[]; parts: Part[]; tokens: number };
+/** `charges`: what the turn itself does that is billable (approvals carry their own); `fails`: the mock drops the
+ *  connection at the end, so the turn is refunded. */
+export type Script = { steps: ScriptStep[]; parts: Part[]; charges: BillableAction[]; fails?: boolean };
+
+/**
+ * The short name the agent gives a new conversation once its first answer is in. Same intents as planReply below,
+ * in the same order; none for small talk, so the header shows no subtitle until there is a real title.
+ */
+export function threadTitle(text: string): string | undefined {
+  const t = text.toLowerCase();
+  if (/follow-?ups?/.test(t)) return `Follow-ups for ${HOTEL_NAME}`;
+  if (/dashboard|chart|graph/.test(t)) return "Campaign dashboard";
+  if (/export|download|excel|spreadsheet|xlsx|csv/.test(t)) return `${HOTEL_NAME} as Excel`;
+  if (/\bsend\b|launch/.test(t)) return "Reminder to hotel contacts";
+  if (/how|perform|result|report|did|doing/.test(t)) return `${HOTEL_NAME} results`;
+  if (/find|compan|buyer|hotel|distribut|lead/.test(t)) return "Hotels in Vietnam";
+  if (/campaign|set up|template|write|architect/.test(t)) return "Architects in Singapore";
+  return undefined;
+}
+
+/** A prompt that only answered: one question. */
+const QUESTION: BillableAction[] = ["question"];
 
 export function planReply(text: string, gates: FlowStep[]): Script {
   const t = text.toLowerCase();
   if (/follow-?ups?/.test(t)) {
-    return { steps: FU_STEPS, parts: followUpParts(gates), tokens: 5120 };
+    // Two templates written (created with their content) and one template edited, unless those wait for approval;
+    // the Da Nang send is a dry run here and is charged when approved.
+    const charges: BillableAction[] = [
+      ...(gates.includes("template") ? [] : (["template", "draft", "template", "draft"] as const)),
+      ...(gates.includes("edit") ? [] : (["draft"] as const)),
+    ];
+    return { steps: FU_STEPS, parts: followUpParts(gates), charges };
   }
   if (/dashboard|chart|graph/.test(t)) {
-    return { steps: [{ title: "Draw dashboard from fetched data", ms: 900 }], parts: dashboardParts(), tokens: 640 };
+    return { steps: [{ title: "Draw dashboard from fetched data", ms: 900 }], parts: dashboardParts(), charges: ["dashboard"] };
   }
   if (/export|download|excel|spreadsheet|xlsx|csv/.test(t)) {
+    const found = findHotel();
+    if ("missing" in found) return { steps: [{ title: `Find campaign “${HOTEL_NAME}”`, ms: 600 }], parts: missingParts(found.missing), charges: QUESTION };
     return {
       steps: [
         { title: "Get results per template and batch", ms: 1000 },
         { title: "Build the Excel file", ms: 900 },
       ],
       parts: [
-        { kind: "text", text: `Here are the results of “${hotel.name}” per template, as an Excel file.` },
+        { kind: "text", text: `Here are the results of “${found.campaign.name}” per template, as an Excel file.` },
         { kind: "download", filename: "hotel-buyers-vietnam-results.xlsx", format: "xlsx", size: "18 KB" },
       ],
-      tokens: 1960,
+      charges: ["report"],
     };
   }
   if (/\bsend\b|launch/.test(t)) {
@@ -459,19 +606,22 @@ export function planReply(text: string, gates: FlowStep[]): Script {
         { title: "Find contacts tagged “hotel”", ms: 600 },
         { title: "Check the audience", ms: 1300, detail: "778 matched · 22 unreachable and 4 unsubscribed left out · 752 to send. Nothing is sent yet." },
       ],
-      parts: [{ kind: "text", text: "The audience is ready. I need your approval to send." }, sendApproval()],
-      tokens: 2140,
+      parts: [{ kind: "text", text: "The audience is ready." }, sendApproval()],
+      // A dry run that stops for approval: free. The send is charged when approved.
+      charges: [],
     };
   }
   if (/how|perform|result|report|did|doing/.test(t)) {
+    const found = findHotel();
+    if ("missing" in found) return { steps: [{ title: `Find campaign “${HOTEL_NAME}”`, ms: 600 }], parts: missingParts(found.missing), charges: QUESTION };
     return {
       steps: [
-        { title: "Find campaign “Hotel buyers – Vietnam”", ms: 600 },
-        { title: "Get results per template and batch", ms: 1200, detail: "2 templates with sends, 3 batches." },
+        { title: `Find campaign “${found.campaign.name}”`, ms: 600 },
+        { title: "Get results per template and batch", ms: 1200, detail: fetchedDetail(found) },
         { title: "Compare with benchmarks", ms: 700 },
       ],
-      parts: performanceParts(),
-      tokens: 3480,
+      parts: performanceParts(found),
+      charges: QUESTION,
     };
   }
   if (/find|compan|buyer|hotel|distribut|lead/.test(t)) {
@@ -495,7 +645,8 @@ export function planReply(text: string, gates: FlowStep[]): Script {
           ],
         },
       ],
-      tokens: 1820,
+      // Looking companies up is reading: a question.
+      charges: QUESTION,
     };
   }
   if (/campaign|set up|template|write|architect/.test(t)) {
@@ -514,11 +665,17 @@ export function planReply(text: string, gates: FlowStep[]): Script {
         { title: "Write subject and body", ms: 1600 },
       ],
       parts,
-      tokens: 4210,
+      // Campaign and template made in this turn (the template with its email: 2), unless they wait for approval.
+      charges: [...(gates.includes("campaign") ? [] : (["campaign"] as const)), ...(gates.includes("template") ? [] : (["template", "draft"] as const))],
     };
   }
   if (/error|offline/.test(t)) {
-    return { steps: [{ title: "Thinking", ms: 800 }], parts: [{ kind: "error", text: "The connection dropped before I finished. You were not charged for this turn." }], tokens: 0 };
+    return {
+      steps: [{ title: "Thinking", ms: 800 }],
+      parts: [{ kind: "error", text: "The connection dropped before I finished. Nothing was changed." }],
+      charges: QUESTION,
+      fails: true,
+    };
   }
   return {
     steps: [{ title: "Thinking", ms: 700 }],
@@ -530,13 +687,14 @@ export function planReply(text: string, gates: FlowStep[]): Script {
       {
         kind: "links",
         items: [
-          { label: "How is Hotel buyers – Vietnam doing?", prompt: "How is Hotel buyers – Vietnam doing?" },
+          // Only a campaign the agent can find (not archived or deleted this session).
+          ...campaignAsk(),
           { label: "Find hotels in Vietnam", prompt: "Find hotels in Vietnam" },
           { label: "Set up a campaign for architects in Singapore", prompt: "Set up a campaign for architects in Singapore" },
         ],
       },
     ],
-    tokens: 380,
+    charges: QUESTION,
   };
 }
 
@@ -546,10 +704,8 @@ export function planReply(text: string, gates: FlowStep[]): Script {
 const done = (title: string, duration: string, detail?: string): AgentStep => ({ title, status: "done", duration, detail });
 
 // ---------------------------------------------------------------------------------------------------------
-// One turn, several approvals: two follow-ups, a template edit and a send. Which of them stop
+// One turn, several approvals (R17, Unify U2): two follow-ups, a template edit and a send. Which of them stop
 // for approval follows the gates: 3 cards under the repo's two gates, 4 when all five are gated.
-
-export const FOLLOW_UP_ASK = "Write two more follow-ups for Hotel buyers – Vietnam and get the Da Nang send ready";
 
 const FU_STEPS: ScriptStep[] = [
   { title: "Find campaign “Hotel buyers – Vietnam”", ms: 600 },
@@ -612,6 +768,7 @@ export function followUpParts(gates: FlowStep[], id: (key: string) => string = u
         note: "Saved as an inactive draft. Activating it is a separate approval.",
         state: "pending",
         result: "Draft saved",
+        charges: ["template", "draft"],
         preview,
         after: [{ kind: "steps", steps: [created] }, activate],
       });
@@ -640,6 +797,7 @@ export function followUpParts(gates: FlowStep[], id: (key: string) => string = u
       note: "The template stays inactive.",
       state: "pending",
       result: "Template updated",
+      charges: ["draft"],
       preview: holiday,
       after: [{ kind: "steps", steps: [done("Update “Holiday pricing note”", "0.7s")] }],
     });
@@ -658,10 +816,11 @@ export function followUpParts(gates: FlowStep[], id: (key: string) => string = u
       { label: "When", value: "Now" },
       { label: "Left out", value: "5 unreachable" },
     ],
-    note: "Emails start going out as soon as you approve. Caps, duplicates and unsubscribes are still checked.",
+    note: "Caps, duplicates and unsubscribes are still checked.",
     confirmLabel: "I understand 186 emails will be sent now",
     state: "pending",
     result: "Batch started, 186 recipients",
+    charges: ["send"],
     audience: { count: 186, who: "tagged “resort”", template: "Intro – ceramics catalog" },
     preview: {
       from: SENDER,
@@ -692,6 +851,8 @@ export function followUpParts(gates: FlowStep[], id: (key: string) => string = u
 export function seedThreads(): Thread[] {
   // Fixed ids: seeds render on the server too, so they must match on hydration.
   const pendingSend = sendApproval("ap-seed-send");
+  // History: the seed campaign, whatever this session changed since.
+  const seedFound = findHotel(true);
   return [
     {
       id: "th1",
@@ -709,12 +870,13 @@ export function seedThreads(): Thread[] {
               kind: "steps",
               steps: [
                 done("Find campaign “Hotel buyers – Vietnam”", "0.6s"),
-                done("Get results per template and batch", "1.2s", "2 templates with sends, 3 batches."),
+                done("Get results per template and batch", "1.2s", fetchedDetail(seedFound)),
                 done("Compare with benchmarks", "0.7s"),
               ],
-              usage: "3 steps · 2.5s · 3,480 tokens",
+              finished: true,
+              charge: { actions: ["question"] },
             },
-            ...performanceParts().filter((p) => p.kind !== "links"),
+            ...performanceParts(seedFound).filter((p) => p.kind !== "links"),
           ],
         },
         { id: "m3", role: "user", at: "2026-10-27T02:51:00Z", parts: [{ kind: "text", text: "Send the reminder to everyone who hasn't opened" }] },
@@ -730,9 +892,10 @@ export function seedThreads(): Thread[] {
                 done("Find contacts tagged “hotel”", "0.6s"),
                 done("Check the audience", "1.3s", "778 matched · 22 unreachable and 4 unsubscribed left out · 752 to send."),
               ],
-              usage: "3 steps · 2.6s · 2,140 tokens",
+              finished: true,
+              charge: { actions: [] },
             },
-            { kind: "text", text: "The audience is ready. I need your approval to send." },
+            { kind: "text", text: "The audience is ready." },
             pendingSend,
           ],
         },
@@ -750,7 +913,7 @@ export function seedThreads(): Thread[] {
           role: "agent",
           at: "2026-10-26T08:12:00Z",
           parts: [
-            { kind: "steps", steps: [done("Read company profile", "0.6s"), done("Create campaign “Architects – Singapore”", "0.8s"), done("Save template draft", "1.1s")], usage: "3 steps · 2.5s · 4,210 tokens" },
+            { kind: "steps", steps: [done("Read company profile", "0.6s"), done("Create campaign “Architects – Singapore”", "0.8s"), done("Save template draft", "1.1s")], finished: true, charge: { actions: ["campaign", "template", "draft"] } },
             { kind: "text", text: "The draft is ready. It needs to be active before it can be sent." },
             { ...activateApproval("ap-seed-activate"), state: "approved" },
             { kind: "text", text: "It's active." },

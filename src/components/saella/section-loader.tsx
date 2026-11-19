@@ -9,7 +9,7 @@ import { LoadingStatus, SectionError, SectionStalled } from "./loading-status";
 // headers) renders at once; each section (KPI strip, chart, table) waits on its own, so fast ones show first.
 //   0s     skeleton shaped like the real section (same count, size, columns), aria-busy on the region
 //   1s     a status line over the skeleton: the step, a progress bar with its percent, and how long it takes
-//          (real data loads slower than the demo; say how long to wait). Real percent when the
+//          (designer 2026-11-14: real data loads slower than the demo; say how long to wait). Real percent when the
 //          work can be counted (rows arriving page by page), else an estimate from the usual duration that stops
 //          at 95% until the data is in (LoadingStatus)
 //   15s    an Alert with Retry over the skeleton; the request may still finish

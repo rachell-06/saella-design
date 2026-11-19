@@ -6,7 +6,8 @@ import { ArrowLeftIcon, ArrowRightIcon, PenLineIcon, PaletteIcon, PlusIcon } fro
 import { toast } from "sonner";
 import { DesignGallery } from "@/components/features/design-gallery";
 import { NewCampaignDialog } from "@/components/features/new-campaign-dialog";
-import { addCampaign, useCreatedCampaigns } from "@/lib/mock/created-campaigns";
+import { addCampaign, useCampaignStore } from "@/lib/mock/created-campaigns";
+import { applyCampaignStore, isArchived } from "@/lib/mock/campaign-store";
 import { type Campaign, campaignStatus } from "@/lib/mock/campaigns";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,9 +48,9 @@ import { type DesignStart, type TemplateKind, untitledName } from "@/lib/mock/te
 // Poster → Blank / four prebuilt posters), creates an "Untitled template" at once and opens the editor; the name is
 // set there. Here the name is optional too: left empty, the template is "Untitled …" until Write with Saella or the
 // user names it. A Letter starts from the live app's outreach example (starterBlocks).
-// "+ New campaign" at the end of the campaign list opens the create-campaign form on top (a template always belongs to a
-// campaign, PRD-02), then picks the new one. `returnTo` (e.g. New batch): the editor goes back
-// there after the first save, with `template=<new id>` added.
+// "+ New campaign" at the end of the campaign list opens the create-campaign form on top (a template always belongs
+// to a campaign, PRD-02), then picks the new one. `returnTo` (e.g. New batch): the editor goes back there after the
+// first save, with `template=<new id>` added.
 const NEW_CAMPAIGN = "__new-campaign";
 
 export function NewTemplateDialog({
@@ -69,9 +70,10 @@ export function NewTemplateDialog({
 }) {
   const router = useRouter();
   // Campaigns made this session too, newest first, so one made a moment ago can be picked.
-  const created = useCreatedCampaigns();
-  const usable = [...created.filter((c) => !campaigns.some((x) => x.id === c.id)), ...campaigns].filter(
-    (c) => campaignStatus(c) !== "ended"
+  // Ended and archived campaigns take no new templates (live new-template-dialog: !is_archived && !campaignEnded).
+  const campaignState = useCampaignStore();
+  const usable = applyCampaignStore(campaigns, campaignState).filter(
+    (c) => campaignStatus(c) !== "ended" && !isArchived(c.id, campaignState)
   );
   const [creatingCampaign, setCreatingCampaign] = useState(false);
   const [name, setName] = useState("");
@@ -81,8 +83,8 @@ export function NewTemplateDialog({
   const [kind, setKind] = useState<TemplateKind>("letter");
   const [start, setStart] = useState<DesignStart>("blank");
   const [showError, setShowError] = useState(false);
-  // Design goes through a gallery step, as in New campaign ("a page to pick the design"):
-  // the form's main button reads "Choose design", the gallery's "Open editor"; Back keeps the form.
+  // Design goes through a gallery step, as in New campaign: the form's main button reads "Choose design", the
+  // gallery's "Open editor"; Back keeps the form.
   const [step, setStep] = useState<"form" | "gallery">("form");
 
   function changeOpen(o: boolean) {
@@ -118,10 +120,9 @@ export function NewTemplateDialog({
               </Button>
             )}
             <DialogTitle>New template</DialogTitle>
-            <DialogDescription>
-              {step === "gallery"
-                ? "Pick a design to start from. You can change everything in the editor."
-                : "A template is one email. It sends to the countries and industries of its campaign."}
+            {/* No visible line on the form: the fields say it; readers still get one. */}
+            <DialogDescription className={step === "gallery" ? undefined : "sr-only"}>
+              {step === "gallery" ? "Pick a design to start from." : "Name it, pick its campaign and kind."}
             </DialogDescription>
           </DialogHeader>
           {step === "gallery" ? (
@@ -159,7 +160,6 @@ export function NewTemplateDialog({
                   </SelectItem>
                 </SelectContent>
               </Select>
-              <FieldDescription>Ended campaigns aren&apos;t listed: they can&apos;t send any more.</FieldDescription>
               {showError && !campaignId && <FieldError>Pick a campaign</FieldError>}
             </Field>
             <FieldSet>

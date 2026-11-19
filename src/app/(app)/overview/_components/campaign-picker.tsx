@@ -1,6 +1,6 @@
 "use client";
 
-// Overview campaign filter (workspaces can have many campaigns, so it needs search).
+// Overview campaign filter (user request 2026-11-12: workspaces can have many campaigns, so it needs search).
 // Single-pick combobox on shadcn Popover + Command, the same pattern as the shared MultiSelect: search box always on
 // top, "All campaigns" pinned first, plain substring match, ✓ on the current one. Enter picks, Esc closes.
 

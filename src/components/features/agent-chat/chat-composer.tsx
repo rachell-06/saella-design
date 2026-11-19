@@ -120,7 +120,7 @@ export function ChatComposer({
         >
           <PaperclipIcon />
         </InputGroupButton>
-        {/* No approval chip: the agent works on its own and asks only at the send step, on the approval card. */}
+        {/* No approval chip (designer decision 2026-11-12): the agent works on its own and asks only at the send step, on the approval card. */}
         {disabled && <InputGroupText className="min-w-0 text-sm text-muted-foreground">{disabled}</InputGroupText>}
         {busy ? (
           <InputGroupButton variant="outline" size="sm" className="ml-auto" onClick={onStop}>

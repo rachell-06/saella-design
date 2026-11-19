@@ -1,5 +1,6 @@
 "use client";
 
+import { SCROLL_POPOVER_LIST } from "@/lib/scroll";
 import { useId, useMemo, useState } from "react";
 import { ListFilterIcon, SearchIcon } from "lucide-react";
 import { ChipRemove } from "@/components/saella/chip-remove";
@@ -280,7 +281,7 @@ export function FilterSearchList({
           onChange={(e) => setQuery(e.target.value)}
         />
       </InputGroup>
-      <div className="flex max-h-40 flex-col gap-2 overflow-y-auto py-1">
+      <div className={cn("flex flex-col gap-2 py-1", SCROLL_POPOVER_LIST)}>
         {shown.length === 0 ? (
           <p className="text-sm text-muted-foreground">{emptyText}</p>
         ) : (
@@ -338,8 +339,8 @@ export function FilterChips({
   className?: string;
 }) {
   if (chips.length === 0 && !action) return null;
-  // Several values of one filter read "Tag: [fair ×] [hotel ×]": the label once, then a chip per value
-  // ("Tag: fair · Tag: hotel · Tag: vip" repeated the word). One value keeps "Label: value ×".
+  // Several values of one filter read "Tag: [fair ×] [hotel ×]": the label once, then a chip per value. One value keeps
+  // "Label: value ×".
   const groups: { label: string; chips: FilterChip[] }[] = [];
   chips.forEach((chip) => {
     const g = groups.find((x) => x.label === chip.label && chip.value !== undefined);

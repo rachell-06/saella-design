@@ -55,7 +55,7 @@ function TabsList({
 }
 
 // Chrome marks a Radix tab :focus-visible after a mouse click (it focuses the tab itself on mousedown), so the
-// keyboard ring showed on click. A tab clicked with the pointer carries data-pointer until
+// keyboard ring showed on click (designer 2026-11-14). A tab clicked with the pointer carries data-pointer until
 // a key is pressed on it or it loses focus; the ring is hidden while it does. Arrow keys move focus to another tab,
 // which has no data-pointer, so keyboard users still see the ring.
 function TabsTrigger({

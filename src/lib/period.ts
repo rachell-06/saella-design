@@ -1,7 +1,7 @@
 import { TODAY, formatDate } from "@/lib/mock/campaigns";
 
-// Reporting windows and their bounds, shared by Overview and Settings › Billing › Usage (moved from overview/metrics).
-// One clock: "today" is fixed in the mock.
+// Reporting windows and their bounds, shared by Overview and Settings › Billing › Usage (moved from overview/metrics
+// 2026-11-12). One clock: "today" is fixed in the mock.
 
 export const WINDOWS = [
   { value: "7", label: "Last 7 days", days: 7 },

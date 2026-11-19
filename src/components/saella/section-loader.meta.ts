@@ -16,7 +16,7 @@ export const sectionLoaderMeta: ComponentMeta = {
     usedIn: ["Overview (KPIs, Send volume, boards)", "Leads › Self-upload (table)"],
     preferInstead: {
       "a whole route before it renders": "RouteProgress in the root layout; the page frame should render at once",
-      "a long job the user started (import, send, verify)": "progress in its own dialog (README: States and feedback)",
+      "a long job the user started (import, send, verify)": "progress inside its own dialog, or a background status with a bell notification when it ends",
       "a short action result": "toast",
     },
   },

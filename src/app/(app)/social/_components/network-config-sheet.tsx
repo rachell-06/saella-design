@@ -1,5 +1,6 @@
 "use client";
 
+import { SCROLL_SHEET_BODY } from "@/lib/scroll";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PlusIcon, UnplugIcon } from "lucide-react";
@@ -112,7 +113,7 @@ function Body({
         <SheetDescription className="sr-only">How Saella writes for {brand(network)}, and the accounts posts may go to.</SheetDescription>
       </SheetHeader>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto p-6">
+      <div className={cn("flex flex-col gap-8 p-6", SCROLL_SHEET_BODY)}>
         <section className="flex flex-col gap-3">
           <Field data-invalid={over || undefined}>
             <FieldLabel htmlFor="nc-prompt">How Saella writes for {brand(network)}</FieldLabel>

@@ -1,10 +1,10 @@
 "use client";
 
 // Period filter (Overview, Billing › Usage): one trigger, one popover (live app EmailMetricsDashboard, Repo
-// origin/development "Window + custom range combined into ONE dropdown").
-// Redone the popover is a short list like a menu (presets with a check on the active one, then
+// origin/development 2026-11-11: "Window + custom range combined into ONE dropdown").
+// Redone 2026-11-13 (designer): the popover is a short list like a menu (presets with a check on the active one, then
 // "Custom range…"). Presets apply at once and close. The calendar shows only after "Custom range…": a 2-month range
-// Calendar, a draft applied on Apply, and Back to the list. Days after today can't
+// Calendar (as Studio Admin's DateRangePicker), a draft applied on Apply, and Back to the list. Days after today can't
 // be picked. Reopening while a custom range is active opens straight on the calendar.
 
 import { useState } from "react";

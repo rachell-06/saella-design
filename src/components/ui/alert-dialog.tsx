@@ -6,7 +6,7 @@ import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
 
-// Saella: a click on the backdrop closes the dialog like Cancel. Radix AlertDialog blocks
+// Saella: a click on the backdrop closes the dialog like Cancel (user request 2026-11-11). Radix AlertDialog blocks
 // outside clicks by design; every Saella confirm treats "dismiss" as "don't do it", so closing is always safe.
 const CloseContext = React.createContext<(() => void) | null>(null)
 

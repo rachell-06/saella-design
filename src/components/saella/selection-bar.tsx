@@ -5,7 +5,7 @@ import { Hint } from "@/components/saella/hint";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
-// Floating bar for the selected rows of a table (13): "N selected | actions | ✕".
+// Floating bar for the selected rows of a table (designer 2026-11-12/13): "N selected | actions | ✕".
 // Place it as a flex child under the table's card, so the card shrinks and its paging row is never covered. The
 // selection's main action may be the page's one solid button; the rest outline. Used by Leads › Find companies and
 // Leads › Self-upload. Social › Posts has its own copy (campaigns-screen.tsx) that can move to this.

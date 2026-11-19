@@ -8,7 +8,7 @@ import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SectionHeader } from "../../_components/section-header";
 
-// Settings → Language (PRD-07 Language; live app components/layout/LanguageSwitcher.tsx).
+// Settings → Language (PRD-07 Language, read 2026-10-28; live app components/layout/LanguageSwitcher.tsx).
 // - Vietnamese, English, Chinese Simplified (BR-LNG-01, BR-RULE-LNG-03). Stored per account; empty = follow the
 //   browser, which falls back to English (BR-RULE-LNG-01, AC-LNG-U-01).
 // - Applies at once and is saved to the account (AC-LNG-U-02). If saving fails, the choice is kept on this

@@ -10,13 +10,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// UI language (PRD-07 Language): Vietnamese, English, Chinese Simplified (BR-LNG-01,
+// UI language (PRD-07 Language, read 2026-10-28): Vietnamese, English, Chinese Simplified (BR-LNG-01,
 // BR-RULE-LNG-03). Written names, no flags (live app lib/i18n/messages.ts: a flag overstates a language).
 // The picker sits in the header of every screen, sign-in and setup included (AC-LNG-U-02); the change applies
 // at once. This prototype only stores the choice: the copy stays English.
 export type Locale = "vi" | "en" | "zh";
 
-// `short`: the compact trigger text ("language nên gọn lại").
+// `short`: the compact trigger text (user request 2026-11-12: "language nên gọn lại").
 export const LOCALES: { code: Locale; label: string; short: string; english: string }[] = [
   { code: "vi", label: "Tiếng Việt", short: "VI", english: "Vietnamese" },
   { code: "en", label: "English", short: "EN", english: "English" },

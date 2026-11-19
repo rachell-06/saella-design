@@ -6,12 +6,11 @@ import { type Block, KNOWN_TAGS, type TemplateKind, splitTags } from "@/lib/mock
 import { Hint } from "@/components/saella/hint";
 import { blocksToHtml, placeholderImages, renderTags, sanitizeHtml } from "@/lib/mock/templates-html";
 
-// Renders a template body as the recipient sees it (preview) or as editable blocks (edit). Wrap it in
-// `.email-canvas` (tokens.css) so it keeps the light email palette in dark mode; not Saella brand colours, except the button (template colours are separate
-// from UI colours; a first build has no per-template palette yet, so buttons use `primary`).
-// Images are placeholders (no upload storage in the mock).
-// A Letter is rich-text HTML (TipTap): pass `html`; without it the letter's blocks are turned
-// into HTML. A Design renders its blocks.
+// Renders a template body as the recipient sees it (preview) or as editable blocks (edit). Wrap it in `.email-canvas`
+// (tokens.css) so it keeps the light email palette in dark mode (template colours are separate from
+// UI colours; no per-template palette yet, so buttons use `primary`). Images are placeholders (no upload storage in
+// the mock). A Letter is rich-text HTML (TipTap): pass `html`; without it the letter's blocks are turned into HTML.
+// A Design renders its blocks.
 
 /** Typography for a Letter's HTML, shared by the TipTap editor and every read-only view, so they look the same. */
 export const EMAIL_PROSE = cn(
@@ -32,15 +31,21 @@ export const tagChipClass = (known: boolean) =>
     known ? "bg-primary-subtle text-foreground" : "border border-destructive bg-destructive-soft text-destructive-soft-foreground"
   );
 
-const IMAGE_BOX =
-  "my-2 flex h-40 w-full items-center justify-center rounded-md border border-dashed border-input bg-muted text-xs text-muted-foreground";
+// The same placeholder as an image block (EmailBody) and the Letter editor: icon + file name, centred; dashed only
+// when there is no file yet.
+const IMAGE_BOX = "my-2 flex h-40 w-full flex-col items-center justify-center gap-1 rounded-md bg-muted text-xs text-muted-foreground";
+const IMAGE_EMPTY = "border border-dashed border-input";
+// Lucide "image" (ImageIcon), as markup: the Letter's HTML is rendered as a string.
+const IMAGE_ICON =
+  '<svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-6"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
 
 /** A Letter's HTML, read-only: sanitised (AC-EC-T-05), merge tags filled (preview) or shown as chips (edit). */
 export function LetterHtml({ html, mode, values }: { html: string; mode: "edit" | "preview"; values?: Record<string, string> }) {
   const known = values ? Object.fromEntries(Object.entries(values).filter(([k]) => KNOWN_TAGS.has(k))) : undefined;
   const out = placeholderImages(
     renderTags(sanitizeHtml(html), mode === "preview" ? known : undefined, (tag) => tagChipClass(KNOWN_TAGS.has(tag))),
-    IMAGE_BOX
+    IMAGE_BOX,
+    { icon: IMAGE_ICON, emptyClass: IMAGE_EMPTY }
   );
   // Sanitised above, and the mock's HTML only comes from this app (TipTap, seeds, Saella's drafts).
   return <div className={EMAIL_PROSE} dangerouslySetInnerHTML={{ __html: out }} />;

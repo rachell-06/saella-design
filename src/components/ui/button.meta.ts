@@ -11,7 +11,7 @@ export const buttonMeta: ComponentMeta = {
     ghost: "Row actions in tables, icon-only toolbar buttons, menu triggers.",
     destructive: "Confirm button of an AlertDialog for delete / archive / cancel-send. Soft red fill.",
     link: "Inline text action inside a sentence, e.g. 'View report'.",
-    ai: "AI action (Generate, Write with AI, Suggest…) with a Sparkles icon: brand tint, never solid. Doesn't count as the page's one solid orange button.",
+    ai: "AI action (Generate, Write with AI, Suggest…) with a Sparkles icon: filled peach tint, dark-orange text, no outline (designer 2026-11-18: the outlined tint read too faint), never solid orange. Doesn't count as the page's one solid orange button.",
     "size=sm | icon-sm": "Inside table rows and dense toolbars.",
     "size=icon*": "Icon-only; always give aria-label and a Tooltip.",
   },

@@ -144,6 +144,8 @@ export function RateValue({
   const Icon = i.flag ? FlagIcon[i.flag] : null;
   const value = (
         <span
+          // Hook for narrow tables: they may let "(1,409)" wrap under the rate (laptops ≥1280).
+          data-slot="rate-value"
           // Flagged values take focus so the threshold is reachable from the keyboard.
           tabIndex={i.flag ? 0 : undefined}
           className={cn(
@@ -158,9 +160,8 @@ export function RateValue({
           {i.flag && <span className="sr-only">{i.flag === "danger" ? ", danger" : ", warning"}</span>}
         </span>
   );
-  // A tooltip only where it says something the cell can't (too many hovers on numbers):
-  // a flagged rate (the threshold) or too few sends. Plain cells explain themselves; the denominator lives in
-  // the column header or KPI caption.
+  // A tooltip only where it says something the cell can't: a flagged rate (the threshold) or too few sends. The
+  // denominator lives in the column header or KPI caption.
   if (!i.flag && !i.low) return value;
   return (
     <Tooltip>
@@ -170,7 +171,7 @@ export function RateValue({
   );
 }
 
-/** One rate as a left-aligned table cell. */
+/** One rate as a left-aligned table cell (one column per rate). */
 export function RateCell({ className, ...props }: React.ComponentProps<typeof RateValue>) {
   return (
     <TableCell className={className}>

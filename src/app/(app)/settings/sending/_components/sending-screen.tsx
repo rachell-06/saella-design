@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import {
   ArrowRightIcon,
   CircleAlertIcon,
-  InfoIcon,
   MailCheckIcon,
   MoreHorizontalIcon,
   PlusIcon,
@@ -36,6 +35,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ConfirmDialog, type ConfirmRequest } from "../../_components/confirm-dialog";
 import {
   MAX_SENDERS_PER_DOMAIN,
+  SHARED_MONTHLY_CAP,
+  SHARED_USED_THIS_MONTH,
   type SenderRow,
   domainForState,
   domainOf,
@@ -47,8 +48,8 @@ import { configOf } from "../../_components/health-score";
 import { type HealthTotals, PREVIEW_HEALTH, SendingHealth, last7Days } from "./sending-health";
 import { AddSenderDialog, type NewSender } from "./sending-dialogs";
 
-// Settings → Sending: sending health and senders (PRD-02 US-EC-S; live app EmailSendersSection.tsx +
-// api/email/senders, Repo). The domain itself lives in Settings → Domain.
+// Settings → Sending: sending health and senders (PRD-02 US-EC-S, R16; live app EmailSendersSection.tsx +
+// api/email/senders). The domain itself lives in Settings → Domain.
 // - Only the admin adds or removes senders and picks the default; members see what the workspace sends from.
 //   Resend is open to everyone, as in the live app.
 // - Senders: up to 10 per verified domain (BR-RULE-EC-04); display name and reply-to optional; start pending until
@@ -56,8 +57,11 @@ import { AddSenderDialog, type NewSender } from "./sending-dialogs";
 //   With no verified domain there is nothing to add a sender on: point to Domain.
 // - Shared-domain "Start sending now" is switched off in the live app (SHOW_INSTANT_START = false), so it isn't
 //   offered; a workspace that already has a shared sender still sees it in the list, marked.
-// - Sending health: first on the page because it decides whether anything sends.
-// Preview with ?state= loading | error | empty | member | unclaimed | pending | expired | unverified | near-limit | paused
+// - Sending health (R16): first on the page because it decides whether anything sends.
+// - The shared-domain sender is marked "Shared" with what's left of its monthly cap; the 10-sender limit is the
+//   workspace domain's, so the section says it for that domain only.
+// Preview with ?state= loading | error | empty | member | unclaimed | pending | expired | unverified | near-limit |
+// paused | few (under 20 sends)
 const ADMIN = initialMembers.find((m) => m.role === "admin");
 
 export function SendingScreen() {
@@ -70,26 +74,31 @@ export function SendingScreen() {
   const [senders, setSenders] = useState<SenderRow[]>(() => (preview === "empty" ? [] : initialSenders));
   const [addingSender, setAddingSender] = useState(false);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
-  const [confirmList, setConfirmList] = useState<SenderRow[]>([]);
   const [checkingSenders, setCheckingSenders] = useState(false);
   const [health] = useState<HealthTotals>(() =>
     preview === "empty"
       ? { sent: 0, delivered: 0, bounces: 0, complaints: 0 }
-      : preview === "near-limit" || preview === "paused"
+      : preview === "near-limit" || preview === "paused" || preview === "few"
         ? PREVIEW_HEALTH[preview]
         : last7Days()
   );
-  const [paused, setPaused] = useState(preview === "paused");
+  // Auto-paused: only Saella lifts it, so nothing on this screen changes it.
+  const paused = preview === "paused";
 
   const domain = domainForState(preview);
   const verifiedDomains = domain?.status === "verified" ? [domain.domain] : [];
+  // Verified once, then a record went missing (?state=unverified): the senders still exist and stay listed; only
+  // adding one waits for the domain. Never verified: there is nothing to list yet.
+  const lapsed = domain?.status === "failed";
   const pendingSenders = senders.filter((s) => s.status === "unconfirmed");
-  const adminOnly = `Only the admin${ADMIN ? ` (${ADMIN.name})` : ""} can change this.`;
+  const adminOnly = ADMIN ? `Only ${ADMIN.name} (admin) can change this.` : "Only the admin can change this.";
+  const sharedLeft = Math.max(0, SHARED_MONTHLY_CAP - SHARED_USED_THIS_MONTH);
 
   function validateSender(s: NewSender) {
     const errs: Partial<Record<keyof NewSender, string>> = {};
     const local = s.local.trim().toLowerCase();
-    if (!/^[a-z0-9._+-]+$/.test(local)) errs.local = "Use letters, numbers, dots or dashes before the @.";
+    if (!local) errs.local = "Enter the part before the @.";
+    else if (!/^[a-z0-9._+-]+$/.test(local)) errs.local = "Use letters, numbers, dots or dashes before the @.";
     else if (senders.some((x) => x.email === `${local}@${s.domain}`)) errs.local = `${local}@${s.domain} is already a sender.`;
     else if (senders.filter((x) => domainOf(x.email) === s.domain).length >= MAX_SENDERS_PER_DOMAIN)
       errs.local = `You can add up to ${MAX_SENDERS_PER_DOMAIN} senders on ${s.domain}. Remove one first.`;
@@ -123,7 +132,6 @@ export function SendingScreen() {
   }
 
   function removeSender(s: SenderRow) {
-    setConfirmList([]);
     setConfirm({
       title: "Remove this sender?",
       description: s.isDefault
@@ -134,20 +142,6 @@ export function SendingScreen() {
       onConfirm: () => {
         setSenders((list) => promoteDefault(list.filter((x) => x.id !== s.id)));
         toast(`Removed ${s.email}`);
-      },
-    });
-  }
-
-  function resume() {
-    setConfirmList([]);
-    setConfirm({
-      title: "Resume sending?",
-      description:
-        "Queued and scheduled batches start sending again. If bounces or complaints stay over the limit, sending pauses again.",
-      confirmLabel: "Resume sending",
-      onConfirm: () => {
-        setPaused(false);
-        toast.success("Sending resumed", { description: "The queue sends the rest at the usual pace." });
       },
     });
   }
@@ -187,25 +181,28 @@ export function SendingScreen() {
     );
   }
 
-  const addSenderHint = !canManage ? adminOnly : verifiedDomains.length === 0 ? "Verify a domain first." : undefined;
+  const addSenderHint = !canManage
+    ? adminOnly
+    : lapsed
+      ? "Your domain isn't verified. Fix it in Domain first."
+      : verifiedDomains.length === 0
+        ? "Verify a domain first."
+        : undefined;
 
   return (
     <>
-      {!canManage && (
-        <Alert variant="info">
-          <InfoIcon />
-          <AlertTitle>Sending is managed by {ADMIN?.name ?? "your workspace admin"}</AlertTitle>
-          <AlertDescription>You can see who the workspace sends as. Adding or removing a sender is the admin&apos;s to do.</AlertDescription>
-        </Alert>
-      )}
-
-      <SendingHealth totals={health} paused={paused} canManage={canManage} onResume={resume} config={configOf(domain)} />
+      {/* A member sees the locked Add sender and its hint; no extra Alert repeating it. */}
+      <SendingHealth totals={health} paused={paused} config={configOf(domain)} />
 
       <section className="flex flex-col gap-4" aria-labelledby="senders-title">
         <SectionHeader
           id="senders-title"
           title="Senders"
-          description={`The from-addresses your batches send with, up to ${MAX_SENDERS_PER_DOMAIN} on the domain.`}
+          description={
+            verifiedDomains.length > 0
+              ? `The from-addresses your batches send with. Up to ${MAX_SENDERS_PER_DOMAIN} on ${verifiedDomains[0]}.`
+              : "The from-addresses your batches send with."
+          }
           actions={
             <>
               {pendingSenders.length > 0 && verifiedDomains.length > 0 && (
@@ -225,10 +222,10 @@ export function SendingScreen() {
             </>
           }
         />
-        {verifiedDomains.length === 0 ? (
-          <Item variant="outline" className="rounded-card px-4 py-3 text-[length:inherit]">
+        {verifiedDomains.length === 0 && !lapsed ? (
+          <Item variant="outline" className="rounded-card px-4 py-3 text-base">
             <ItemContent>
-              <ItemDescription className="text-[length:inherit]">Verify a domain first. Then add the addresses you send from.</ItemDescription>
+              <ItemDescription className="text-base">Verify a domain first. Then add the addresses you send from.</ItemDescription>
             </ItemContent>
             <ItemActions>
               <Button variant="outline" size="sm" asChild>
@@ -277,10 +274,16 @@ export function SendingScreen() {
                                 Default
                               </Badge>
                             )}
+                            {s.shared && <Badge variant="secondary">Shared</Badge>}
                           </span>
-                          <span className="text-sm text-muted-foreground">
-                            {s.name ? s.email : ""}
-                            {s.replyTo && `${s.name ? " · " : ""}reply-to ${s.replyTo}`}
+                          <span className="text-sm text-muted-foreground tabular-nums">
+                            {[
+                              s.name ? s.email : "",
+                              s.replyTo ? `reply-to ${s.replyTo}` : "",
+                              s.shared ? `${sharedLeft.toLocaleString("en-US")} of ${SHARED_MONTHLY_CAP.toLocaleString("en-US")} left this month` : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </span>
                         </div>
                       </TableCell>
@@ -346,18 +349,7 @@ export function SendingScreen() {
         validate={validateSender}
         onAdd={addSender}
       />
-      <ConfirmDialog request={confirm} onClose={() => setConfirm(null)}>
-        {confirmList.length > 0 && (
-          <ul className="flex flex-col gap-1 rounded-lg border px-3 py-2 text-sm">
-            {confirmList.map((s) => (
-              <li key={s.id} className="flex items-center gap-2">
-                <span className="font-mono">{s.email}</span>
-                {s.isDefault && <span className="text-muted-foreground">current default</span>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </ConfirmDialog>
+      <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />
     </>
   );
 }

@@ -33,7 +33,7 @@ export type Campaign = {
   startsOn?: string; // ISO date
   endsOn?: string;
   countries: string[];
-  /** ISIC classes (4-digit, live target_industry_codes); show with industryLabels. Empty = any industry. */
+  /** ISIC classes (4-digit, live target_industry_codes); show with industryLabels(). Empty = any industry. */
   industries: string[];
   templates: Template[];
 };
@@ -219,9 +219,10 @@ export const sampleCampaigns: Campaign[] = [
     industries: industryClasses("I"),
     templates: [
       t({ id: "t1", name: "Intro – ceramics catalog", recipients: 1240, delivered: 1218, opens: 466, clicks: 74, bounces: 22, unsubs: 6, lastSent: "2026-10-26T02:00:00Z" }),
-      // Same totals as its only batch b2, still sending (SHARED_METRICS in batches/_components/data.ts), so Campaigns,
-      // Templates, the batch report and the agent agree. Not derived here: batches data imports this file.
-      t({ id: "t2", name: "Follow-up 1 – catalog reminder", followUp: { of: "t1", trigger: "no_engagement", delayHours: 72 }, recipients: 412, delivered: 405, opens: 121, clicks: 17, bounces: 5, unsubs: 1, lastSent: "2026-10-27T02:00:00Z" }),
+      // Seed only: every screen reads it through applyTemplateStore, which takes the numbers from its batches (b2 still
+      // sending, 412 sent: 407 delivered + 5 bounced; lib/mock/batches.ts). Kept equal to them; not derived here because
+      // batches.ts imports this file.
+      t({ id: "t2", name: "Follow-up 1 – catalog reminder", followUp: { of: "t1", trigger: "no_engagement", delayHours: 72 }, recipients: 412, delivered: 407, opens: 121, clicks: 17, bounces: 5, unsubs: 1, lastSent: "2026-10-27T02:00:00Z" }),
       t({ id: "t3", name: "Holiday pricing note", status: "inactive" }),
     ],
   },

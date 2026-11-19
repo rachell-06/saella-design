@@ -1,6 +1,6 @@
 import type { Block } from "@/lib/mock/templates";
 
-// A Letter's body is rich-text HTML (live app body_html, edited with TipTap). A Design keeps
+// A Letter's body is rich-text HTML (live app body_html; edited with TipTap). A Design keeps
 // the block model. These helpers move between the two without losing text, sanitise what gets rendered, and fill or
 // mark merge tags. Pure string work (no DOM), so server pages can use them too.
 
@@ -86,12 +86,13 @@ export function htmlToBlocks(html: string): Block[] {
  * Mock only: images have no storage, so an <img> whose src is a bare file name (or empty) shows as a placeholder box
  * with the name, like the block editor's image placeholder. Real URLs (http, blob, data) render as images.
  */
-export function placeholderImages(html: string, boxClass: string) {
+export function placeholderImages(html: string, boxClass: string, opts?: { icon?: string; emptyClass?: string }) {
   return html.replace(/<img\b[^>]*>/gi, (tag) => {
     const src = attr(tag, "src") ?? "";
     if (/^(https?:|blob:|data:image\/)/i.test(src)) return tag;
     const alt = attr(tag, "alt") ?? "";
-    return `<span role="img" aria-label="${escapeHtml(alt || "Image without alt text")}" class="${boxClass}">${escapeHtml(src || "No image yet")}</span>`;
+    const cls = src ? boxClass : `${boxClass} ${opts?.emptyClass ?? ""}`;
+    return `<span role="img" aria-label="${escapeHtml(alt || "Image without alt text")}" class="${cls}">${opts?.icon ?? ""}<span>${escapeHtml(src || "No image yet")}</span></span>`;
   });
 }
 

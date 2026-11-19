@@ -37,10 +37,10 @@ import { type DesignStart, type TemplateKind } from "@/lib/mock/templates";
 // Create-campaign form, fields and copy from the live app (EmailCampaignBoard modal) and PRD-02 AC-EC-C-01. Only the
 // name is required (live POST: "name is required"; trimmed; names may repeat, as in the live app). Description is
 // PRD-02 AC-EC-C-01 (the live modal has no field, its API takes one).
-// "Start with a template (optional)" (back to the live app's StarterPicker): Letter or Design;
-// picking the chosen card again clears it. Design then needs a design: the dialog widens to a gallery step (live poster
-// step: Blank poster + presets, "Back" keeps the form), and the form shows "Design · <name> · Change". With a starter, the caller opens the
-// editor on a new template in the campaign (`starterHref`); without one the campaign starts empty.
+// "Start with a template (optional)" (live app StarterPicker): Letter or Design; picking the chosen card again clears
+// it. Design then needs a design: the dialog widens to a gallery step (live poster step: Blank poster + presets,
+// "Back" keeps the form), and the form shows "Design · <name> · Change". With a starter, the caller opens the editor
+// on a new template in the campaign (`starterHref`); without one the campaign starts empty.
 
 /** The first template to open after the campaign is created (live app: TemplateStarter). */
 export type CampaignStarter = { kind: TemplateKind; start?: DesignStart };
@@ -79,8 +79,8 @@ export function NewCampaignDialog({
   const [step, setStep] = useState<"form" | "gallery">("form");
   const [showError, setShowError] = useState(false);
   // Design picked but no design chosen yet: the main button goes to the gallery first (live "Next: choose design").
-  // From the form, Design always goes through the gallery (after Back, picking Design again
-  // created the campaign straight away). The earlier pick stays selected there; only the gallery step creates.
+  // From the form, Design always goes through the gallery (also after Back); the earlier pick stays selected there.
+  // Only the gallery step creates.
   const needsDesign = offerStarter && kind === "design" && step === "form";
 
   const reset = () => {
@@ -150,7 +150,7 @@ export function NewCampaignDialog({
             <DialogDescription>
               {step === "gallery"
                 ? "Pick a design for the first template. You can change everything in the editor."
-                : "A campaign groups templates that target the same countries and industries."}
+                : "Choose who it targets, then add templates."}
             </DialogDescription>
           </DialogHeader>
 
@@ -174,9 +174,9 @@ export function NewCampaignDialog({
               </Field>
               <Field>
                 <FieldLabel htmlFor="nc-period">Campaign period (optional)</FieldLabel>
-                {/* Same range picker as everywhere. Live app (RangePicker disabledDate, the same
-                    in New and Edit): the start is free, so a campaign already under way can be logged; only the end
-                    can't be in the past. PRD-02 AC-EC-C-01: a period has a start and an end, so both or neither. */}
+                {/* Live app (RangePicker disabledDate, the same in New and Edit): the start is free, so a campaign already under
+                    way can be logged; only the end can't be in the past. PRD-02 AC-EC-C-01: a period has a start and an end, so both
+                    or neither. */}
                 <DateRangePicker
                   id="nc-period"
                   value={period}
@@ -205,7 +205,7 @@ export function NewCampaignDialog({
                   options={MARKETS}
                   value={countries}
                   onChange={setCountries}
-                  placeholder="Any country — pick one or more"
+                  placeholder="Any country"
                 />
               </Field>
               <Field>
@@ -240,8 +240,7 @@ export function NewCampaignDialog({
                     icon={<PaletteIcon className="size-4 text-muted-foreground" strokeWidth={1.75} />}
                   />
                 </RadioGroup>
-                {/* No "Choose a design" link: the main button "Choose design" leads there.
-                    Once a design is chosen, it shows here with Change. */}
+                {/* The main button "Choose design" leads to the gallery. Once a design is chosen, it shows here with Change. */}
                 {kind === "design" && start && (
                   <p className="flex items-center gap-1.5 text-sm">
                     <span className="text-muted-foreground">Design ·</span>

@@ -7,8 +7,8 @@ import { type Contact, isInBook } from "@/lib/mock/contacts";
 // - headers match case-insensitively; unknown columns are ignored (EC-CON-03); Email is the only required field;
 // - blank rows are skipped, bad emails are reported, repeats of email + company inside the file collapse (EC-CON-05);
 // - rows already in the contact book update in place instead of duplicating (AC-CON-I-04), or are skipped if the user
-//   picks "Skip" (duplicate rule chosen before importing);
-// - rows with errors are listed by row number and can be downloaded as a CSV with an Error column.
+//   picks "Skip" (R9 2026-10-29, HubSpot H5 / Apollo A7: duplicate rule chosen before importing);
+// - rows with errors are listed by row number and can be downloaded as a CSV with an Error column (R9).
 
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 export const MAX_ROWS = 1000;

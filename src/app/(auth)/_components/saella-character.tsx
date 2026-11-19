@@ -3,8 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 
-// Saella's brand character (full body) for sign-in, sign-up and the onboarding welcome.
-// Drawn from the LP's Chibi + BRAND_CHARACTER (Saella LP src/components/ui/Chibi.tsx, SignupGuide.tsx,
+// Saella's brand character (full body) for sign-in, sign-up and the onboarding welcome (user decision
+// 2026-11-12). Drawn from the LP's Chibi + BRAND_CHARACTER (Saella LP src/components/ui/Chibi.tsx, SignupGuide.tsx,
 // HeroWalker.tsx; docs/visual-direction.md §9): orange heart-shaped tuft, round glasses, two lashes per eye, flat
 // white body, single ink line, a faint shadow ellipse. Tuft = brand. Light theme: ink = foreground, fill = background.
 // Dark theme: light head and body with dark ink, light limbs (never a negative of the character).

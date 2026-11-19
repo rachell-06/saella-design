@@ -115,8 +115,8 @@ const ROW_CLICK_IGNORE =
   "button, a, input, label, select, textarea, [role=checkbox], [role=menuitem], [data-no-row-click]";
 
 // Social home (live SocialCampaigns.tsx): every campaign as a group, its posts underneath (newest five, more on
-// request). A post opens into its networks and their accounts with results and numbers, shown as
-// collapsible groups with a muted header row and rows below.
+// request). A post opens into its networks and their accounts with results and numbers. Presentation: Studio Admin
+// kanban "List" view (collapsible groups with a muted header row, task rows below).
 export function SocialCampaignsScreen() {
   const params = useSearchParams();
   const router = useRouter();
@@ -333,7 +333,7 @@ export function SocialCampaignsScreen() {
     <>
       <PageHeader
         title="Posts"
-        description="Write once, post to all your social accounts, and track the results."
+        description="Plan, publish and measure your social posts."
         actions={
           preview === "empty" || preview === "error" || preview === "loading"
             ? undefined
@@ -619,7 +619,13 @@ export function SocialCampaignsScreen() {
                 const all = allShown.has(c.id);
                 const shown = all ? list : list.slice(0, SHOWN_PER_CAMPAIGN);
                 return (
-                  <Collapsible key={c.id} defaultOpen asChild>
+                  // Closed by default (like Accounts); the collection a link points to (?campaign=) or that holds the post just made
+                  // (?new=) opens.
+                  <Collapsible
+                    key={c.id}
+                    defaultOpen={c.id === focusCampaign || (fresh !== null && list.some((p) => p.id === fresh))}
+                    asChild
+                  >
                     <section
                       id={`soc-camp-${c.id}`}
                       aria-label={c.name}

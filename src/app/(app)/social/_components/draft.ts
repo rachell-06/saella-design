@@ -1,5 +1,5 @@
 // "Write with Saella" (mock of live /api/social/draft): the tones and the drafted text, shared by the Goal step and
-// the Write step of the post builder. Each network gets its own shape, the tone on top, and
+// the Write step of the post builder. Each network gets its own shape (designer, 2026-11-13), the tone on top, and
 // never more than the network's limit (rules.ts).
 import type { SocialNetwork } from "@/lib/mock/social";
 import { NETWORK_RULES, textLength } from "./rules";

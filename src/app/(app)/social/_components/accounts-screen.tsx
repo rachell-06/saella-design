@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { CircleAlertIcon, ExternalLinkIcon, PlusIcon, SettingsIcon, TriangleAlertIcon } from "lucide-react";
+import { ChevronRightIcon, CircleAlertIcon, CornerDownRightIcon, ExternalLinkIcon, RefreshCwIcon, PlusIcon, SettingsIcon, TriangleAlertIcon } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -99,7 +99,7 @@ function connectOutcome(q: URLSearchParams): { type: "success" | "warning" | "in
 }
 
 // Connected accounts (live SocialConnections.tsx). The live page draws workspace → network → login → account as a
-// map with moving dots; here the same tree is a grouped list: one group per network,
+// map with moving dots; here the same tree is a grouped list (Studio Admin kanban "List" view): one group per network,
 // the person who signed in where one login brings several pages, then the pages and accounts posts go to.
 export function SocialAccountsScreen() {
   const params = useSearchParams();
@@ -107,6 +107,8 @@ export function SocialAccountsScreen() {
   const preview = params.get("state");
   const [accounts, setAccounts] = useState<SocialAccount[]>(preview === "empty" ? [] : socialAccounts);
   const [prompts, setPrompts] = useState(networkPrompts);
+  // Networks the user folded or unfolded against their default (open only when one needs reconnecting).
+  const [toggled, setToggled] = useState<Set<SocialNetwork>>(() => new Set());
   // ?config=<network> opens that network's settings sheet.
   const [config, setConfig] = useState<SocialNetwork | null>((SOCIAL_NETWORKS as readonly string[]).includes(params.get("config") ?? "") ? (params.get("config") as SocialNetwork) : null);
   const networks: NetworkInfo[] = useMemo(
@@ -161,7 +163,7 @@ export function SocialAccountsScreen() {
 
   const header = (
     <>
-      <PageHeader title="Accounts" description="The social pages and profiles Saella posts to." />
+      <PageHeader title="Accounts" description="Manage where your posts go and keep each connection healthy." />
     </>
   );
 
@@ -221,16 +223,48 @@ export function SocialAccountsScreen() {
               const many = info?.fanout === "many";
               const unavailable = !info?.route || Boolean(info?.error);
               const logins = [...new Set(list.map((a) => a.loginId))].map((id) => list.filter((a) => a.loginId === id));
+              // Some row here shows Reconnect: the others keep its slot so badges line up.
+              const reconnectSlot = !many && list.some((a) => a.login.status !== "active");
+              const needsReconnect = list.filter((a) => a.login.status !== "active").length;
+              // Each network folds: closed by default, open when one of its accounts needs reconnecting so the problem isn't
+              // hidden; the user's toggle wins after that.
+              const open = toggled.has(n) ? !(needsReconnect > 0) : needsReconnect > 0;
+              const listId = `accounts-${n}`;
               return (
                 <section key={n} aria-label={NET_LABEL[n]} className="border-t first:border-t-0">
                   <div className="flex items-center gap-3 bg-muted/50 px-4 py-2.5">
-                    <NetworkIcon network={n} size={28} />
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <h3 className="text-sm font-medium">{NET_LABEL[n]}</h3>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-expanded={open}
+                      aria-controls={listId}
+                      onClick={() =>
+                        setToggled((t) => {
+                          const next = new Set(t);
+                          if (next.has(n)) next.delete(n);
+                          else next.add(n);
+                          return next;
+                        })
+                      }
+                      className="-my-1 -ml-1 h-auto min-w-0 flex-1 justify-start gap-3 px-1 py-1 text-left font-normal hover:bg-transparent aria-expanded:bg-transparent"
+                    >
+                      <ChevronRightIcon
+                        aria-hidden
+                        className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")}
+                      />
+                      {/* size-7 class: Button would shrink an svg without a size- class to 16px. */}
+                      <NetworkIcon network={n} size={28} className="size-7" />
                       {/* No "Demo" chip on mock-routed networks: the screen previews production. */}
-                    </div>
+                      <h3 className="text-sm font-medium">{NET_LABEL[n]}</h3>
+                      <span className="text-sm text-muted-foreground tabular-nums">
+                        {list.length} {list.length === 1 ? "account" : "accounts"}
+                      </span>
+                      {needsReconnect > 0 && (
+                        <span className="text-sm text-destructive-soft-foreground tabular-nums">· {needsReconnect} to reconnect</span>
+                      )}
+                    </Button>
                     <Hint label={unavailable ? UNAVAILABLE : many ? `Sign in with another ${brand(n)} account` : undefined}>
-                      <span>
+                      <span tabIndex={unavailable ? 0 : undefined}>
                         <Button variant="outline" size="sm" disabled={unavailable} onClick={() => connect(n, "new")}>
                           <PlusIcon data-icon="inline-start" />
                           Add account
@@ -244,13 +278,17 @@ export function SocialAccountsScreen() {
                       </Button>
                     </Hint>
                   </div>
-                  <ul className="divide-y border-t">
+                  {open && (
+                  <ul id={listId} className="divide-y border-t">
                     {logins.map((group) => {
                       const login = group[0].login;
                       return (
                         <li key={group[0].loginId} className="flex flex-col divide-y">
                           {many && (
-                            <div className="flex items-center gap-3 px-4 py-2.5 pl-14">
+                            <div className="flex items-center gap-3 px-4 py-2.5 pl-7">
+                              {/* ↳ marks a level under its parent, like the follow-up steps. The padding drops by the arrow's width, so avatars
+                                  stay aligned. */}
+                              <CornerDownRightIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                               <AccountAvatar name={login.displayName ?? NET_LABEL[n]} />
                               <span className="flex min-w-0 flex-1 flex-col">
                                 <span className="truncate text-sm font-medium">{login.displayName}</span>
@@ -261,7 +299,7 @@ export function SocialAccountsScreen() {
                                 )}
                               </span>
                               <Hint label={unavailable ? UNAVAILABLE : `Add ${NET_WHAT[n]} from ${login.displayName}`}>
-                                <span>
+                                <span tabIndex={unavailable ? 0 : undefined}>
                                   <Button variant="ghost" size="sm" disabled={unavailable} onClick={() => connect(n, "login", group[0].loginId)}>
                                     <PlusIcon data-icon="inline-start" />
                                     {NET_WHAT[n]}
@@ -273,7 +311,8 @@ export function SocialAccountsScreen() {
                           {group.map((a) => {
                             const f = FLOW_BADGE[flowOf(a)];
                             return (
-                              <div key={a.id} className={cn("flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/50", many ? "pl-24" : "pl-14")}>
+                              <div key={a.id} className={cn("flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted/50", many ? "pl-17" : "pl-7")}>
+                                <CornerDownRightIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                                 <AccountAvatar name={a.name} />
                                 <span className="flex min-w-0 flex-1 flex-col">
                                   <span className="truncate text-sm font-medium">{a.name}</span>
@@ -282,18 +321,31 @@ export function SocialAccountsScreen() {
                                     <span className="truncate text-sm text-muted-foreground">{a.handle ? `@${a.handle}` : kindLabel(a.network, a.kind)}</span>
                                   )}
                                 </span>
-                                {/* Status right before the Open icon, Reconnect before both: one aligned column of badges. */}
+                                {/* Status, then the icon actions. Reconnect is an icon beside Open; rows without it keep an empty slot when the
+network has one, so the badges stay in one column. */}
                                 <span className="flex shrink-0 items-center justify-end gap-2">
-                                  {!many && login.status !== "active" && (
-                                    <Button variant="outline" size="sm" disabled={unavailable} onClick={() => connect(n, "reconnect", a.loginId)}>
-                                      Reconnect
-                                    </Button>
-                                  )}
                                   <Hint label={login.status !== "active" ? "Sign-in expired. Connect again" : f.hint}>
                                     <span tabIndex={0} className="flex shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
                                       <StatusBadge status={f.status} label={f.label} />
                                     </span>
                                   </Hint>
+                                  {!many && login.status !== "active" ? (
+                                    <Hint label={unavailable ? UNAVAILABLE : "Reconnect"}>
+                                      <span tabIndex={unavailable ? 0 : undefined}>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          aria-label={`Reconnect ${a.name}`}
+                                          disabled={unavailable}
+                                          onClick={() => connect(n, "reconnect", a.loginId)}
+                                        >
+                                          <RefreshCwIcon />
+                                        </Button>
+                                      </span>
+                                    </Hint>
+                                  ) : (
+                                    reconnectSlot && <span aria-hidden className="size-8 shrink-0" />
+                                  )}
                                   {/* Icon only: the label lives in the tooltip and aria-label. */}
                                   <Hint label={`Open on ${brand(n)}`}>
                                     <Button variant="ghost" size="icon-sm" className="text-muted-foreground" asChild>
@@ -310,6 +362,7 @@ export function SocialAccountsScreen() {
                       );
                     })}
                   </ul>
+                  )}
                 </section>
               );
             })}
@@ -336,7 +389,7 @@ export function SocialAccountsScreen() {
                     </span>
                   </div>
                   <Hint label={unavailable ? UNAVAILABLE : info?.route === "mock" ? DEMO : undefined}>
-                    <span>
+                    <span tabIndex={unavailable ? 0 : undefined}>
                       <Button variant="outline" size="sm" disabled={unavailable} onClick={() => connect(n, "new")}>
                         <PlusIcon data-icon="inline-start" />
                         Connect

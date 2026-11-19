@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 // - Creeps towards 90% while waiting, jumps to 100% and fades on arrival.
 // - Reduced motion: a static full-width bar while waiting, no sweep, no fade.
 // - The clicked link gets `data-nav-pending` until the route renders, so the sidebar can mark it selected at once
-//   (globals.css styles the sidebar item from that attribute). `usePendingHref` gives the same to components.
+//   (globals.css styles the sidebar item from that attribute). `usePendingHref()` gives the same to components.
 // Programmatic navigation (router.push from a button) does not start the bar.
 
 const SAFETY_MS = 12_000; // a click that never changes the route (e.g. prevented by the page) stops here
@@ -101,7 +101,7 @@ function Bar() {
       document.removeEventListener("click", onClick, true);
       clearTimers();
     };
-    // Mounted once: finish and clearTimers only touch refs and state setters.
+    // Mounted once: finish() and clearTimers() only touch refs and state setters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -115,7 +115,7 @@ function Bar() {
   useEffect(() => {
     if (bar.phase !== "done" || anchor.current === null) return;
     finish();
-    // finish only touches refs and state setters, so it need not re-run the effect.
+    // finish() only touches refs and state setters, so it need not re-run the effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bar.phase]);
 

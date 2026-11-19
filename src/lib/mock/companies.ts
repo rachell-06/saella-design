@@ -1,4 +1,4 @@
-// Company registry mock (PRD-04 Company Data Hub + live app src/lib/companies/*).
+// Company registry mock (PRD-04 Company Data Hub + live app src/lib/companies/*, 2026-10-28).
 // Industry is the country-independent ISIC class (4-digit), grouped by ISIC section (live app:
 // lib/companies/industry-dict.ts ISIC_SECTION_LABELS); country is ISO-2 from the served options
 // (lib/companies/serving.ts COMPANY_COUNTRY_OPTIONS); status is one of the 5 normalised buckets (STATUS_BUCKETS).
@@ -211,10 +211,10 @@ const generated: Company[] = Array.from({ length: 240 }, (_, i) => {
   };
 });
 
-// Vietnamese hotels and restaurants with a published email: the demo's first campaign targets them, so a
+// Vietnamese hotels and restaurants with a published email (2026-11-12): the demo's first campaign targets them, so a
 // batch to unlocked companies has a sensible audience. Own seed and ids after the generated ones, so every generated
 // row stays unchanged.
-// Names never repeat one already in the registry (two "Red Resort" rows read as a duplicate).
+// Names never repeat one already in the registry (two "Red Clay Resort" rows read as a duplicate).
 const usedNames = new Set(generated.map((c) => c.name));
 function uniqueBase(j: number, isic: string) {
   for (let k = 0; k < NAME_A.length * 2; k++) {
@@ -256,7 +256,7 @@ export const companies: Company[] = [...generated, ...HOSPITALITY_VN];
 
 /**
  * Registry companies the demo workspace already saved to Contacts (hotels in Vietnam, distributors, Singapore
- * architects: the tagged groups of the contacts mock), for the New / Already saved split. The
+ * architects: the tagged groups of the contacts mock), for the New / Already saved split (R11, 2026-10-29). The
  * contacts mock uses other company names, so the match is seeded here; companies saved from this screen later match
  * by company name or email (PRD Contacts BR-RULE-CON-05). Backend: flag each row (or count) against the contact book.
  */

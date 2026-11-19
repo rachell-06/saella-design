@@ -2,12 +2,14 @@
 
 // Deliverability, Clicks and Recipients tabs of the batch report (live app components/email/report/*).
 
+import { SCROLL_CARD_TABLE } from "@/lib/scroll";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FileSpreadsheetIcon, SearchIcon } from "lucide-react";
 import { formatDateTime, rate } from "@/lib/mock/campaigns";
 import { KpiStrip, KpiStripItem } from "@/components/saella/kpi-strip";
 import { RateCell, rateKpi } from "@/components/saella/rate-meter";
+import { type RecipientStatus, StatusBadge } from "@/components/saella/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -27,7 +29,7 @@ const n = (x: number) => x.toLocaleString("en-US");
 // ---------------------------------------------------------------------------------------------------------------
 // Deliverability: results by recipient domain (AC-EC-O-06).
 
-// Table cells split by thin vertical lines, the last column none (Leads).
+// Table cells split by thin vertical lines, the last column none (Leads / Studio Admin).
 const divider = "border-r border-border/50 last:border-r-0";
 
 // Sortable by every number (AC-EC-O-06; live app DeliverabilityTab sorts each column, rates by rate).
@@ -60,11 +62,24 @@ export function DeliverabilityTab({ batch }: { batch: ReportBatch }) {
         {/* Same wording as the Overview tab (rateKpi); the pause level is in the bounce tooltip. */}
         <KpiStripItem label="Delivery rate" {...rateKpi("delivery", met.delivered, batch.sent)} />
         <KpiStripItem label="Bounce rate" {...rateKpi("bounce", met.bounces, batch.sent)} />
-        <KpiStripItem label="Spam complaints" value={complaint?.text} muted={complaint?.lowSample} note={`${n(met.complaints)} · pauses at 0.3%`} />
-        <KpiStripItem label="Recipient domains" value={n(domains.length)} note={domains[0] ? `Most: ${domains[0].domain}` : undefined} />
+        <KpiStripItem
+          label="Spam complaints"
+          value={complaint?.text}
+          muted={complaint?.lowSample}
+          note={met.delivered ? `${n(met.complaints)}/${n(met.delivered)} delivered` : undefined}
+          detail="Sending pauses at 2 complaints and 0.3% over 7 days."
+        />
       </KpiStrip>
 
-      <div className="overflow-hidden rounded-card border">
+      {domains.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle>No results by domain yet</EmptyTitle>
+            <EmptyDescription>Domains show up here once emails are delivered or bounce.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+      <div className={cn("overflow-hidden rounded-card border", SCROLL_CARD_TABLE)}>
         <Table aria-label="Results by recipient domain">
           <TableHeader>
             <TableRow>
@@ -99,6 +114,7 @@ export function DeliverabilityTab({ batch }: { batch: ReportBatch }) {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
@@ -113,14 +129,12 @@ export function ClicksTab({ batch, fileBase }: { batch: ReportBatch; fileBase: s
   const links = useMemo(() => linkStats(batch), [batch]);
   const q = query.trim().toLowerCase();
   const shown = links.filter((l) => !q || l.url.toLowerCase().includes(q)).sort((a, b) => b[sort] - a[sort]);
-  const click = rate(met.clicks, met.delivered);
 
   return (
     <div className="flex flex-col gap-6">
       <KpiStrip>
-        <KpiStripItem label="Click rate" value={click?.text} muted={click?.lowSample} note={`${n(met.clicks)} people clicked`} />
+        <KpiStripItem label="Click rate" {...rateKpi("click", met.clicks, met.delivered)} />
         <KpiStripItem label="Total clicks" value={n(met.totalClicks)} />
-        <KpiStripItem label="Links in this email" value={n(links.length)} />
       </KpiStrip>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -151,7 +165,7 @@ export function ClicksTab({ batch, fileBase }: { batch: ReportBatch; fileBase: s
           )}
         </Empty>
       ) : (
-        <div className="overflow-hidden rounded-card border">
+        <div className={cn("overflow-hidden rounded-card border", SCROLL_CARD_TABLE)}>
           <Table aria-label="Link performance">
             <TableHeader>
               <TableRow>
@@ -221,22 +235,15 @@ const FILTERS: { value: EventFilter; label: string; test: (r: ReplyRow) => boole
   { value: "complained", label: "Marked as spam", test: (r) => r.complained },
 ];
 
-// Outlined tinted pill with a dot, as the Leads tables.
-const TONE = {
-  neutral: { pill: "border-border bg-muted text-muted-foreground", dot: "bg-muted-foreground" },
-  info: { pill: "border-info/20 bg-info-soft text-info-soft-foreground", dot: "bg-info" },
-  success: { pill: "border-success/20 bg-success-soft text-success-soft-foreground", dot: "bg-success" },
-  warning: { pill: "border-warning/20 bg-warning-soft text-warning-soft-foreground", dot: "bg-warning" },
-  danger: { pill: "border-destructive/20 bg-destructive-soft text-destructive-soft-foreground", dot: "bg-destructive" },
-};
-const STATUS_BADGE: Record<RecipientEvent, { label: string; tone: keyof typeof TONE }> = {
-  pending: { label: "Queued", tone: "neutral" },
-  delivered: { label: "Delivered", tone: "neutral" },
-  opened: { label: "Opened", tone: "info" },
-  clicked: { label: "Clicked", tone: "success" },
-  bounced: { label: "Bounced", tone: "danger" },
-  unsubscribed: { label: "Unsubscribed", tone: "warning" },
-  complained: { label: "Marked as spam", tone: "danger" },
+// A badge on every row, the shared StatusBadge recipient group.
+const RECIPIENT_STATUS: Record<RecipientEvent, RecipientStatus> = {
+  pending: "recipient-queued",
+  delivered: "recipient-delivered",
+  opened: "recipient-opened",
+  clicked: "recipient-clicked",
+  bounced: "recipient-bounced",
+  unsubscribed: "recipient-unsubscribed",
+  complained: "recipient-complained",
 };
 
 const PAGE = 50;
@@ -279,6 +286,9 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
   const shown = matched.slice(0, limit);
   const filtering = filter !== "all" || q !== "";
   const noReplies = filter === "replied" && counts.replied === 0 && !q;
+  // Auto-paused: the unsent ones are held and go out once Saella lifts the pause, so they read "Waiting", not
+  // "Not sent yet" / "Queued".
+  const paused = batch.status === "paused";
 
   return (
     <div className="flex flex-col gap-4">
@@ -300,8 +310,8 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
               }}
             />
           </InputGroup>
-          {/* One event dropdown with counts, not a row of chips (same as the template
-              detail "All recipients"). */}
+          {/* One event dropdown with counts, not a row of chips (same as the template detail "All
+              recipients"). */}
           <Select value={filter} onValueChange={(v) => setFilter(v)}>
             <SelectTrigger size="sm" className="w-44" aria-label="Filter by event">
               <SelectValue />
@@ -310,7 +320,7 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
               {FILTERS.filter((f) => f.value !== "pending" || counts.pending > 0).map((f) => (
                 <SelectItem key={f.value} value={f.value}>
                   <span>
-                    {f.label} <span className="text-muted-foreground tabular-nums">· {n(counts[f.value])}</span>
+                    {f.value === "pending" && paused ? "Waiting" : f.label} <span className="text-muted-foreground tabular-nums">· {n(counts[f.value])}</span>
                   </span>
                 </SelectItem>
               ))}
@@ -323,7 +333,7 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
         </Button>
       </div>
 
-      {/* Replied opens a second row of chips by intent: who
+      {/* Replied opens a second row of chips by intent (Apollo "Recent replies" / Unify): who
           wants a meeting is the first follow-up. Hidden at 0 replies; the empty state below explains instead. */}
       {filter === "replied" && counts.replied > 0 && (
         <div className="-mt-1 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -381,7 +391,7 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
           )}
         </Empty>
       ) : (
-        <div className="overflow-hidden rounded-card border">
+        <div className={cn("overflow-hidden rounded-card border", SCROLL_CARD_TABLE)}>
           <Table aria-label="Recipient activity" className="text-dense">
             <TableHeader>
               <TableRow>
@@ -397,7 +407,6 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
             </TableHeader>
             <TableBody>
               {shown.map((r) => {
-                const s = STATUS_BADGE[r.status];
                 const reply = r.reply && INTENTS.find((i) => i.value === r.reply!.intent)!;
                 // A reply is the latest thing that happened, so it moves Last activity too.
                 const last = r.reply && (!r.lastActivity || r.reply.at > r.lastActivity) ? r.reply.at : r.lastActivity;
@@ -411,10 +420,7 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
                     </TableCell>
                     <TableCell className={cn(divider, "text-muted-foreground")}>{r.company}</TableCell>
                     <TableCell className={divider}>
-                      <Badge variant="outline" className={cn("gap-1.5 px-2", TONE[s.tone].pill)}>
-                        <span aria-hidden className={cn("size-1.5 rounded-full", TONE[s.tone].dot)} />
-                        {s.label}
-                      </Badge>
+                      <StatusBadge status={RECIPIENT_STATUS[r.status]} label={r.status === "pending" && paused ? "Waiting" : undefined} />
                     </TableCell>
                     <TableCell className={divider}>
                       {reply && (
@@ -432,8 +438,7 @@ export function RecipientsTab({ batch, fileBase }: { batch: ReportBatch; fileBas
               })}
             </TableBody>
           </Table>
-          {/* The count lives here (no "N people" beside the select). A search shows the count of
-              what it found even when it fits one page. */}
+          {/* The count lives here. A search shows the count of what it found even when it fits one page. */}
           {(matched.length > shown.length || q !== "") && (
             <div className="flex min-h-12 items-center justify-between border-t px-4 py-2 text-sm text-muted-foreground">
               <span className="tabular-nums">

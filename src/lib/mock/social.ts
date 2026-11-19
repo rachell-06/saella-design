@@ -1,4 +1,4 @@
-// Social posting (live app origin/development src/lib/social/*, src/components/social/*; PRD-12
+// Social posting (live app origin/development 2026-11-05: src/lib/social/*, src/components/social/*; PRD-12
 // https://pgg-prd-lib.vercel.app/docs/saella-prd-social). Fictional Northwind Ceramics accounts, campaigns and posts,
 // enough to show every state the live screens have. Times are UTC ISO strings, shown in workspace time (GMT+7).
 import { CURRENT_USER } from "./constants";

@@ -12,9 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { cn } from "@/lib/utils";
 import { type Approval, type SendSplit, TEST_SEND_SIZE, type TestSendResult, splitOf } from "./data";
 
-// Send to a few first (split save buttons). The same choice sits on the chat's
-// ApprovalCard and in the approval queue; it is stored on the approval part, so both show what the other picked.
-// Approve then sends what the choice says (agent-screen approve); nothing else decides a send.
+// Send to a few first (R18, Competitor.md §6), on the chat's ApprovalCard. The choice is stored on the approval
+// part; Approve then sends what the choice says, nothing else decides a send.
 
 const n = (v: number) => v.toLocaleString("en-US");
 
@@ -67,14 +66,6 @@ export function SendSplitChoice({
   );
 }
 
-/** What Approve does under the current choice, for the queue's main button. */
-export function approveLabel(a: Approval) {
-  const split = splitOf(a);
-  if (split === "first") return `Send to ${TEST_SEND_SIZE} first`;
-  if (split === "all") return `Send to all ${n(a.audience?.count ?? 0)}`;
-  return "Approve";
-}
-
 /** Delivered and bounced for the first few, the bounces spelled out, everyone on request. */
 export function TestSendView({ result: r, href, className }: { result: TestSendResult; href?: string; className?: string }) {
   const delivered = r.recipients.filter((x) => x.status === "delivered").length;
@@ -118,7 +109,11 @@ export function TestSendView({ result: r, href, className }: { result: TestSendR
         </div>
         <CollapsibleContent>
           <div className="overflow-hidden rounded-lg border">
-            <Table aria-label={`First ${sent} recipients`} className="text-dense">
+            {/* Fits the ~400px panel: wrapping cells, tighter padding (as message-view.tsx AGENT_TABLE). */}
+            <Table
+              aria-label={`First ${sent} recipients`}
+              className="text-dense [&_td]:px-2 [&_td]:break-words [&_td]:whitespace-normal [&_th]:px-2 [&_th]:whitespace-normal"
+            >
               <TableHeader>
                 <TableRow>
                   <TableHead>Recipient</TableHead>

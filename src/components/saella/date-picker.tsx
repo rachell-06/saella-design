@@ -1,5 +1,6 @@
 "use client";
 
+import { SCROLL_POPOVER_LIST } from "@/lib/scroll";
 import { useState } from "react";
 import { CalendarIcon, ClockIcon } from "lucide-react";
 import type { DateRange, Matcher } from "react-day-picker";
@@ -9,9 +10,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-// Date and time pickers built from shadcn Popover + Calendar and Select. Native
-// <input type="date|time"> renders the browser's own picker, which can't take Saella tokens and differs per
-// browser, so screens use these instead. Values are ISO strings: "YYYY-MM-DD" for dates, "HH:mm" for times.
+// Date and time pickers built from shadcn Popover + Calendar and Select. Native <input type="date|time"> renders the
+// browser's own picker, which can't take Saella tokens and differs per browser, so screens use these instead. Values
+// are ISO strings: "YYYY-MM-DD" for dates, "HH:mm" for times.
 // The calendar closes once the pick is done: after the day, or after a range's second day.
 
 const toDate = (iso?: string) => (iso ? new Date(`${iso}T00:00:00`) : undefined);
@@ -83,8 +84,8 @@ export function DatePicker({
 }
 
 /**
- * A date range in a popover, the same as Overview's custom range (every range picker alike):
- * two months without repeated days, a draft with its "Sep 9 – Sep 17" line and Apply; Clear when the range is optional.
+ * A date range in a popover, the same as Overview's custom range (every range picker alike): two months without
+ * repeated days, a draft with its "Sep 9 – Sep 17" line and Apply; Clear when the range is optional.
  * Values are Dates (DateRange), as the campaign forms keep them.
  */
 export function DateRangePicker({
@@ -215,7 +216,7 @@ export function TimePicker({
         <ClockIcon data-icon="inline-start" className="text-muted-foreground" />
         <SelectValue placeholder="Pick a time" />
       </SelectTrigger>
-      <SelectContent className="max-h-72">
+      <SelectContent className={SCROLL_POPOVER_LIST}>
         <SelectGroup>
           {options.map((t) => (
             <SelectItem key={t} value={t}>

@@ -1,4 +1,4 @@
-// Values every mock shares. Define them here only; data modules re-export what they need.
+// Values every mock shares (2026-11-09). Define them here only; data modules re-export what they need.
 
 /** Fixed "today" keeps derived statuses and "x days ago" stable in screenshots. */
 export const TODAY = "2026-10-27";

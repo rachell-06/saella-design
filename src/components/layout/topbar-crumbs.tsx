@@ -13,11 +13,10 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import type { Crumb } from "@/components/layout/page-header";
-import { requestBack } from "@/lib/leave-guard";
+import { REPLACE_EVENT, requestBack } from "@/lib/leave-guard";
 
-// The way back, in the app's top bar (the quick-search box there went unused).
-// Back goes to the page the user came from (Campaigns → a template → back landed on Templates,
-// a page they never opened). The app keeps its own short history of pages; when there is a previous page, the bar
+// The way back, in the app's top bar. Back goes to the page the user came from (Campaigns → a template → back lands
+// on Campaigns, not Templates). The app keeps its own short history of pages; when there is a previous page, the bar
 // shows "← <that page>" and Back returns to it (browser back, so its scroll and filters come back too). Opened
 // straight from a link, with no page before it, the bar falls back to the page's parents (PageHeader `breadcrumbs`):
 // a back button to the nearest one and the trail. Top-level pages with neither show nothing.
@@ -52,22 +51,54 @@ export function TopbarCrumbsProvider({ children }: { children: React.ReactNode }
   );
 }
 
+// Kept in sessionStorage, so a reload still remembers where the user came from.
+const STACK_KEY = "saella:visits";
+function loadStack(): Visit[] {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(STACK_KEY) ?? "[]");
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+function saveStack(s: Visit[]) {
+  try {
+    sessionStorage.setItem(STACK_KEY, JSON.stringify(s));
+  } catch {
+    // Storage off: the stack lives for this page load only.
+  }
+}
+
 /** Keeps the pages visited in this tab: a new page is pushed; going back to the one before pops. */
 function HistoryTracker({ onPrevious }: { onPrevious: (v: Visit | null) => void }) {
   const pathname = usePathname();
   const search = useSearchParams().toString();
-  const stack = useRef<Visit[]>([]);
+  const stack = useRef<Visit[] | null>(null);
   const href = search ? `${pathname}?${search}` : pathname;
+  // A page that leaves with `replace` (a new template's first save: /templates/draft/edit → its own URL) takes the
+  // place of the page before it here too, as it does in the browser's history.
+  const replaceNext = useRef(false);
+  useEffect(() => {
+    const mark = () => (replaceNext.current = true);
+    window.addEventListener(REPLACE_EVENT, mark);
+    return () => window.removeEventListener(REPLACE_EVENT, mark);
+  }, []);
 
   useEffect(() => {
+    stack.current ??= loadStack();
     const s = stack.current;
     const top = s[s.length - 1];
-    if (top?.href === href) return;
-    // Same page with other filters (?tab=, ?view=…): replace, so Back leaves the page rather than undoing a filter.
-    if (top && top.href.split("?")[0] === pathname) s[s.length - 1] = { href, title: document.title };
-    else if (s.length > 1 && s[s.length - 2].href === href) s.pop();
-    else s.push({ href, title: document.title });
+    // Same URL (a reload) keeps the stack as it was.
+    if (top?.href !== href) {
+      const replace = replaceNext.current;
+      replaceNext.current = false;
+      // Same page with other filters (?tab=, ?view=…): replace, so Back leaves the page rather than undoing a filter.
+      if (top && (replace || top.href.split("?")[0] === pathname)) s[s.length - 1] = { href, title: document.title };
+      else if (s.length > 1 && s[s.length - 2].href === href) s.pop();
+      else s.push({ href, title: document.title });
+    }
     if (s.length > 30) s.splice(0, s.length - 30);
+    saveStack(s);
     onPrevious(s.length > 1 ? s[s.length - 2] : null);
   }, [href, pathname, onPrevious]);
 
@@ -75,7 +106,9 @@ function HistoryTracker({ onPrevious }: { onPrevious: (v: Visit | null) => void 
   useEffect(() => {
     const sync = () => {
       const s = stack.current;
-      if (s.length) s[s.length - 1] = { ...s[s.length - 1], title: document.title };
+      if (!s?.length) return;
+      s[s.length - 1] = { ...s[s.length - 1], title: document.title };
+      saveStack(s);
     };
     sync();
     // The whole head: Next may swap the <title> element rather than change its text.

@@ -28,7 +28,7 @@ export function DesignGallery({
       value={value ?? ""}
       onValueChange={(v) => onChange(v as DesignStart)}
       aria-label="Design"
-      // One row of five on laptops so the dialog fits any laptop screen; thumbnails shrink on
+      // One row of five on laptops so the dialog fits any laptop screen (designer 2026-11-14); thumbnails shrink on
       // short screens.
       className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"
     >

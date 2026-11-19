@@ -1,7 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { EditorContent, Extension, type Editor, useEditor, useEditorState } from "@tiptap/react";
+import { useEffect, useRef, useState } from "react";
+import {
+  EditorContent,
+  Extension,
+  type Editor,
+  NodeViewWrapper,
+  ReactNodeViewRenderer,
+  type ReactNodeViewProps,
+  useEditor,
+  useEditorState,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import { Color, FontSize, TextStyle } from "@tiptap/extension-text-style";
@@ -12,6 +21,7 @@ import {
   BaselineIcon,
   BoldIcon,
   BracesIcon,
+  ImageIcon,
   ImagePlusIcon,
   ItalicIcon,
   LinkIcon,
@@ -42,8 +52,8 @@ import { KNOWN_TAGS } from "@/lib/mock/templates";
 import { MERGE_TAG_MENU_CLASS, MergeTagItems } from "@/components/features/merge-tag-items";
 import { cn } from "@/lib/utils";
 
-// The Letter body editor: rich text like the live app's EmailEditor (TipTap). Headless
-// TipTap, Saella styling: the toolbar is shadcn components only, the content uses EMAIL_PROSE (the same typography as
+// The Letter body editor: rich text like the live app's EmailEditor (TipTap). Headless TipTap, Saella styling: the
+// toolbar is shadcn components only, the content uses EMAIL_PROSE (the same typography as
 // the preview). Toolbar as the live one: block style, text size, B / I / U / S, bullet and numbered list, link, image,
 // text colour, undo / redo, merge tags, attach; Write with Saella sits at its right (live app "Agent").
 // Merge tags stay plain {{tag}} text in the HTML (the send pipeline fills them); the editor only draws them as chips.
@@ -53,8 +63,8 @@ import { cn } from "@/lib/utils";
 const IMAGE_MAX = 5 * 1024 * 1024;
 const IMAGE_TYPES = "image/png,image/jpeg,image/gif,image/webp";
 
-// Text colours: these go into the email itself (recipients' inboxes), so they are template colours, not UI tokens.
-// The first is the email ink (--email-ink). Live app: BRAND_PRESETS + a free picker.
+// Text colours: these go into the email itself (recipients' inboxes), so they are template colours, not UI tokens
+//. The first is the email ink (--email-ink). Live app: BRAND_PRESETS + a free picker.
 const TEXT_COLOURS = [
   { name: "Ink", value: "#0c2124" },
   { name: "Grey", value: "#62747a" },
@@ -81,6 +91,55 @@ function insertImage(view: EditorView, f: File, pos: number | null) {
   const tr = pos === null ? view.state.tr.replaceSelectionWith(node) : view.state.tr.insert(pos, node);
   view.dispatch(tr);
 }
+
+/** Real image sources; anything else is a mock file name with no stored file. */
+const REAL_SRC = /^(https?:|blob:|data:image\/)/i;
+
+/**
+ * An image in the letter. Mock: a file name with no stored file shows the same placeholder as EmailBody (icon + name,
+ * centred) instead of a broken image. Selected: an alt text field under it (the content check's "no alt text").
+ */
+function LetterImageView({ node, selected, editor, updateAttributes }: ReactNodeViewProps) {
+  const src = (node.attrs.src as string | null) ?? "";
+  const alt = (node.attrs.alt as string | null) ?? "";
+  return (
+    <NodeViewWrapper className="my-2 flex flex-col gap-1.5" data-drag-handle>
+      {REAL_SRC.test(src) ? (
+        // A user's own image (blob URL or a link): next/image can't optimise either.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={alt} className={cn("max-w-full rounded-md", selected && "ring-2 ring-brand")} />
+      ) : (
+        <div
+          role="img"
+          aria-label={alt || "Image without alt text"}
+          className={cn(
+            "flex h-40 w-full flex-col items-center justify-center gap-1 rounded-md bg-muted text-muted-foreground",
+            !src && "border border-dashed border-input",
+            selected && "ring-2 ring-brand"
+          )}
+        >
+          <ImageIcon aria-hidden className="size-6" />
+          <span className="text-xs">{src || "No image yet"}</span>
+        </div>
+      )}
+      {selected && editor.isEditable && (
+        <Input
+          aria-label="Alt text"
+          value={alt}
+          onChange={(e) => updateAttributes({ alt: e.target.value })}
+          placeholder="Alt text: what people see when images are blocked"
+          className="h-8 bg-background"
+        />
+      )}
+    </NodeViewWrapper>
+  );
+}
+
+const LetterImage = Image.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(LetterImageView);
+  },
+});
 
 /** {{tag}} drawn as a chip inside the editor (decoration only: the HTML keeps the plain text). */
 export const MergeTagChips = Extension.create({
@@ -111,6 +170,7 @@ export function LetterEditor({
   disabled,
   onAttach,
   trailing,
+  focusImage,
 }: {
   /** Read once: remount (key) to load different content, e.g. after Write with Saella or Undo. */
   value: string;
@@ -119,6 +179,8 @@ export function LetterEditor({
   onAttach?: () => void;
   /** Right end of the toolbar: Write with Saella. */
   trailing?: React.ReactNode;
+  /** Select the image at `index` (counted among images) and scroll to it, e.g. from the content check. */
+  focusImage?: { index: number; n: number } | null;
 }) {
   const editor = useEditor({
     extensions: [
@@ -128,7 +190,7 @@ export function LetterEditor({
         codeBlock: false,
         link: { openOnClick: false, autolink: true, HTMLAttributes: { rel: "noopener nofollow", target: "_blank" } },
       }),
-      Image.configure({ inline: false, allowBase64: false }),
+      LetterImage.configure({ inline: false, allowBase64: false }),
       TextStyle,
       Color,
       FontSize,
@@ -164,21 +226,30 @@ export function LetterEditor({
           // TipTap's placeholder: an empty first paragraph shows the hint.
           "[&_.is-editor-empty:first-child]:before:pointer-events-none [&_.is-editor-empty:first-child]:before:float-left [&_.is-editor-empty:first-child]:before:h-0",
           "[&_.is-editor-empty:first-child]:before:text-subtle-foreground [&_.is-editor-empty:first-child]:before:content-[attr(data-placeholder)]",
-          "[&_img.ProseMirror-selectednode]:ring-2 [&_img.ProseMirror-selectednode]:ring-brand",
-          // Mock: an image with a file name but no stored file (seed letters) shows as a placeholder box with its alt.
-          "[&_img:not([src^='http']):not([src^='blob:'])]:flex [&_img:not([src^='http']):not([src^='blob:'])]:h-24 [&_img:not([src^='http']):not([src^='blob:'])]:w-full",
-          "[&_img:not([src^='http']):not([src^='blob:'])]:items-center [&_img:not([src^='http']):not([src^='blob:'])]:justify-center",
-          "[&_img:not([src^='http']):not([src^='blob:'])]:border [&_img:not([src^='http']):not([src^='blob:'])]:border-dashed",
-          "[&_img:not([src^='http']):not([src^='blob:'])]:border-input [&_img:not([src^='http']):not([src^='blob:'])]:bg-muted",
-          "[&_img:not([src^='http']):not([src^='blob:'])]:text-xs [&_img:not([src^='http']):not([src^='blob:'])]:text-muted-foreground"
         ),
       },
     },
   });
 
+  // The content check's "Image 2 has no alt text": select that image and bring it into view.
+  useEffect(() => {
+    if (!editor || !focusImage) return;
+    let i = 0;
+    let at = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (at >= 0) return false;
+      if (node.type.name === "image") {
+        if (i === focusImage.index) at = pos;
+        i++;
+      }
+    });
+    if (at >= 0) editor.chain().focus().setNodeSelection(at).scrollIntoView().run();
+  }, [editor, focusImage]);
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="sticky top-0 z-10 flex items-start gap-2 rounded-lg border bg-background p-1.5">
+      {/* No box of its own (fewer nested outlines): a hairline under the toolbar. */}
+      <div className="sticky top-0 z-10 flex items-start gap-2 border-b bg-background pb-1.5">
         {editor ? <Toolbar editor={editor} disabled={disabled} onAttach={onAttach} /> : <div className="h-7 flex-1" />}
         {trailing}
       </div>

@@ -8,7 +8,7 @@ export const MERGE_TAG_MENU_CLASS = "w-72";
 
 /**
  * The merge-tag list for every "{ } Tags" menu (subject, preheader, Letter, Design). One line per tag: the name,
- * then the sample value muted and cut short on the right (the narrow menu wrapped "Lotus
+ * then the sample value muted and cut short on the right (designer 2026-11-14: the narrow menu wrapped "Lotus
  * Riverside Hotel" and "Sender email" onto two lines). Put it in a DropdownMenuContent with MERGE_TAG_MENU_CLASS.
  */
 export function MergeTagItems({ onPick }: { onPick: (tag: string) => void }) {

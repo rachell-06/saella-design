@@ -1,5 +1,6 @@
 "use client";
 
+import { SCROLL_POPOVER_LIST } from "@/lib/scroll";
 import { useId, useState } from "react";
 import { PlusIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -9,9 +10,9 @@ import { cn } from "@/lib/utils";
 import { ChipRemove } from "@/components/saella/chip-remove";
 
 // Free-text tags typed by the user (Contacts: "Trade show Q3", "Partners – Jakarta").
-// Existing tags open as a dropdown under the field on click or typing, not on focus alone: a dialog that
-// autofocuses the field must not open a list over its own buttons (no wall of
-// suggestion chips). Typing filters the list; arrows move, Enter picks the highlighted tag or adds the typed one,
+// Existing tags open as a dropdown under the field on click or typing, not on focus alone: a dialog that autofocuses
+// the field must not open a list over its own buttons. Typing filters the list; arrows move, Enter picks the
+// highlighted tag or adds the typed one,
 // comma also adds. Backspace on an empty input removes the last tag. ARIA combobox + listbox; not cmdk, whose
 // input overrides `id` and would unhook the field's <label>. Normalising is the caller's job via `onChange`.
 export function TagInput({
@@ -123,7 +124,7 @@ export function TagInput({
       <PopoverContent
         align="start"
         side={listSide}
-        className="max-h-60 w-(--radix-popper-anchor-width) min-w-56 overflow-y-auto p-1"
+        className={cn("w-(--radix-popper-anchor-width) min-w-56 p-1", SCROLL_POPOVER_LIST)}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
@@ -150,8 +151,8 @@ export function TagInput({
             </div>
           ))}
         </div>
-        {/* New tags are made by typing (the "Add …" option above appears then). Say so while the list only shows
-            existing tags, or it reads as pick-only (designer 2026-11-13). */}
+        {/* New tags are made by typing (the "Add …" option above appears then). Say so while the list only shows existing
+            tags, or it reads as pick-only. */}
         {!canCreate && (
           <p className="sticky bottom-0 -mx-1 -mb-1 flex items-center gap-2 border-t bg-popover px-3 py-2 text-xs text-muted-foreground">
             <PlusIcon className="size-3.5" aria-hidden />

@@ -111,11 +111,8 @@ export function HealthRing({ report, size = 56, className }: { report: HealthRep
           />
         )}
       </svg>
-      <span
-        className="absolute font-medium tabular-nums"
-        style={{ fontSize: size * 0.32 }}
-        aria-hidden
-      >
+      {/* Sized for the default 56px ring; no inline px font (DESIGN §2). */}
+      <span className="absolute text-lg font-medium tabular-nums" aria-hidden>
         {none ? "–" : report.score}
       </span>
     </span>

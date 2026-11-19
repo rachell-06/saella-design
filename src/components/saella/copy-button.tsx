@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Copy one value to the clipboard (DNS records, addresses). The icon turns into a tick for 1.5s and a toast
-// confirms, so the result is announced without relying on the icon alone.
+// confirms, so the result is announced without relying on the icon alone (2026-10-28).
 export function CopyButton({ value, label = "Copy value" }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 

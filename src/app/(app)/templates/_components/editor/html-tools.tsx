@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { sanitizeHtml } from "@/lib/mock/templates-html";
 import { cn } from "@/lib/utils";
 
-// The live editor's HTML tools (EmailTemplateEditor, PosterCanvasEditor; restored):
+// The live editor's HTML tools (EmailTemplateEditor; PosterCanvasEditor):
 // - Visual | HTML: see and edit the email's raw HTML. What comes back is sanitised (AC-EC-T-05: script, iframe,
 //   object, embed, form, style and link are removed). An .html file can be dropped onto the HTML view.
 // - A Letter's HTML block: a designed block below the text, sent as an image (live "HTML block — sent as an
@@ -177,7 +177,6 @@ export function HtmlBlockArea({ block, onChange, disabled }: { block: string; on
               <PlusIcon className="size-4" />
               {over ? "Drop the HTML file to load it" : "Add HTML block"}
             </span>
-            <span className="text-xs">Paste a designed HTML block, generate one, or drop an .html file. It shows below your text and is sent as an image.</span>
           </Button>
         )
       )}
@@ -214,7 +213,7 @@ function HtmlBlockDialog({ open, onOpenChange, initial, onApply }: { open: boole
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>HTML block</DialogTitle>
-          <DialogDescription>Generate a block with AI, or paste a designed HTML block. It shows below your text and is sent as one image.</DialogDescription>
+          <DialogDescription>Sent as one image, below your text.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <Field>
@@ -262,7 +261,7 @@ function HtmlBlockDialog({ open, onOpenChange, initial, onApply }: { open: boole
                   </Button>
                 </Hint>
               )}
-              <Button variant="outline" size="sm" onClick={generate} disabled={writing || (!prompt.trim() && !reference)}>
+              <Button variant="ai" size="sm" onClick={generate} disabled={writing || (!prompt.trim() && !reference)}>
                 {writing ? <Spinner data-icon="inline-start" /> : <SparklesIcon data-icon="inline-start" />}
                 {writing ? "Generating…" : "Generate with AI"}
               </Button>

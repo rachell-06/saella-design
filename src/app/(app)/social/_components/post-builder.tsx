@@ -261,8 +261,8 @@ export function PostBuilder({ campaignId, postId }: { campaignId: number; postId
   }, [postId, accounts]);
 
   const [step, setStep] = useState(() => Math.min(2, Math.max(0, Number(params.get("step") ?? 0) || 0)));
-  // New posts start with the agent asking for the goal; "Pick networks myself" or ?start=manual
-  // goes straight to the manual Write step. Edits, prefilled previews and workspaces without accounts skip it.
+  // New posts start with the agent asking for the goal; "Pick networks myself" or ?start=manual goes straight to the
+  // manual Write step. Edits, prefilled previews and workspaces without accounts skip it.
   const goalFlow = !postId && !preview && params.get("start") !== "manual" && accounts.length > 0;
   const [atGoal, setAtGoal] = useState(goalFlow && !params.get("step"));
   const [goalNets, setGoalNets] = useState<number | null>(null);
@@ -647,12 +647,14 @@ export function PostBuilder({ campaignId, postId }: { campaignId: number; postId
     ...(campaign ? [{ label: campaign.name, href: `/social?campaign=${campaign.id}` }] : []),
   ];
   const pageTitle = live ? "Edit live post" : postId ? "Edit post" : "New post";
+  // Says what the page is for, not its steps (the stepper shows those).
+  const pageDescription = postId ? "Change this post and how it looks on each network." : "Create one post and tailor it for every network.";
   if (preview === "loading") {
     return (
       <>
         <PageHeader
           title={pageTitle}
-          description="Write the post, check how it looks on each network, then publish."
+          description={pageDescription}
           breadcrumbs={crumbs}
         />
         <div className="flex flex-col gap-6" aria-busy>
@@ -671,7 +673,7 @@ export function PostBuilder({ campaignId, postId }: { campaignId: number; postId
       <>
         <PageHeader
           title={pageTitle}
-          description="Write the post, check how it looks on each network, then publish."
+          description={pageDescription}
           breadcrumbs={[{ label: "Posts", href: "/social" }]}
         />
         <Empty className="border">
@@ -1483,7 +1485,7 @@ export function PostBuilder({ campaignId, postId }: { campaignId: number; postId
     <>
       <PageHeader
         title={pageTitle}
-        description="Write the post, check how it looks on each network, then publish."
+        description={pageDescription}
         breadcrumbs={crumbs}
       />
 

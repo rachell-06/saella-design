@@ -22,7 +22,7 @@ function Checkbox({
         data-slot="checkbox-indicator"
         className="grid place-content-center text-current transition-none [&>svg]:size-3.5"
       >
-        {/* Saella "some selected" shows a dash, not a tick (select-all in DataTable). */}
+        {/* Saella 2026-10-27: "some selected" shows a dash, not a tick (select-all in DataTable). */}
         <CheckIcon className="group-data-[state=indeterminate]/checkbox:hidden" />
         <MinusIcon className="hidden group-data-[state=indeterminate]/checkbox:block" />
       </CheckboxPrimitive.Indicator>

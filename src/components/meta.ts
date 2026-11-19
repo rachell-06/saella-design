@@ -1,6 +1,5 @@
 // Usage notes for AI agents, one `<component>.meta.ts` next to each component file.
 // The component file says how it looks; the meta says when to use it, with what, and what not to do.
-// Rules that apply to the whole app are in README.md: reference them, don't copy them.
 export type ComponentMeta = {
   name: string;
   /** atom = shadcn primitive (ui/), molecule/organism = composed in saella/. */

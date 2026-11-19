@@ -1,7 +1,9 @@
 "use client";
 
+import { SCROLL_POPOVER_LIST } from "@/lib/scroll";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
-import { TagIcon, TagsIcon, Trash2Icon } from "lucide-react";
+import { TagsIcon, TagXIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { SelectionBar } from "@/components/saella/selection-bar";
 import { TagInput } from "@/components/saella/tag-input";
@@ -28,9 +30,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { fmt, normalizeTags, removeContacts, tagsOf, updateContacts } from "@/lib/mock/contacts";
 import type { BookContact } from "./contact-book";
 
-// Bulk actions for the selected Self-upload contacts, in the shared floating
-// SelectionBar like Find companies. PRD Contacts has no bulk actions and forbids none; the live app has none.
-// Each action is the one-contact rule applied to many:
+// Bulk actions for the selected Self-upload contacts, in the shared floating SelectionBar. Not in PRD Contacts or
+// the live app. Each action is the one-contact rule applied to many:
 // - Add tags: merged into each contact's tags (like Add contact, CON-SEQ-003 union).
 // - Remove tag: one of the tags the selection carries.
 // - Delete: confirmed; hard delete, past sends and reports kept (AC-CON-D-01/02, CON-DELETE-001).
@@ -95,11 +96,11 @@ export function ContactsBulkBar({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
-                <TagIcon data-icon="inline-start" />
+                <TagXIcon data-icon="inline-start" />
                 Remove tag
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side="top" align="start" className="max-h-72 w-56 overflow-y-auto">
+            <DropdownMenuContent side="top" align="start" className={cn("w-56", SCROLL_POPOVER_LIST)}>
               <DropdownMenuLabel>Remove from the selection</DropdownMenuLabel>
               <DropdownMenuGroup>
                 {selectedTags.map((t) => (

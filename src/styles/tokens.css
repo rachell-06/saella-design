@@ -3,12 +3,12 @@
  * Mọi màu/cỡ/bo/bóng của app lấy từ file này. Component và màn hình chỉ dùng class Tailwind
  * sinh từ token (bg-primary, text-muted-foreground, bg-status-sent, rounded-card...), không viết mã màu.
  *
- * Kế thừa UI style của LP saella.ai (theo yêu cầu sếp). Nguồn từng giá trị:
- * = có trong LP: src/index.css của Saella LP VÀ CSS đã build trên https://www.saella.ai/ 
+ * Kế thừa UI style của LP saella.ai. Nguồn từng giá trị:
+ *   [LP]   = có trong LP: src/index.css của Saella LP VÀ CSS đã build trên https://www.saella.ai/ (đối chiếu)
  *   [LP-src] = chỉ có trong source LP (không thấy trong CSS live vì Tailwind bỏ token không dùng)
  *   [LP-cmp] = mã màu viết thẳng trong component LP (đường dẫn ghi kèm)
- *     = đề xuất cho app, LP không có, CHỜ DUYỆT
- * Contrast (WCAG 2.x) đã tính cho từng cặp chữ/nền: ghi cạnh từng giá trị bên dưới.
+ *   [ĐX]   = đề xuất cho app, LP không có, CHỜ DUYỆT
+ * Contrast (WCAG 2.x) đã tính cho từng cặp chữ/nền.
  *
  * Tên biến theo shadcn/ui v4 (Tailwind 4). shadcn tự map biến chuẩn trong globals.css;
  * block @theme inline cuối file chỉ map biến RIÊNG Saella.
@@ -19,80 +19,80 @@
 
 :root {
   /* ---------- Nền và chữ (shadcn) ---------- */
-  --background: #ffffff; /* white */
-  --foreground: #0c2124; /* ink */
-  --card: #ffffff; /* white */
-  --card-foreground: #0c2124; /* ink */
-  --popover: #ffffff; /* white */
-  --popover-foreground: #0c2124; /* ink */
+  --background: #ffffff; /* [LP] white */
+  --foreground: #0c2124; /* [LP] ink */
+  --card: #ffffff; /* [LP] white */
+  --card-foreground: #0c2124; /* [LP] ink */
+  --popover: #ffffff; /* [LP] white */
+  --popover-foreground: #0c2124; /* [LP] ink */
 
   /* Nút chính và chữ link. LP dùng primary-strong cho nền nút vì #BF6603 + chữ trắng chỉ 4.10:1 */
-  --primary: #a85a02; /* primary-strong. Chữ trắng 5.09:1; làm chữ trên trắng 5.09:1 */
-  --primary-foreground: #ffffff; /* */
+  --primary: #a85a02; /* [LP] primary-strong. Chữ trắng 5.09:1; làm chữ trên trắng 5.09:1 */
+  --primary-foreground: #ffffff; /* [LP] */
 
-  --secondary: #f5f6f4; /* fog */
-  --secondary-foreground: #0c2124; /* ink */
-  --muted: #f5f6f4; /* fog */
-  --muted-foreground: #3f5457; /* ink-2. 8.02:1 trên trắng, 7.40:1 trên fog */
-  --accent: #f5f6f4; /* fog: nền hover menu/ghost (LP: nút ngôn ngữ, item dropdown form) */
-  --accent-foreground: #0c2124; /* ink */
+  --secondary: #f5f6f4; /* [LP] fog */
+  --secondary-foreground: #0c2124; /* [LP] ink */
+  --muted: #f5f6f4; /* [LP] fog */
+  --muted-foreground: #3f5457; /* [LP] ink-2. 8.02:1 trên trắng, 7.40:1 trên fog */
+  --accent: #f5f6f4; /* [LP] fog: nền hover menu/ghost (LP: nút ngôn ngữ, item dropdown form) */
+  --accent-foreground: #0c2124; /* [LP] ink */
 
   --destructive: #b4321f; /* [LP-cmp] FooterSignup.tsx màu lỗi. Chữ trắng 6.15:1; chữ trên trắng 6.15:1 */
 
-  --border: #e3e6e2; /* line: hairline */
-  --input: #879393; /* viền ô nhập 3.17:1 trên trắng (WCAG 1.4.11). LP dùng line #E3E6E2 = 1.26:1 */
-  --ring: #bf6603; /* focus-ring: outline 2px primary. 4.10:1 trên trắng, 3.79:1 trên fog */
+  --border: #e3e6e2; /* [LP] line: hairline */
+  --input: #879393; /* [ĐX] viền ô nhập 3.17:1 trên trắng (WCAG 1.4.11). LP dùng line #E3E6E2 = 1.26:1 */
+  --ring: #bf6603; /* [LP] focus-ring: outline 2px primary. 4.10:1 trên trắng, 3.79:1 trên fog */
 
- /* Biểu đồ: họ màu field-* của LP. Kiểm phân biệt khi mù màu (OKLab, mô phỏng deutan/protan). */
-  --chart-1: #bf6603; /* primary / field-orange */
-  --chart-2: #1d8f86; /* field-teal */
+  /* Biểu đồ: họ màu field-* của LP. Kiểm phân biệt khi mù màu (OKLab, mô phỏng deutan/protan) */
+  --chart-1: #bf6603; /* [LP] primary / field-orange */
+  --chart-2: #1d8f86; /* [LP] field-teal */
   --chart-3: #3d6fd8; /* [LP-cmp] mocks/shots/ShotReport.tsx (gần field-blue #3B7BD9) */
-  --chart-4: #6a1d6d; /* field-plum (tông đậm) */
-  --chart-5: #e0a72a; /* field-gold. 2.16:1 trên trắng: luôn kèm nhãn/legend */
-  --chart-6: #c0365a; /* rose, cho Bounce trên biểu đồ (series thứ 6). 5.1:1 trên trắng */
+  --chart-4: #6a1d6d; /* [LP] field-plum (tông đậm) */
+  --chart-5: #e0a72a; /* [LP] field-gold. 2.16:1 trên trắng: luôn kèm nhãn/legend [ĐX] */
+  --chart-6: #c0365a; /* [ĐX] rose, cho Bounce trên biểu đồ (series thứ 6). 5.1:1 trên trắng */
 
   /* Bo góc gốc. shadcn (radix-nova) tính: sm .6x, md .8x, lg 1x, xl 1.4x
-     → nút/ô nhập (lg) 8px = LP nút 8px, input 8px; item menu (md) 6.4px ≈ LP 6px; card dùng rounded-card 12px = LP (chốt 2026-10-27) */
-  --radius: 0.5rem; /* nút trang rounded-[8px] */
+     → nút/ô nhập (lg) 8px = LP nút 8px, input 8px; item menu (md) 6.4px ≈ LP 6px; card dùng rounded-card 12px = LP */
+  --radius: 0.5rem; /* [LP] nút trang rounded-[8px] */
 
   /* ---------- Sidebar (shadcn) ---------- */
-  --sidebar: #f5f6f4; /* nền fog, vùng nội dung trắng. LP không có sidebar */
-  --sidebar-foreground: #0c2124; /* ink (trước là ink-2). 15.6:1 trên fog */
-  --sidebar-primary: #a85a02; /* primary-strong */
+  --sidebar: #ffffff; /* [ĐX] trắng như vùng nội dung, tách bằng --sidebar-border */
+  --sidebar-foreground: #0c2124; /* [LP] ink, như Studio Admin. 15.6:1 trên fog */
+  --sidebar-primary: #a85a02; /* [LP] primary-strong */
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #fbeee0; /* mục đang chọn = LP primary-soft */
-  --sidebar-hover: #ebedea; /* hover mục chưa chọn: fog đậm một bậc, khác hẳn mục chọn. Chữ ink-2 6.81:1 */
-  --sidebar-accent-foreground: #0c2124; /* ink. 14.63:1 trên primary-soft */
-  --sidebar-border: #e3e6e2; /* line */
-  --sidebar-ring: #bf6603; /* */
+  --sidebar-accent: #fbeee0; /* [ĐX] mục đang chọn = LP primary-soft */
+  --sidebar-hover: #f5f6f4; /* hover mục chưa chọn: fog trên nền trắng, khác hẳn mục chọn */
+  --sidebar-accent-foreground: #0c2124; /* [LP] ink. 14.63:1 trên primary-soft */
+  --sidebar-border: #e3e6e2; /* [LP] line */
+  --sidebar-ring: #bf6603; /* [LP] */
 
   /* ---------- Riêng Saella: họ cam ---------- */
-  --brand: #bf6603; /* primary. Icon, điểm nhấn, số lớn ≥24px. KHÔNG làm nền nút có chữ nhỏ (4.10:1) */
-  --primary-hover: #8f4c02; /* primary-hover. Hover nút chính (LP hover sáng lên #BF6603, app tối đi để giữ AA) */
-  --primary-soft: #fbeee0; /* primary-soft. Nền nhấn nhạt, mục đang chọn */
-  --primary-soft-foreground: #8f4c02; /* chữ trên primary-soft 5.75:1 (LP Tag dùng #A85A02 = 4.46:1, trượt AA) */
-  --primary-subtle: #fdf3e9; /* peach-soft. Dòng bảng đang chọn, chip giá trị filter */
-  --peach: #fbe7d3; /* peach. ::selection, highlight */
+  --brand: #bf6603; /* [LP] primary. Icon, điểm nhấn, số lớn ≥24px. KHÔNG làm nền nút có chữ nhỏ (4.10:1) */
+  --primary-hover: #8f4c02; /* [LP] primary-hover. Hover nút chính [ĐX: LP hover sáng lên #BF6603, app tối đi để giữ AA] */
+  --primary-soft: #fbeee0; /* [LP] primary-soft. Nền nhấn nhạt, mục đang chọn */
+  --primary-soft-foreground: #8f4c02; /* [ĐX] chữ trên primary-soft 5.75:1 (LP Tag dùng #A85A02 = 4.46:1, trượt AA) */
+  --primary-subtle: #fdf3e9; /* [LP] peach-soft. Dòng bảng đang chọn, chip giá trị filter */
+  --peach: #fbe7d3; /* [LP] peach. ::selection, highlight */
   --cream: #fef9f3; /* [LP-src] cream. Nền onboarding/empty state */
-  --table-head: #f3ece3; /* Hàng tiêu đề bảng: trung tính ấm theo tông primary Saella, không xám */
-  --deep: #04191c; /* deep. Dải tối (dành cho dark mode sau này) */
-  --deep-2: #0a2a2e; /* deep-2 */
+  --table-head: #faf6f0; /* Hàng tiêu đề bảng: kem nhạt cùng tông ấm, không xám. Không dùng peach: trùng dòng đang chọn (primary-subtle) */
+  --deep: #04191c; /* [LP] deep. Dải tối (dành cho dark mode sau này) */
+  --deep-2: #0a2a2e; /* [LP] deep-2 */
 
   /* Chữ mờ nhất còn đạt AA: placeholder, timestamp, caption.
      LP ink-3 #74878A chỉ 3.77:1 trên trắng nên app làm đậm một bậc */
-  --subtle-foreground: #62747a; /* 4.89:1 trắng, 4.51:1 fog */
+  --subtle-foreground: #62747a; /* [ĐX] 4.89:1 trắng, 4.51:1 fog */
 
   /* ---------- Riêng Saella: màu ngữ nghĩa ----------
      Mỗi họ 4 biến: X (nền đặc / icon / viền), X-foreground (chữ trên nền đặc),
      X-soft (nền nhạt), X-soft-foreground (chữ + icon trên nền nhạt VÀ trên trắng) */
-  --success: #1f7a4d; /* ok. Chữ trắng 5.32:1 */
+  --success: #1f7a4d; /* [LP] ok. Chữ trắng 5.32:1 */
   --success-foreground: #ffffff;
-  --success-soft: #e1f3ea; /* ok-soft */
-  --success-soft-foreground: #1f7a4d; /* ok. 4.61:1 trên ok-soft, 5.32:1 trên trắng */
+  --success-soft: #e1f3ea; /* [LP] ok-soft */
+  --success-soft-foreground: #1f7a4d; /* [LP] ok. 4.61:1 trên ok-soft, 5.32:1 trên trắng */
 
   --warning: #d9a21b; /* [LP-cmp] ShotReport.tsx (vàng huy chương). Chỉ làm nền/viền/vạch, 2.30:1 trên trắng */
-  --warning-foreground: #0c2124; /* ink. 7.26:1 trên warning */
-  --warning-soft: #fbf1d9; /* */
+  --warning-foreground: #0c2124; /* [LP] ink. 7.26:1 trên warning */
+  --warning-soft: #fbf1d9; /* [ĐX] */
   --warning-soft-foreground: #7a5300; /* [LP-cmp] ShotReport.tsx. 6.10:1 trên warning-soft, 6.85:1 trên trắng */
 
   --info: #3d6fd8; /* [LP-cmp] ShotReport.tsx. Chữ trắng 4.70:1 */
@@ -101,11 +101,11 @@
   --info-soft-foreground: #2b55b3; /* [LP-cmp] ShotReport.tsx. 5.87:1 trên info-soft, 6.88:1 trên trắng */
 
   --destructive-foreground: #ffffff; /* shadcn v4 bỏ biến này; Saella giữ để ghép cặp */
-  --destructive-soft: #fcebe8; /* */
+  --destructive-soft: #fcebe8; /* [ĐX] */
   --destructive-soft-foreground: #b4321f; /* [LP-cmp] 5.32:1 trên destructive-soft */
 
   /* ---------- Riêng Saella: trạng thái batch (một lần gửi) ----------
-     2026-10-27: trước ghi là trạng thái campaign; theo PRD-02 campaign chỉ có Not started/Active/Ended (theo ngày) nên bộ này chuyển sang batch.
+     Theo PRD-02 campaign chỉ có Not started/Active/Ended (theo ngày), nên bộ trạng thái này là của batch.
      Badge = nền + chữ; chấm trạng thái dùng màu chữ. Giá trị trỏ về họ màu ở trên */
   --status-draft: var(--muted); /* fog */
   --status-draft-foreground: var(--muted-foreground); /* ink-2, 7.40:1 */
@@ -125,23 +125,23 @@
   --status-active-dot: #12b76a;
 
   /* ---------- Riêng Saella: hình khối, bóng, chữ, chuyển động ---------- */
-  --card-radius: 12px; /* --radius-card */
-  --elevation-card: 0 1px 2px rgba(12, 33, 36, 0.06), 0 10px 30px rgba(12, 33, 36, 0.08); /* shadow-card: popover, dropdown, menu */
-  --elevation-float: 0 2px 6px rgba(12, 33, 36, 0.08), 0 30px 60px rgba(12, 33, 36, 0.18); /* shadow-float: dialog, sheet */
+  --card-radius: 12px; /* [LP] --radius-card */
+  --elevation-card: 0 1px 2px rgba(12, 33, 36, 0.06), 0 10px 30px rgba(12, 33, 36, 0.08); /* [LP] shadow-card: popover, dropdown, menu */
+  --elevation-float: 0 2px 6px rgba(12, 33, 36, 0.08), 0 30px 60px rgba(12, 33, 36, 0.18); /* [LP] shadow-float: dialog, sheet */
 
-  --font-size-dense: 0.8125rem; /* 13px: chỉ bảng dày. LP mock dùng 13–13.5px */
-  --line-height-dense: 1.125rem; /* 18px */
-  --letter-spacing-display: -0.035em; /* utility display (headline weight 400) */
-  --letter-spacing-title: -0.02em; /* tiêu đề trang/khối 18–24px */
-  --font-features: "ss01"; /* body font-feature-settings */
+  --font-size-dense: 0.8125rem; /* [ĐX] 13px: chỉ bảng dày. LP mock dùng 13–13.5px */
+  --line-height-dense: 1.125rem; /* [ĐX] 18px */
+  --letter-spacing-display: -0.035em; /* [LP] utility display (headline weight 400) */
+  --letter-spacing-title: -0.02em; /* [ĐX] tiêu đề trang/khối 18–24px */
+  --font-features: "ss01"; /* [LP] body font-feature-settings */
 
-  --ease-standard-curve: cubic-bezier(0, 0, 0.35, 1); /* Button transition */
-  --ease-emphasized-curve: cubic-bezier(0.2, 0.7, 0.2, 1); /* rise, header thu gọn */
-  --motion-fast: 150ms; /* Tailwind default transition */
-  --motion-base: 200ms; /* Button, chữ cuộn */
-  --motion-slow: 300ms; /* mở dialog/sheet. LP header dùng 500ms (marketing) */
+  --ease-standard-curve: cubic-bezier(0, 0, 0.35, 1); /* [LP] Button transition */
+  --ease-emphasized-curve: cubic-bezier(0.2, 0.7, 0.2, 1); /* [LP] rise, header thu gọn */
+  --motion-fast: 150ms; /* [LP] Tailwind default transition */
+  --motion-base: 200ms; /* [LP] Button, chữ cuộn */
+  --motion-slow: 300ms; /* [ĐX] mở dialog/sheet. LP header dùng 500ms (marketing) */
 
-  --selection: #fbe7d3; /* ::selection = peach */
+  --selection: #fbe7d3; /* [LP] ::selection = peach */
 
   /* ---------- Riêng Saella: khung email ----------
      Khung soạn/xem trước email hiện đúng như người nhận thấy: luôn nền sáng, KHÔNG đổi theo dark mode của app
@@ -161,9 +161,9 @@
   --email-error: #b4321f; /* 5.32:1 trên error-soft */
 }
 
-/* ---------- Dark mode (đổi sang nền shadcn cùng ngày) ----------
+/* ---------- Dark mode ----------
    Nền, chữ, viền lấy NGUYÊN bảng dark "neutral" của shadcn (registry ui.shadcn.com/r/colors/neutral.json):
-   xám trung tính, không dùng xanh mực LP (người dùng duyệt: nền xanh mực trông nặng).
+   xám trung tính, không dùng xanh mực LP (nền xanh mực trông nặng).
    Giữ của Saella (đã duyệt): cam làm nút chính/điểm nhấn, focus ring cam, viền ô nhập ≥ 3:1
    (shadcn white 15% chỉ ~1.4:1), màu biểu đồ Saella (shadcn dark chỉ có 5 sắc xám).
    Contrast tính trên nền trang VÀ card. */
@@ -197,7 +197,7 @@
   --chart-3: #7aa2f0;
   --chart-4: #c27ac6; /* 5.88:1 */
   --chart-5: #e0a72a;
-  --chart-6: #f07a96; /* */
+  --chart-6: #f07a96; /* [ĐX] */
 
   --sidebar: #171717; /* [shadcn] oklch(0.205 0 0) */
   --sidebar-foreground: #fafafa; /* [shadcn] chữ sáng, cặp với ink bản light. 17.2:1 */
@@ -217,7 +217,7 @@
   --peach: #55340f; /* selection */
   --cream: #121212; /* nền empty state/onboarding: nhích nhẹ khỏi nền. Chữ mờ 7.25:1 */
   --table-head: #4a3e32; /* hàng tiêu đề bảng: ấm, sáng hơn card #171717 đủ thấy rõ; khác dòng đang chọn (primary-subtle #201810) */
-  --deep: #04191c; /* giữ cho overlay dialog */
+  --deep: #04191c; /* [LP] giữ cho overlay dialog */
   --deep-2: #0a2a2e;
 
   --subtle-foreground: #8f8f8f; /* 6.12:1 nền, 5.54:1 card, 4.68:1 muted */

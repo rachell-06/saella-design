@@ -4,33 +4,35 @@
 // app batches/[id]/report/*). Header = what was sent, to whom, from whom (operator + send-as, BR-RULE-EC-44);
 // then status (progress while sending, reason when failed or paused), then four tabs. Overview is the default
 // tab (AC-EC-O-07). Rates follow the live app: open/click/reply/unsub over delivered, bounce over sent, machine
-// traffic excluded (AC-EC-K-07), grey below 20 sends (BR-RULE-EC-21).
-// (PRD + live app review): Reply joins the headline rates (live app OverviewTab "Performance"); "View
-// email" shows the email as sent (AC-EC-O-03, live app preview beside Top links); "Other batches of this template"
-// stands in for the live app's cross-batch comparison (AC-EC-O-03). Not built: industry benchmark and top
-// locations (AC-EC-O-03), which have no data in the mock or, for locations, in the live app yet.
+// traffic excluded (AC-EC-K-07), grey below 20 sends (BR-RULE-EC-21). Reply is a headline rate (live app OverviewTab
+// "Performance"); "View email" shows the email as sent (AC-EC-O-03); "Other batches of this template" stands in for
+// the live app's cross-batch comparison. Not built: industry benchmark and top locations (AC-EC-O-03), which have no
+// data in the mock or, for locations, in the live app yet.
 // Preview states (?state=): loading, error, paused (shows b2 as paused by the workspace auto-pause).
 
+import { SCROLL_CARD_TABLE } from "@/lib/scroll";
+import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRightIcon,
-  CalendarClockIcon,
   CircleAlertIcon,
   CirclePauseIcon,
   FileSpreadsheetIcon,
   InboxIcon,
+  InfoIcon,
   MailIcon,
   RotateCwIcon,
   SearchXIcon,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { toast } from "sonner";
 import { formatDate, formatDateTime, rate } from "@/lib/mock/campaigns";
 import { contactsHref } from "@/lib/mock/contacts";
 import { WORKSPACE_TZ_LABEL } from "@/lib/time";
-import { detailsFor } from "@/lib/mock/templates";
+import { METRIC_COLOR } from "@/lib/metric-colors";
+import { Hint } from "@/components/saella/hint";
+import { detailsFor, findTemplate } from "@/lib/mock/templates";
 import { EmailBody, TagText } from "@/components/features/email-body";
 import { PageHeader } from "@/components/layout/page-header";
 import { KpiStrip, KpiStripItem } from "@/components/saella/kpi-strip";
@@ -59,7 +61,7 @@ import {
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   type ReportBatch,
@@ -68,7 +70,6 @@ import {
   allBatches,
   batchCode,
   batchTitle,
-  findTemplate,
   getBatch,
   hourlySnapshot,
   linkStats,
@@ -108,7 +109,7 @@ export function ReportScreen({ id }: { id: string }) {
     const b = getBatch(id);
     // Preview of a batch stopped by the workspace auto-pause (BR-RULE-EC-19).
     if (b && state === "paused" && b.status === "sending")
-      return { ...b, status: "paused", reason: "Sending is paused for this workspace: bounces reached 10.4% over the last 7 days." };
+      return { ...b, status: "paused", reason: "Bounces reached 10.4% over the last 7 days." };
     return b;
   });
 
@@ -149,7 +150,7 @@ export function ReportScreen({ id }: { id: string }) {
   if (state === "error") {
     return (
       <>
-        <PageHeader title="Batch report" description="How this batch performed, recipient by recipient." breadcrumbs={[{ label: "Overview", href: "/overview" }]} />
+        <PageHeader title="Batch report" description="Delivery, engagement and replies for this send." breadcrumbs={[{ label: "Templates", href: "/templates" }]} />
         <Alert variant="destructive">
           <CircleAlertIcon />
           <AlertTitle>Couldn&apos;t load this report</AlertTitle>
@@ -168,7 +169,7 @@ export function ReportScreen({ id }: { id: string }) {
   if (!batch) {
     return (
       <>
-        <PageHeader title="Batch report" description="How this batch performed, recipient by recipient." breadcrumbs={[{ label: "Overview", href: "/overview" }]} />
+        <PageHeader title="Batch report" description="Delivery, engagement and replies for this send." breadcrumbs={[{ label: "Templates", href: "/templates" }]} />
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -179,7 +180,7 @@ export function ReportScreen({ id }: { id: string }) {
           </EmptyHeader>
           <EmptyContent>
             <Button variant="outline" asChild>
-              <Link href="/overview">Back to Overview</Link>
+              <Link href="/templates">Back to Templates</Link>
             </Button>
           </EmptyContent>
         </Empty>
@@ -191,25 +192,26 @@ export function ReportScreen({ id }: { id: string }) {
   const sender = senderById(batch.senderId);
   const operator = memberById(batch.operatorId);
   const hasResults = !!batch.metrics && batch.sent > 0;
+  const draft = batch.status === "draft";
+  // Nothing went out yet (draft) or ever (failed): the people fields say who it is from and to, not who it was sent to.
+  const unsent = draft || batch.sent === 0;
   const fileBase = `batch-${batchCode(batch).slice(1)}`;
-  const when =
-    batch.status === "scheduled" && batch.scheduledFor
-      ? `Scheduled for ${formatDateTime(batch.scheduledFor)} ${WORKSPACE_TZ_LABEL}`
-      : batch.sentAt
-        ? // Still going out (or held by a pause): it started then, it isn't "sent" yet.
-          `${batch.status === "sending" || batch.status === "paused" ? "Started" : "Sent"} ${formatDateTime(batch.sentAt)} ${WORKSPACE_TZ_LABEL}`
-        : `Created ${formatDate(batch.createdOn, true)}`;
+  // Batches only send now (Save draft + Send now); timing lives on schedules.
+  const when = batch.sentAt
+    ? // Still going out (or held by a pause): it started then, it isn't "sent" yet.
+      `${batch.status === "sending" || batch.status === "paused" ? "Started" : "Sent"} ${formatDateTime(batch.sentAt)} ${WORKSPACE_TZ_LABEL}`
+    : `Created ${formatDate(batch.createdOn, true)}`;
 
   return (
     <>
       <PageHeader
         title={batchTitle(batch)}
+        // A batch is a send of one template: Templates › the template; the sidebar marks Templates.
         breadcrumbs={[
-          { label: "Overview", href: "/overview" },
-          ...(tpl ? [{ label: tpl.campaign.name, href: `/overview?campaign=${tpl.campaign.id}` }] : []),
+          { label: "Templates", href: "/templates" },
+          ...(tpl ? [{ label: tpl.template.name, href: `/templates/${tpl.template.id}` }] : []),
         ]}
-        // "Export report" vs the tabs' "Export links"/"Export recipients": three buttons all read
-        // "Export to Excel" on Clicks and Recipients, with no hint which data each one exported.
+        // "Export report" vs the tabs' "Export links" / "Export recipients": each label names the data it exports.
         actions={
           <>
             <SentEmailDialog batch={batch} />
@@ -219,59 +221,87 @@ export function ReportScreen({ id }: { id: string }) {
                 Export report
               </Button>
             )}
+            {/* A draft's one next step, the page's solid button. Back to Review with the picks saved on the draft; a draft
+without them (seed data, or after a reload) starts at Recipients. */}
+            {draft && (
+              <Button size="sm" asChild>
+                <Link href={`/batches/new?template=${encodeURIComponent(batch.templateId)}&draft=${encodeURIComponent(batch.id)}`}>
+                  Continue
+                </Link>
+              </Button>
+            )}
           </>
         }
       >
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <StatusBadge status={batch.status} />
+          {/* Only the workspace auto-pause stops a batch (BR-RULE-EC-18/19), so a paused batch says so. */}
+          <StatusBadge status={batch.status} label={batch.status === "paused" ? "Auto-paused" : undefined} />
           <span>{when}</span>
         </div>
       </PageHeader>
 
-      {/* What was sent, to whom and from whom. Columns sized to their content: equal columns cut the
-          subject and the send-as address short while "Sent by" sat half empty. When the row is full, short items keep
-          their width and only the long ones truncate (grid shares the rest equally up to each item's max-content).
-          Items split by thin vertical lines, the same padding each side, first item flush left (designer 2026-11-14); the
-          row never wraps, so no line can start a row: long values truncate with a tooltip instead. */}
-      <dl className="grid grid-cols-[repeat(6,minmax(0,max-content))] divide-x divide-border text-sm">
+      {/* What was sent, to whom and from whom. Columns sized to their content; when the row is full, short items keep
+          their width and only the long ones truncate (grid shares the rest equally up to each item's max-content). The
+          row never wraps, so no divider can start a row: long values truncate with a tooltip instead. */}
+      <dl className="grid grid-cols-[repeat(6,minmax(0,max-content))] divide-x divide-border rounded-card border bg-card px-4 py-3 text-sm">
         <Meta label="Template" value={tpl?.template.name ?? "Deleted template"} href={tpl ? `/templates/${tpl.template.id}` : undefined} />
         <Meta label="Subject" value={SUBJECTS[batch.templateId] ?? "–"}>
           <SubjectText subject={SUBJECTS[batch.templateId] ?? "–"} />
         </Meta>
-        <Meta label="Sent as" value={sender ? `${sender.name} <${sender.email}>` : "–"} />
-        <Meta label="Sent by" value={operator?.name ?? "–"} />
-        {/* A batch to Saella companies has no contact tags. */}
-        <Meta label="Sent to" value={batch.tags.length ? batch.tags.join(", ") : "Saella companies"} href={batch.tags.length ? contactsHref(batch.tags) : undefined} />
-        <Meta label="Recipients" value={n(batch.recipients)} href={hasResults ? `${pathname}?tab=recipients` : undefined} />
+        <Meta label={unsent ? "From" : "Sent as"} value={sender ? `${sender.name} <${sender.email}>` : "–"} />
+        <Meta label={draft ? "Created by" : "Sent by"} value={operator?.name ?? "–"} />
+        {/* A batch to Saella companies has no contact tags. The batch went to anyone carrying any of its
+            tags, so the link lists that union, not the contacts carrying all of them. */}
+        <Meta
+          label={unsent ? "To" : "Sent to"}
+          value={batch.tags.length ? batch.tags.join(", ") : "Saella companies"}
+          href={batch.tags.length ? contactsHref(batch.tags, { any: true }) : undefined}
+        />
+        {/* Paused: the unsent ones are held, so they read as waiting, not failed. */}
+        <Meta
+          label="Recipients"
+          value={
+            batch.status === "paused"
+              ? `${n(batch.recipients)} · ${n(batch.recipients - batch.sent)} waiting`
+              : n(batch.recipients)
+          }
+          href={hasResults ? `${pathname}?tab=recipients` : undefined}
+        />
       </dl>
 
       <StatusPanel batch={batch} />
 
       <div className="flex flex-col gap-6">
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList aria-label="Report sections">
-            {TABS.map((t) => (
-              <TabsTrigger key={t.value} value={t.value}>
-                {t.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-
+        {/* No tabs without results (draft, failed, nothing delivered yet): every tab would show the same empty state. */}
         {!hasResults ? (
           <NoResults batch={batch} />
-        ) : tab === "overview" ? (
-          <OverviewTab
-            batch={batch}
-            onOpenClicks={() => setTab("clicks")}
-            peopleHref={(event) => `${pathname}?tab=recipients${event ? `&event=${event}` : ""}`}
-          />
-        ) : tab === "deliverability" ? (
-          <DeliverabilityTab batch={batch} />
-        ) : tab === "clicks" ? (
-          <ClicksTab batch={batch} fileBase={fileBase} />
         ) : (
-          <RecipientsTab batch={batch} fileBase={fileBase} />
+          // Each view is its tab's panel, so a tab's aria-controls points at a real region.
+          <Tabs value={tab} onValueChange={setTab} className="gap-6">
+            <TabsList aria-label="Report sections">
+              {TABS.map((t) => (
+                <TabsTrigger key={t.value} value={t.value}>
+                  {t.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <TabsContent value="overview" className="text-base">
+              <OverviewTab
+                batch={batch}
+                onOpenClicks={() => setTab("clicks")}
+                peopleHref={(event) => `${pathname}?tab=recipients${event ? `&event=${event}` : ""}`}
+              />
+            </TabsContent>
+            <TabsContent value="deliverability" className="text-base">
+              <DeliverabilityTab batch={batch} />
+            </TabsContent>
+            <TabsContent value="clicks" className="text-base">
+              <ClicksTab batch={batch} fileBase={fileBase} />
+            </TabsContent>
+            <TabsContent value="recipients" className="text-base">
+              <RecipientsTab batch={batch} fileBase={fileBase} />
+            </TabsContent>
+          </Tabs>
         )}
       </div>
     </>
@@ -282,10 +312,10 @@ export function ReportScreen({ id }: { id: string }) {
 function Meta({ label, value, href, children }: { label: string; value: string; href?: string; children?: React.ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5 px-6 first:pl-0 last:pr-0">
-      <dt className="text-muted-foreground">{label}</dt>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
       <Tooltip>
         <TooltipTrigger asChild>
-          <dd className="truncate">
+          <dd className="truncate font-medium">
             {href ? (
               <Link href={href} className="text-primary underline-offset-4 hover:underline">
                 {value}
@@ -301,7 +331,7 @@ function Meta({ label, value, href, children }: { label: string; value: string; 
   );
 }
 
-// Progress while sending; the reason when it stopped; what happens next when scheduled.
+// Progress while sending; the reason when it stopped.
 function StatusPanel({ batch }: { batch: ReportBatch }) {
   if (batch.status === "sending") {
     const pct = Math.round((batch.sent / Math.max(1, batch.recipients)) * 100);
@@ -321,16 +351,24 @@ function StatusPanel({ batch }: { batch: ReportBatch }) {
       </div>
     );
   }
+  // Auto-paused: the unsent emails are held, not failed, and go out once Saella lifts the pause (PRD Master v1.2.9
+  // "holds the queue"; not PRD-02 EC-EC-08 "marked failed"). No Resume: Saella lifts it.
   if (batch.status === "paused") {
     return (
+      // Same alert as Overview's (warning, matching the amber "Auto-paused" badge); the counts are in the header line.
       <Alert variant="warning">
         <CirclePauseIcon />
-        <AlertTitle>
-          Paused after {n(batch.sent)} of {n(batch.recipients)}
-        </AlertTitle>
+        <AlertTitle>Sending is paused for this workspace</AlertTitle>
         <AlertDescription>
-          {batch.reason} The other {n(batch.recipients - batch.sent)} stay queued and continue when an admin resumes sending.
+          {/* The count is in the header ("228 waiting"). */}
+          {batch.reason} The rest are waiting and go out once Saella lifts
+          the pause.
         </AlertDescription>
+        <AlertAction>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/settings/sending">Sending health</Link>
+          </Button>
+        </AlertAction>
       </Alert>
     );
   }
@@ -348,34 +386,17 @@ function StatusPanel({ batch }: { batch: ReportBatch }) {
       </Alert>
     );
   }
-  if (batch.status === "scheduled") {
-    return (
-      <Alert variant="info">
-        <CalendarClockIcon />
-        <AlertTitle>Goes out {batch.scheduledFor ? `${formatDateTime(batch.scheduledFor)} ${WORKSPACE_TZ_LABEL}` : "later"}</AlertTitle>
-        <AlertDescription>
-          {n(batch.recipients)} recipients. People who unsubscribe or bounce before then are skipped.
-        </AlertDescription>
-        <AlertAction>
-          <Button variant="outline" size="sm" onClick={() => toast.success("Schedule cancelled", { description: "Nothing was sent. The template is unchanged." })}>
-            Cancel schedule
-          </Button>
-        </AlertAction>
-      </Alert>
-    );
-  }
   return null;
 }
 
+// Continue for a draft is the header's solid button, so the empty state only explains.
 function NoResults({ batch }: { batch: ReportBatch }) {
   const copy =
-    batch.status === "scheduled"
-      ? { title: "Results appear after it sends", body: "Opens, clicks and bounces show here once the first emails go out." }
-      : batch.status === "draft"
-        ? { title: "This batch is a draft", body: "Finish it to send. Drafts have no results." }
-        : batch.status === "failed"
-          ? { title: "No results", body: "Nothing was sent, so there is nothing to report." }
-          : { title: "No results yet", body: "The first emails are on their way. This page updates as they're delivered." };
+    batch.status === "draft"
+      ? { title: "This batch is a draft", body: "Continue to review and send it." }
+      : batch.status === "failed"
+        ? { title: "No results", body: "Nothing was sent, so there is nothing to report." }
+        : { title: "No results yet", body: "The first emails are on their way. This page updates as they're delivered." };
   return (
     <Empty className="border">
       <EmptyHeader>
@@ -385,20 +406,14 @@ function NoResults({ batch }: { batch: ReportBatch }) {
         <EmptyTitle>{copy.title}</EmptyTitle>
         <EmptyDescription>{copy.body}</EmptyDescription>
       </EmptyHeader>
-      {batch.status === "draft" && (
-        <EmptyContent>
-          <Button variant="outline" asChild>
-            <Link href={`/batches/new?template=${batch.templateId}`}>Continue</Link>
-          </Button>
-        </EmptyContent>
-      )}
     </Empty>
   );
 }
 
+// Colours from the one metric map (Opens teal, Clicks gold), as Overview's Send volume.
 const chartConfig = {
-  opens: { label: "Opens", color: "var(--chart-1)" },
-  clicks: { label: "Clicks", color: "var(--chart-2)" },
+  opens: { label: "Opens", color: METRIC_COLOR.opens },
+  clicks: { label: "Clicks", color: METRIC_COLOR.clicks },
 } satisfies ChartConfig;
 
 function OverviewTab({
@@ -422,8 +437,8 @@ function OverviewTab({
   return (
     <div className="flex flex-col gap-6">
       {/* Headline rates (AC-EC-O-01) plus delivery (AC-EC-O-02). */}
-      {/* Same six rates, pattern and wording as Overview and Campaigns (rateKpi). Recipients moved to the
-          header line; Reply added (live app OverviewTab "Performance": delivery, open, click, reply). */}
+      {/* Same six rates, pattern and wording as Overview and Campaigns (rateKpi); Reply as the live app OverviewTab
+          "Performance". */}
       <KpiStrip>
         <KpiStripItem
           label="Delivery rate"
@@ -509,7 +524,9 @@ function OverviewTab({
                         <span className="truncate" title={l.url}>
                           {l.url.replace(/^https:\/\//, "")}
                         </span>
-                        <span className="shrink-0 tabular-nums text-muted-foreground">{n(l.totalClicks)}</span>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">
+                          {n(l.totalClicks)} · {Math.round(share * 100)}%
+                        </span>
                       </div>
                       <Progress
                         value={share * 100}
@@ -529,9 +546,17 @@ function OverviewTab({
 
       {/* Secondary numbers (AC-EC-O-02). */}
       <section aria-labelledby="more-details" className="flex flex-col gap-3">
-        <h2 id="more-details" className="font-heading text-base font-medium">
-          More details
-        </h2>
+        <div className="flex items-center gap-1">
+          <h2 id="more-details" className="font-heading text-base font-medium">
+            More details
+          </h2>
+          {/* Machine traffic (AC-EC-K-07) is a footnote to every number, not a number to act on. */}
+          <Hint label={`${n(met.botOpens + met.botClicks)} machine opens and clicks are left out of every number.`}>
+            <Button variant="ghost" size="icon-xs" aria-label="About these numbers" className="text-muted-foreground">
+              <InfoIcon />
+            </Button>
+          </Hint>
+        </div>
         <dl className="grid grid-cols-2 gap-x-8 gap-y-2 rounded-card border p-4 text-sm tabular-nums md:grid-cols-4">
           <Detail label="Total opens" value={n(met.totalOpens)} />
           <Detail label="Total clicks" value={n(met.totalClicks)} />
@@ -540,7 +565,6 @@ function OverviewTab({
           <Detail label="Last opened" value={met.opens && lastOpened ? formatDateTime(lastOpened) : "–"} />
           <Detail label="Last clicked" value={met.clicks && lastOpened ? formatDateTime(lastOpened) : "–"} />
           <Detail label="Spam complaints" value={`${n(met.complaints)}${complaint && met.complaints ? ` (${complaint.text})` : ""}`} />
-          <Detail label="Machine traffic removed" value={`${n(met.botOpens + met.botClicks)} events`} />
         </dl>
       </section>
     </div>
@@ -598,7 +622,7 @@ function OtherBatches({ batch }: { batch: ReportBatch }) {
       <h2 id="other-batches" className="font-heading text-base font-medium">
         Other batches of this template
       </h2>
-      <div className="overflow-hidden rounded-card border">
+      <div className={cn("overflow-hidden rounded-card border", SCROLL_CARD_TABLE)}>
         <Table aria-label="This batch and other batches of the same template">
           <TableHeader>
             <TableRow>

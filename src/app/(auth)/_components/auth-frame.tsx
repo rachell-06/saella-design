@@ -7,14 +7,14 @@ import { Separator } from "@/components/ui/separator";
 import { WarpBackground } from "@/components/ui/warp-background";
 import { cn } from "@/lib/utils";
 
-// Frame for sign-in, sign-up, the lock screens and onboarding. Layout:
-// form column on the left, a rounded dark brand panel on the right.
+// Frame for sign-in, sign-up, the lock screens and onboarding. Layout: Studio Admin auth v2 (src/app/(main)/auth/v2
+// layout.tsx): form column on the left, a rounded dark brand panel on the right.
 // - Left: header with the Saella mark (same lockup as the app sidebar) and the language picker (AC-LNG-U-02); the
 //   screen's content centred below. Screen actions such as "Sign up" live in the column, not the header.
-// - Right (lg and up): dark panel (`deep`, `deep-2` in dark mode so it still stands off the page) with
+// - Right (lg and up): dark panel (`deep`, `deep-2` in dark mode so it still stands off the page) with Magic UI's
 //   WarpBackground: faint light grid and orange beams flying out of the core, each led by a light envelope at its tip
 //   (the beam is the envelope's trail). Reduced motion: grid only. A welcome `card` in the
-//   centre (as the demo) and two `notes` at the bottom split by a vertical rule. No
+//   centre (as the Magic UI demo) and two `notes` at the bottom split by a vertical rule, as in Studio Admin. No
 //   mark or name in the panel: the brand already shows in the left header.
 // No app sidebar: the user has no workspace yet.
 type PanelNote = { title: string; body: string };
@@ -38,8 +38,20 @@ export function AuthFrame({
 }) {
   return (
     <div className="grid min-h-svh p-2 lg:grid-cols-2">
+      <div className="relative flex flex-col">
+        <header className="flex h-14 shrink-0 items-center justify-end gap-4 px-4 lg:px-8">
+          {/* Same lockup as the app sidebar (app-sidebar.tsx); the mark is 2:1. */}
+          <span className="mr-auto flex items-center gap-2 font-heading text-base font-semibold tracking-title text-foreground">
+            <Image src="/brand/saella-mark.png" alt="" width={32} height={16} className="h-auto w-8" priority />
+            Saella
+          </span>
+          <LanguagePicker value={locale} onChange={onLocaleChange} />
+        </header>
+        <main className={cn("flex flex-1 flex-col items-center justify-center px-6 pb-14", className)}>{children}</main>
+      </div>
+      {/* After the form in the DOM, so screen readers and Tab reach the form first; it sits on the right visually. */}
       <aside
-        className="relative order-2 hidden overflow-hidden rounded-card bg-deep text-background lg:flex lg:flex-col dark:bg-deep-2 dark:text-foreground"
+        className="relative hidden overflow-hidden rounded-card bg-deep text-background lg:flex lg:flex-col dark:bg-deep-2 dark:text-foreground"
       >
         <WarpBackground
           aria-hidden
@@ -89,17 +101,6 @@ export function AuthFrame({
           </div>
         )}
       </aside>
-      <div className="relative order-1 flex flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-end gap-4 px-4 lg:px-8">
-          {/* Same lockup as the app sidebar (app-sidebar.tsx); the mark is 2:1. */}
-          <span className="mr-auto flex items-center gap-2 font-heading text-base font-semibold tracking-title text-foreground">
-            <Image src="/brand/saella-mark.png" alt="" width={32} height={16} className="h-auto w-8" priority />
-            Saella
-          </span>
-          <LanguagePicker value={locale} onChange={onLocaleChange} />
-        </header>
-        <main className={cn("flex flex-1 flex-col items-center justify-center px-6 pb-14", className)}>{children}</main>
-      </div>
     </div>
   );
 }

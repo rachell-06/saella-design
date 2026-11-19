@@ -41,7 +41,7 @@ import { MergeTagChips } from "./letter-editor";
 // at the caret of the field being edited. Enter ends a one-line field, Shift+Enter breaks a line in a paragraph,
 // Escape leaves the field. The selected block carries a small toolbar: move up, move down, duplicate, delete.
 // An image is picked by clicking, dropping or pasting on the block; Replace, Alt text (image) and Link (button) sit on
-// the block's bar. No block has a separate settings card any more.
+// the block's bar.
 
 /** A plain-text field edited in place, with merge-tag chips. Mounted only while its block is selected. */
 function InlineText({
@@ -333,7 +333,7 @@ function Gap({ index, dropping, dragging, onInsert }: { index: number; dropping:
                 size="icon-xs"
                 tabIndex={-1}
                 aria-label={index === 0 ? "Add a block at the top" : `Add a block after block ${index}`}
-                className="relative z-10 size-5 rounded-full bg-background opacity-0 transition-opacity group-hover/gap:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none"
+                className="relative z-10 size-6 rounded-full bg-background opacity-0 transition-opacity group-hover/gap:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none"
                 onClick={(e) => e.stopPropagation()}
               >
                 <PlusIcon />

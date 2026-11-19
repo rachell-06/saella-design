@@ -2,9 +2,9 @@ import { useId } from "react";
 import { cn } from "@/lib/utils";
 import type { SocialNetwork } from "@/lib/mock/social";
 
-// Network marks in their own brand colours (the one exception to the one-colour
-// icon rule; only for the networks themselves, never as decoration). Every network is the same shape:
-// a circle in the brand colour (Instagram keeps its gradient) with a white glyph centred inside, glyphs
+// Network marks in their own brand colours (user decision 2026-11-11: the one exception to the one-colour
+// icon rule; only for the networks themselves, never as decoration). Every network is the same shape (user decision
+// 2026-11-11): a circle in the brand colour (Instagram keeps its gradient) with a white glyph centred inside, glyphs
 // drawn to one optical size. Simplified marks drawn here like the live app's components/social/NetworkIcon.tsx, so
 // nothing loads from the network. In overlapping stacks the caller adds `rounded-full ring-2 ring-card` (or
 // ring-background) to separate them. The black circles (Threads, TikTok, Douyin) get a hairline in the border colour

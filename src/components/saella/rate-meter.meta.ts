@@ -6,7 +6,7 @@ export const rateMeterMeta: ComponentMeta = {
   description:
     "The only way to show an email rate (delivery, open, click, reply, unsub, bounce): '38.3% (466)', denominator in a tooltip, threshold colour only for Bounce and Delivery.",
   variants: {
-    RateCell: "One rate in a table: a right-aligned TableCell, one column per rate.",
+    RateCell: "One rate in a table: a left-aligned TableCell, one column per rate.",
     RateValue: "One rate inline in text or a list row.",
     "rateKpi()": "Props for a KpiStripItem: value, note ('2,349 of 5,968 delivered'), tone and tooltip in one call.",
     "kind=bounce | delivery": "Coloured from RATE_BANDS with an icon: bounce warning ≥ 5%, danger ≥ 10%; delivery warning < 90%.",
@@ -15,7 +15,7 @@ export const rateMeterMeta: ComponentMeta = {
   relationships: {
     usedIn: ["KpiStrip (via rateKpi)", "Batch report Deliverability table", "Template detail Batches table"],
     preferInstead: {
-      "a plain count (sent, recipients)": "a right-aligned TableCell with tabular-nums",
+      "a plain count (sent, recipients)": "a plain TableCell with tabular-nums (left-aligned like every column)",
       "share of a total, e.g. link clicks": "a Progress bar equal to the exact share, with the % printed",
     },
   },

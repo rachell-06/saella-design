@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 // Heading for one block inside a settings page: title + one line of context, actions on the right.
-// `info` puts the secondary detail behind an ⓘ next to the title (1–2 sentences, no footnotes).
+// `info` puts the secondary detail behind an ⓘ next to the title (DESIGN §2: 1–2 sentences, no footnotes).
 export function SectionHeader({
   id,
   title,

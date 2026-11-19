@@ -3,7 +3,7 @@ import { MERGE_TAGS, splitTags } from "@/lib/mock/templates";
 const TAG_LABEL = new Map<string, string>(MERGE_TAGS.map((m) => [m.tag, m.label]));
 
 // Subject with its merge tags as compact chips named like the editor's tag menu ("First name"), not the raw
-// {{recipient_first_name}} that truncated the line (report header and New batch). Chip style from the template editor (TagText).
+// {{recipient_first_name}} that truncated the line (2026-11-05; report header and New batch). Chip style from the template editor (TagText).
 export function SubjectText({ subject }: { subject: string }) {
   return (
     <>

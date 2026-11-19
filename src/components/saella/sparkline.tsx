@@ -3,7 +3,7 @@
 import { Line, LineChart, YAxis } from "recharts";
 import { type ChartConfig, ChartContainer } from "@/components/ui/chart";
 
-// Tiny trend line for a KPI card. No axes, no
+// Tiny trend line for a KPI card (Studio Admin KPI cards with a chart, user request 2026-10-29). No axes, no
 // tooltip: it shows the shape of the period; the number above it is the reading. Gaps (null) are bridged.
 export function Sparkline({
   values,

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 
 // "Save your changes?" before leaving a page with unsaved work (pair with useLeaveGuard in
-// lib/leave-guard.ts). Button order ("Keep editing" alone on the left read wrong):
+// lib/leave-guard.ts). Button order (designer 2026-11-14: "Keep editing" alone on the left read wrong):
 //   [Discard]                      [Keep editing] [Save]
 // Discard, the one that loses work, stands apart on the left so it isn't hit by accident; the safe pair sits
 // together on the right with Save as the main button (the usual Don't Save · Cancel · Save order). Opening moves

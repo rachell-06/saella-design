@@ -3,7 +3,7 @@ import type { ComponentMeta } from "@/components/meta";
 export const badgeMeta: ComponentMeta = {
   name: "Badge",
   category: "atom",
-  description: "Small pill label (12px, weight 600) for a tag, count or tone. Not for statuses: those use StatusBadge.",
+  description: "Small pill label (12px, weight 500) for a tag, count or tone. Not for statuses: those use StatusBadge.",
   variants: {
     secondary: "Neutral tag or count, e.g. contact tags, 'Default' sender.",
     brand: "Saella-specific marker, e.g. 'Agent', 'New'.",

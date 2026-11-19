@@ -11,18 +11,17 @@ export type MetricDelta = {
   direction: "up" | "down";
   /** Whether this change is good news. A falling bounce rate is good. */
   good: boolean;
+  /** Grey, whatever the direction: for rates with no threshold (Open, Click, Reply, Unsub are never coloured). */
+  neutral?: boolean;
   /** Comparison period, e.g. "vs last 30 days". */
   period: string;
 };
 
-// Joined KPI strip: one bordered row of cells divided by hairlines, for a detail page's headline
-// numbers (first used inline in campaigns/campaign-detail.tsx). A small
-// delta can sit next to the number here
-// (Overview made compact). A value from too small a sample is greyed
-// and its note says so (BR-RULE-EC-21).
-// The one KPI pattern for Overview, Campaigns and the batch report. Rates come from rateKpi
+// Joined KPI strip: one bordered row of cells divided by hairlines, for headline numbers (Studio Admin analytics). A
+// small delta can sit next to the number. A value from too small a sample is greyed and its note says so
+// (BR-RULE-EC-21). The one KPI pattern for Overview, Campaigns and the batch report. Rates come from rateKpi()
 // (rate-meter.tsx): note "2,349 of 5,968 delivered", counts and threshold in a tooltip, warning/danger in
-// soft-foreground text with an icon.
+// soft-foreground text with an icon (only Bounce and Delivery).
 export function KpiStrip({ children, className }: { children: React.ReactNode; className?: string }) {
   return <dl className={cn("grid auto-cols-fr grid-flow-col divide-x rounded-lg border", className)}>{children}</dl>;
 }
@@ -53,7 +52,7 @@ export function KpiStripItem({
   /** A value past a threshold (e.g. bounce ≥ 5% warning, ≥ 10% danger); shown with an icon, never colour alone. */
   tone?: "warning" | "danger";
   loading?: boolean;
-  /** Makes the whole cell a link, e.g. to the people behind the number. */
+  /** Makes the whole cell a link, e.g. to the people behind the number (learned from Mailchimp). */
   href?: string;
   /** Accessible name for the link; defaults to the label. */
   hrefLabel?: string;
@@ -94,10 +93,10 @@ export function KpiStripItem({
         </dd>
       )}
       {note && !loading && (
-        // Wraps rather than truncates: in a narrow strip "667 of 1,850 delivered" lost its last word.
+        // Wraps rather than truncates, so a narrow strip keeps the whole note.
         <dd className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground">
           <span className="min-w-0">{note}</span>
-          {/* a linked cell says so before hover, with a small arrow that nudges on hover. */}
+          {/* R7: a linked cell says so before hover, with a small arrow that nudges on hover. */}
           {href && <ArrowRightIcon aria-hidden className="size-3.5 shrink-0 transition-transform group-hover/kpi:translate-x-0.5" />}
         </dd>
       )}
@@ -120,7 +119,7 @@ function Delta({ delta }: { delta: MetricDelta }) {
       <span
         className={cn(
           "inline-flex items-center gap-0.5 text-sm font-medium tabular-nums",
-          delta.good ? "text-success-soft-foreground" : "text-destructive-soft-foreground"
+          delta.neutral ? "text-muted-foreground" : delta.good ? "text-success-soft-foreground" : "text-destructive-soft-foreground"
         )}
       >
         <Arrow aria-hidden className="size-4" />

@@ -42,7 +42,8 @@ export function EnvelopeRow({
       data-invalid={invalid || undefined}
       className={cn(
         "grid grid-cols-[8rem_minmax(0,1fr)_auto] items-center gap-x-3 border-b py-0.5",
-        "focus-within:border-brand data-[invalid]:border-destructive"
+        // Focus: a 2px brand line (the padding gives up the extra pixel, so the row doesn't move).
+        "focus-within:border-b-2 focus-within:border-brand focus-within:pb-px data-[invalid]:border-destructive"
       )}
     >
       <Label htmlFor={htmlFor} className="gap-1.5 font-normal text-muted-foreground">

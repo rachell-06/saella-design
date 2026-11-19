@@ -2,7 +2,7 @@ import { CheckIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-// Horizontal stepper for multi-step forms: number → tick (success) when done, the
+// Horizontal stepper for multi-step forms (2026-10-28): number → tick (success) when done, the
 // current step in brand. Finished steps are buttons so people can go back; later steps are not clickable until
 // the ones before them are done (the form decides via `maxReachable`).
 export type StepperStep = { id: string; label: string; /** One short line under the label, e.g. the choice made. */ summary?: string };

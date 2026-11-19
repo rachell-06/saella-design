@@ -8,9 +8,9 @@ export const pageHeaderMeta: ComponentMeta = {
   variants: {
     "title only": "List screens: Campaigns, Templates, Leads.",
     "breadcrumbs=": "Detail and nested screens; list the parents, the current page comes from title.",
-    "description=": "One short line of context. Longer help goes in an ⓘ tooltip, not here.",
+    "description=": "One short line on what the page is for. Never repeat the title or restate the tabs or stepper below. Longer help goes in an ⓘ tooltip, not here.",
     "children": "Extra line under the title, e.g. a StatusBadge + sent time on a batch report.",
-    "actions=": "Buttons on the right, all size=\"sm\": outline ones first, the one solid orange (variant default) last, an overflow ⋯ menu after it.",
+    "actions=": "Buttons on the right, all size=\"sm\" (Studio Admin): outline ones first, the one solid orange (variant default) last, an overflow ⋯ menu after it.",
   },
   relationships: {
     usedIn: ["Every page.tsx under app/(app)/"],

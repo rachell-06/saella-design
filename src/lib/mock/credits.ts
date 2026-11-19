@@ -22,10 +22,18 @@ export type CreditEntry = {
   price?: string;
 };
 
-type State = { balance: number; ledger: readonly CreditEntry[] };
+/** `cycleTotal`: credits available this cycle (plan grant + carried over + packs bought since the grant). */
+type State = { balance: number; cycleTotal: number; ledger: readonly CreditEntry[] };
 
-let state: State = { balance: WORKSPACE.credits.balance, ledger: [] };
-const SERVER_STATE: State = state;
+const SERVER_STATE: State = { balance: WORKSPACE.credits.balance, cycleTotal: WORKSPACE.credits.cycleTotal, ledger: [] };
+/** Preview: `?credits=<n>` on the first page load starts the session with that balance (e.g. 0 to try "Not enough
+ *  credits" in the agent panel). The server and hydration render the seeded balance; the client switches after. */
+function previewBalance() {
+  if (typeof window === "undefined") return undefined;
+  const v = new URLSearchParams(window.location.search).get("credits");
+  return v !== null && /^\d+$/.test(v) ? Number(v) : undefined;
+}
+let state: State = { ...SERVER_STATE, balance: previewBalance() ?? SERVER_STATE.balance };
 const listeners = new Set<() => void>();
 const subscribe = (l: () => void) => {
   listeners.add(l);
@@ -46,25 +54,47 @@ export function readCreditBalance() {
   return state.balance;
 }
 
+/** Running low: under 20% of this cycle's credits. One rule for every place that warns: the
+ *  sidebar credits block and Settings › Billing. */
+export const LOW_SHARE = 0.2;
+
+/** What is left of this cycle as a share (0–1, for the sidebar ring) and whether that is running low. */
+export function creditStanding(balance: number, cycleTotal: number) {
+  const share = cycleTotal > 0 ? Math.min(1, Math.max(0, balance / cycleTotal)) : 0;
+  return { share, low: share < LOW_SHARE };
+}
+
+/** Balance, cycle total, share left and the low flag, live. */
+export function useCreditStanding() {
+  const s = useSyncExternalStore(subscribe, () => state, () => SERVER_STATE);
+  return { balance: s.balance, cycleTotal: s.cycleTotal, ...creditStanding(s.balance, s.cycleTotal) };
+}
+
 let seq = 0;
 function record(kind: string, label: string, amount: number, price?: string) {
   const entry: CreditEntry = { id: `session-${++seq}`, at: new Date().toISOString(), kind, label, amount, price };
   return [entry, ...state.ledger];
 }
 
-/** Add credits (a pack bought, a plan upgrade). */
+/** Add credits (a pack bought, a plan upgrade, or `kind: "refund"` for a charge given back). */
 export function addCredits(
   amount: number,
   entry: { kind: string; label: string; price?: string } = { kind: "topup", label: "Credits added" }
 ) {
-  state = { balance: state.balance + amount, ledger: record(entry.kind, entry.label, amount, entry.price) };
+  // Bought and granted credits join this cycle's total, so the share left never passes 100%. A refund only gives back
+  // what was spent from it, so the total stays.
+  state = {
+    balance: state.balance + amount,
+    cycleTotal: entry.kind === "refund" ? state.cycleTotal : state.cycleTotal + amount,
+    ledger: record(entry.kind, entry.label, amount, entry.price),
+  };
   emit();
 }
 
 /** Take `amount` credits, all or nothing. Returns false (and changes nothing) when the balance is short. */
 export function spendCredits(amount: number, entry: { kind: string; label: string } = { kind: "other", label: "Credits used" }) {
   if (amount > state.balance) return false;
-  state = { balance: state.balance - amount, ledger: record(entry.kind, entry.label, -amount) };
+  state = { ...state, balance: state.balance - amount, ledger: record(entry.kind, entry.label, -amount) };
   emit();
   return true;
 }

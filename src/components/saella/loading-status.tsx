@@ -16,7 +16,7 @@ const ESTIMATE_CAP = 95;
 
 /**
  * Status over a skeleton after 1s: the step, a progress bar with its percent, and how long it
- * takes, so people know how long to wait.
+ * takes, so people know how long to wait (designer 2026-11-14).
  * - `total` set (rows arriving page by page): real progress, "1,500 / 4,675 contacts · 32%". The demo has no real
  *   pages, so it advances one page at a time over `estimateMs`; in production `done` is the rows received.
  * - otherwise an estimate from the usual duration: ~90% at the usual time, then creeping toward 95%, never 100%

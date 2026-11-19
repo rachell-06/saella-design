@@ -31,7 +31,7 @@ import { type Block, SAMPLE_VALUES, type TemplateKind, newBlockId, resolveTags }
 
 // "Write with Saella" (PRD-02 AC-EC-G-01..06), as the live app's Agent modal (EmailTemplateEditor "Write with AI"):
 // a button on the editor toolbar opens a dialog; the brief on the left, the draft on the right; nothing reaches the
-// editor until "Use this draft", and nothing is saved until Save (replacing the box at the top).
+// editor until "Use this draft", and nothing is saved until Save.
 // - Empty/new email: write a fresh one (subject, preheader and email; the name too while it's "Untitled …").
 // - Email with text: change it ("Make it shorter"…), keeping the subject, or write a new one.
 // - Once a draft is shown: Try again (from the brief), change one thing (refine the draft), Use this draft, Discard.
@@ -179,7 +179,7 @@ export function WriteWithSaellaDialog({
                 />
                 <div className="flex flex-wrap gap-1.5" aria-label="Suggestions">
                   {STARTERS.map((s) => (
-                    <Button key={s} type="button" size="xs" variant="outline" disabled={writing} onClick={() => setPrompt(s)}>
+                    <Button key={s} type="button" size="sm" variant="outline" disabled={writing} onClick={() => setPrompt(s)}>
                       {s}
                     </Button>
                   ))}
@@ -214,7 +214,7 @@ export function WriteWithSaellaDialog({
                 />
                 <div className="flex flex-wrap gap-1.5" aria-label="Quick changes">
                   {REFINES.map((r) => (
-                    <Button key={r} type="button" size="xs" variant="outline" disabled={writing} onClick={() => write(false)}>
+                    <Button key={r} type="button" size="sm" variant="outline" disabled={writing} onClick={() => write(false)}>
                       {r}
                     </Button>
                   ))}
@@ -274,8 +274,8 @@ export function WriteWithSaellaDialog({
               <Button variant="outline" onClick={() => close(false)} disabled={writing}>
                 Cancel
               </Button>
-              {/* Solid orange: an exception to "AI actions are tinted" (button.meta.ts). */}
-              <Button onClick={() => write(true)} disabled={writing || !prompt.trim()}>
+              {/* An AI action: variant ai, never solid (button.meta.ts). */}
+              <Button variant="ai" onClick={() => write(true)} disabled={writing || !prompt.trim()}>
                 <SparklesIcon data-icon="inline-start" />
                 {draft ? "Write it again" : "Write the email"}
               </Button>
@@ -313,7 +313,7 @@ export function WriteWithSaellaDialog({
               <Button variant="outline" onClick={() => close(false)} disabled={writing}>
                 Cancel
               </Button>
-              <Button onClick={() => write(false)} disabled={writing || !change.trim()}>
+              <Button variant="ai" onClick={() => write(false)} disabled={writing || !change.trim()}>
                 <SparklesIcon data-icon="inline-start" />
                 Change the email
               </Button>
@@ -437,7 +437,7 @@ function Composer({
               <ImageIcon />
             </InputGroupButton>
           </Hint>
-          {!reference && <InputGroupText className="text-xs text-subtle-foreground">PNG, JPEG, GIF or WebP, up to 4 MB</InputGroupText>}
+          {!reference && <InputGroupText className="text-xs text-muted-foreground">PNG, JPEG, GIF or WebP, up to 4 MB</InputGroupText>}
         </InputGroupAddon>
       </InputGroup>
       {error && <FieldError>{error}</FieldError>}

@@ -1,5 +1,7 @@
 "use client";
 
+import { SCROLL_SHEET_BODY } from "@/lib/scroll";
+import { cn } from "@/lib/utils";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,15 +13,15 @@ import {
   HistoryIcon,
   MoreHorizontalIcon,
   PencilIcon,
-  PowerIcon,
   SendIcon,
   Share2Icon,
   Trash2Icon,
   UserRoundCogIcon,
-  ZapIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import { type Campaign, type Template, formatDateTime } from "@/lib/mock/campaigns";
+import { type Campaign, type Template, campaignStatus, formatDateTime } from "@/lib/mock/campaigns";
+import { isArchived } from "@/lib/mock/campaign-store";
+import { useCampaignStore } from "@/lib/mock/created-campaigns";
 import { members } from "@/lib/mock/workspace";
 import {
   type Viewer,
@@ -34,9 +36,9 @@ import {
 } from "@/lib/mock/templates";
 import { type ActivityAction, templateActions } from "@/lib/mock/template-store";
 import { useTemplateStore } from "@/lib/mock/use-template-store";
-import { checkContent } from "@/app/(app)/templates/_components/editor/content-check";
+import { activateBlockedReason, campaignOffReason, liveStatus } from "@/components/features/activation";
 import { currentSchedule, useAutomation } from "@/components/features/automation";
-import { LockedTip } from "@/components/features/automate-dialog";
+import { LockedTip } from "@/components/saella/locked-tip";
 import { Hint } from "@/components/saella/hint";
 import {
   AlertDialog,
@@ -70,7 +72,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 // The template "⋯" menu, its dialogs and the row buttons, shared by the Templates list, a template's page and the
-// Campaigns cards (one menu, one behaviour; moved here from the two template-actions.tsx copies).
+// Campaigns cards (one menu; one behaviour).
 // Permissions are the live app's four tiers (Repo src/lib/email/template-permissions.ts): Send, Automate, Edit and
 // Mark active/inactive need canEdit; Share, View log and Delete need canManage; Transfer needs an admin; Copy is
 // open to everyone who can see the template (BR-RULE-EC-41). Locked items stay visible, disabled; why is said in
@@ -78,6 +80,9 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 // Every action writes to lib/mock/template-store.ts, so all three screens show the result.
 
 export function sendBlockedReason(template: Template, viewer: Viewer, sendingBlocked?: string) {
+  // Everyone's reason first: nobody can send from an ended campaign (live campaign-expiry sweep) or an archived one.
+  const off = campaignOffReason(template.id);
+  if (off) return off;
   const access = accessFor(template, viewer);
   if (!canEdit(access)) return lockReason.edit(template.owner);
   if (sendingBlocked) return sendingBlocked;
@@ -85,12 +90,7 @@ export function sendBlockedReason(template: Template, viewer: Viewer, sendingBlo
   return undefined;
 }
 
-/** Why "Mark active" is blocked: the editor's content check finds errors (the same rule as its Mark active). */
-export function activateBlockedReason(id: string) {
-  const d = detailsFor(id);
-  const errors = checkContent(d).issues.filter((i) => i.severity === "error").length;
-  return errors ? `Fix ${errors} ${errors === 1 ? "problem" : "problems"} in the editor to mark it active.` : undefined;
-}
+export { activateBlockedReason };
 
 /** Copy a template into a campaign: inactive, owned by the copier; toast with Open (to the editor). */
 export function useCopyTemplate(viewer: Viewer) {
@@ -121,7 +121,7 @@ export function TemplateMenu({
   /** The template as the store has it (status, owner): pass rows built with applyTemplateStore / findTemplate. */
   template: Template;
   viewer: Viewer;
-  /** Copy to… targets. */
+  /** Copy to… targets; ended and archived campaigns are left out here. */
   campaigns: Campaign[];
   /** Hidden on the template's own page. */
   showAnalytics?: boolean;
@@ -137,26 +137,29 @@ export function TemplateMenu({
 }) {
   const [open, setOpen] = useState<Open>(null);
   const copyTo = useCopyTemplate(viewer);
+  const templateStore = useTemplateStore();
+  const campaignState = useCampaignStore();
+  // Copy to… offers only campaigns that can still send: not ended, not archived (live app skips archived ones).
+  const copyTargets = campaigns.filter((c) => campaignStatus(c) !== "ended" && !isArchived(c.id, campaignState));
   const auto = useAutomation();
+  const scheduleOn = currentSchedule(auto, template.id)?.status === "active";
+  const inFlow = auto.flows.some((f) => f.templateId === template.id || f.steps.some((st) => st.templateId === template.id));
   const access = accessFor(template, viewer);
   const edit = canEdit(access);
   const manage = canManage(access);
   const transfer = canTransfer(access, viewer);
-  const activating = template.status !== "active";
-  const activateBlock = edit && activating ? activateBlockedReason(template.id) : undefined;
-  const scheduleOn = currentSchedule(auto, template.id)?.status === "active";
-  const inFlow = auto.flows.some((f) => f.templateId === template.id || f.steps.some((s) => s.templateId === template.id));
+  // Automate only for an active template; Mark active / inactive lives in the editor, not here.
+  const inactive = liveStatus(template.id, template.status, templateStore) !== "active";
   // One line on why the menu is short, since the items the viewer can't use are hidden (not "this" of a grey item).
   const note = !manage ? `Owned by ${ownerName(template.owner)}. Only they or an admin can share or delete it.` : null;
-
-  function toggleStatus() {
-    const next = activating ? "active" : "inactive";
-    templateActions.setStatus(template.id, next, viewer.email);
-    toast.success(next === "active" ? `“${template.name}” is active` : `“${template.name}” is inactive`, {
-      // Live automation-run: a schedule or follow-up on an inactive template waits until it's active again.
-      description: next === "inactive" && (scheduleOn || inFlow) ? "Its schedule and follow-ups wait until it's active again." : undefined,
-    });
-  }
+  // Why Automate is greyed (a disabled item can't hold a tooltip).
+  const automateNote =
+    inactive && edit && (onAutomate || automateHref)
+      ? campaignOffReason(template.id)
+        ? `${campaignOffReason(template.id)}.`
+        : "Mark it active in the editor to automate it."
+      : null;
+  const notes = [automateNote, note].filter((x): x is string => Boolean(x));
 
   return (
     <>
@@ -177,7 +180,7 @@ export function TemplateMenu({
               </DropdownMenuItem>
             )}
             {automateHref && (
-              <DropdownMenuItem asChild>
+              <DropdownMenuItem asChild disabled={inactive}>
                 <Link href={automateHref}>
                   <CalendarClockIcon />
                   {edit ? "Automate" : "View automation"}
@@ -185,8 +188,8 @@ export function TemplateMenu({
               </DropdownMenuItem>
             )}
             {onAutomate && (
-              <DropdownMenuItem onSelect={onAutomate}>
-                <ZapIcon />
+              <DropdownMenuItem onSelect={onAutomate} disabled={inactive}>
+                <CalendarClockIcon />
                 {edit ? "Automate" : "View automation"}
               </DropdownMenuItem>
             )}
@@ -198,8 +201,8 @@ export function TemplateMenu({
                 </Link>
               </DropdownMenuItem>
             )}
-            {/* Items the viewer has no right to are left out, not greyed: Share, View log, Delete
-                (owner or admin), Transfer owner (admin), Mark active/inactive (people who can edit). */}
+            {/* Items the viewer has no right to are left out, not greyed: Share, View log, Delete (owner or admin), Transfer
+                owner (admin). */}
             {manage && (
               <DropdownMenuItem onSelect={() => setOpen("share")}>
                 <Share2Icon />
@@ -212,11 +215,12 @@ export function TemplateMenu({
                 Copy to…
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                {campaigns.map((c) => (
+                {copyTargets.map((c) => (
                   <DropdownMenuItem key={c.id} onSelect={() => copyTo(template, c)}>
                     {c.name}
                   </DropdownMenuItem>
                 ))}
+                {copyTargets.length === 0 && <DropdownMenuItem disabled>No open campaigns</DropdownMenuItem>}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
             {manage && (
@@ -231,13 +235,6 @@ export function TemplateMenu({
                 Transfer owner
               </DropdownMenuItem>
             )}
-            {edit && (
-              // Disabled (not hidden) while the content check fails: the right is there, the template isn't ready.
-              <DropdownMenuItem disabled={Boolean(activateBlock)} onSelect={toggleStatus}>
-                <PowerIcon />
-                {activating ? "Mark active" : "Mark inactive"}
-              </DropdownMenuItem>
-            )}
           </DropdownMenuGroup>
           {manage && (
             <>
@@ -250,11 +247,11 @@ export function TemplateMenu({
               </DropdownMenuGroup>
             </>
           )}
-          {(note || activateBlock) && (
+          {notes.length > 0 && (
             <>
               <DropdownMenuSeparator />
-              {[note, activateBlock].filter(Boolean).map((line) => (
-                <DropdownMenuLabel key={line} className="max-w-64 text-xs font-normal whitespace-normal text-muted-foreground">
+              {notes.map((line) => (
+                <DropdownMenuLabel key={line} className="max-w-64 text-sm font-normal whitespace-normal text-muted-foreground">
                   {line}
                 </DropdownMenuLabel>
               ))}
@@ -271,7 +268,7 @@ export function TemplateMenu({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete “{template.name}”?</AlertDialogTitle>
             <AlertDialogDescription>
-              It disappears from Templates, Campaigns and Overview. Sent batches keep their report.
+              Sent batches keep their reports.
               {(scheduleOn || inFlow) && " Its schedule and follow-ups stop."}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -281,7 +278,7 @@ export function TemplateMenu({
               variant="destructive"
               onClick={() => {
                 templateActions.remove(template.id, viewer.email);
-                toast.success("Template deleted", { description: "Sent batches keep their report." });
+                toast.success(`Deleted “${template.name}”`);
                 onDeleted?.();
               }}
             >
@@ -441,7 +438,7 @@ function ActivitySheet({ template, onClose }: { template: Template; onClose: () 
           <SheetTitle>Activity</SheetTitle>
           <SheetDescription>{template.name}</SheetDescription>
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className={cn("p-4", SCROLL_SHEET_BODY)}>
           {rows.length === 0 ? (
             <Empty>
               <EmptyHeader>
@@ -538,4 +535,79 @@ export function EditIconButton({ template, viewer }: { template: Template; viewe
       </Button>
     </Hint>
   );
+}
+
+/**
+ * The template name cell of every template table (Templates list; Campaigns cards): the name (a link, for the
+ * keyboard; the row opens it on a click anywhere) and, on line 2, the type (Letter / Design). Owner and
+ * the viewer's access sit in the name's tooltip. On a search that matched the subject and not the name, line 2 adds
+ * the subject with the match marked.
+ */
+export function TemplateNameCell({
+  template: t,
+  viewer,
+  query = "",
+}: {
+  template: Template;
+  viewer: Viewer;
+  /** Trimmed, lower-case search; the subject shows only when it, not the name, matched. */
+  query?: string;
+}) {
+  const access = accessFor(t, viewer);
+  const details = detailsFor(t.id);
+  const who =
+    access === "owner"
+      ? "Owner: you"
+      : `Owner: ${ownerName(t.owner)} · ${access === "viewer" ? "view only" : access === "shared" ? "shared with you" : "admin access"}`;
+  const subjectHit = query && !t.name.toLowerCase().includes(query) ? details.subject.toLowerCase().indexOf(query) : -1;
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <Hint
+        label={
+          <>
+            <span className="block font-medium">{t.name}</span>
+            {who}
+          </>
+        }
+      >
+        {/* Wraps to two lines before it truncates, so a narrow column still shows most of the name. */}
+        <Link
+          href={`/templates/${t.id}`}
+          className="line-clamp-2 rounded-sm font-medium break-words focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          {t.name}
+        </Link>
+      </Hint>
+      <span className="truncate text-sm text-muted-foreground" title={subjectHit >= 0 ? details.subject : undefined}>
+        {details.kind === "design" ? "Design" : "Letter"}
+        {subjectHit >= 0 && (
+          <>
+            {" · "}
+            {details.subject.slice(0, subjectHit)}
+            <mark className="rounded-sm bg-primary-subtle px-0.5 text-foreground">
+              {details.subject.slice(subjectHit, subjectHit + query.length)}
+            </mark>
+            {details.subject.slice(subjectHit + query.length)}
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * A click anywhere on a row opens its page (as DataTable onRowClick), except on a control in the row
+ * (link, button, menu). Clicks that bubble up from a portal (the row's menu, its dialogs) are ignored: they are not
+ * inside the row in the DOM.
+ */
+export function useRowOpen() {
+  const router = useRouter();
+  return (href: string) => (e: React.MouseEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement;
+    if (!e.currentTarget.contains(target)) return;
+    if (target.closest("button, a, input, label, select, textarea, [role=checkbox], [role=menuitem], [data-no-row-click]")) return;
+    // Selecting text in a row is not a click on it.
+    if (window.getSelection()?.toString()) return;
+    router.push(href);
+  };
 }

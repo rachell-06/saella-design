@@ -52,7 +52,7 @@ function FieldGroup({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 const fieldVariants = cva(
-  // Saella: an error never recolours the label; only the control border and FieldError turn red.
+  // Saella: an error never recolours the label (user request 2026-11-11); only the control border and FieldError turn red.
   "group/field flex w-full gap-2",
   {
     variants: {

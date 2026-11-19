@@ -1,4 +1,5 @@
 import { WORKSPACE_TZ } from "@/lib/time";
+import { PACK_RATE, type Tier } from "@/lib/mock/pricing";
 import {
   type DnsRecord,
   type Member,
@@ -14,7 +15,7 @@ import {
 import { CURRENT_USER_ID, SHARED_MONTHLY_CAP, SHARED_USED_THIS_MONTH, TODAY } from "@/lib/mock/constants";
 export { CURRENT_USER_ID, SHARED_MONTHLY_CAP, SHARED_USED_THIS_MONTH, TODAY };
 
-// Limits as the live app enforces them (Repo origin/master):
+// Limits as the live app enforces them:
 // - ONE sending domain per workspace (api/email/domains MAX_DOMAINS_PER_COMPANY = 1; PRD Master v1.1.7). The admin
 //   role and the domain claim assume exactly one. PRD-02 AC-EC-D-05 still says 3.
 // - 10 senders per domain (api/email/senders, BR-RULE-EC-04).
@@ -91,7 +92,7 @@ export const domainOf = (email: string) => email.split("@")[1] ?? "";
 
 /** Hours left in the verification window, negative when expired. */
 export function hoursLeft(addedOn: string, now = `${TODAY}T05:00:00Z`) {
-  const end = Date.parse(`${addedOn}T12:00:00Z`) + VERIFY_WINDOW_H * 3600_000;
+  const end = Date.parse(`${addedOn}T05:00:00Z`) + VERIFY_WINDOW_H * 3600_000;
   return Math.round((end - Date.parse(now)) / 3600_000);
 }
 
@@ -244,29 +245,25 @@ export const WEBSITE_DRAFT: Omit<CompanyProfile, "logo"> & { instructions: strin
 
 // ---- Billing ---------------------------------------------------------------------------------------------
 
-// Plans: live app lib/credits/plans.ts = PRD-05. Packs: PRD-05 = live app origin/development lib/credits/pricing.ts
-// PACK_SIZES (four packs, nothing in between). The workspace is on Starter.
-export type Tier = "free" | "starter" | "business" | "expansion" | "enterprise";
-export const PLAN: Tier = "starter";
-/** PRD-05 credit packs, smallest first. Free can't buy 5,000 (FREE_PACK_MAX 2,000). */
-export const PACK_SIZES = [500, 1_000, 2_000, 5_000] as const;
-const FREE_PACK_MAX = 2_000;
-/** The packs a plan may buy (live app packsForTier). */
-export const packsForTier = (tier: Tier): number[] => PACK_SIZES.filter((c) => tier !== "free" || c <= FREE_PACK_MAX);
+// Plans: live app lib/credits/plans.ts = PRD-05. Packs: PRD-05 = live app lib/credits/pricing.ts
+// PACK_SIZES (four packs, nothing in between). The workspace starts on Starter; the session's
+// plan is usePlanTier() in lib/mock/pricing.ts, shared with the Top up dialog.
+export type { Tier };
+// Packs live in lib/mock/pricing.ts (shared with the Top up dialog).
+export { PACK_SIZES, packsForTier } from "@/lib/mock/pricing";
 /** Plan credits a month (TIER_CREDITS) and price (live app lib/credits/plans.ts PLAN_PRICE_USD = PRD-05).
- * Enterprise was dropped from PRD-05 and isn't a paid tier in the live app, so it isn't offered. */
+ *  Enterprise is not in PRD-05 nor a paid tier in the live app, so it isn't offered. */
 export const PLANS: { tier: Tier; name: string; credits: number | null; price: string }[] = [
   { tier: "free", name: "Free", credits: 10, price: "$0" },
   { tier: "starter", name: "Starter", credits: 600, price: "$25" },
   { tier: "business", name: "Business", credits: 2_500, price: "$50" },
   { tier: "expansion", name: "Expansion", credits: 12_000, price: "$100" },
 ];
-/** PRD-05 pack price a credit, by plan; the same for every pack size. */
-const PACK_RATE: Record<Tier, number> = { free: 0.1, starter: 0.09, business: 0.08, expansion: 0.07, enterprise: 0.07 };
+/** PRD-05 pack price a credit, by plan (PACK_RATE in lib/mock/pricing.ts); the same for every pack size. */
 export function packPrice(tier: Tier, credits: number) {
   return Math.round(credits * PACK_RATE[tier] * 100) / 100;
 }
-/** What uses credits (live app meter.ts CREDIT_COST, PRD-05 ): 1 credit each. Sending email is free. */
+/** What uses credits (live app meter.ts CREDIT_COST, PRD-05 unified): 1 credit each. Sending email is free. */
 export const CREDIT_COST = { agentAction: 1, unlock: 1, exportPerRecord: 1 };
 
 // ---- Shared formatting -----------------------------------------------------------------------------------

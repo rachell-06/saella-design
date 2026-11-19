@@ -1,8 +1,8 @@
 import { type Campaign, campaignTargeting, industryClasses, industrySections } from "@/lib/mock/campaigns";
 import { type CountryCode, ISIC, companies } from "@/lib/mock/companies";
 
-// Company audience by registry filters, shared by any screen that sends to unlocked companies (first used
-// by the schedule dialog). Pure helpers, no screen code. Same rules as the batch wizard's company picker
+// Company audience by registry filters, shared by any screen that sends to unlocked companies. Pure helpers, no
+// screen code. Same rules as the batch wizard's company picker
 // (batches/_components/company-audience.ts): only UNLOCKED companies with an email can be sent to; matches that are
 // still locked are only counted, with a way to unlock them in Leads.
 
@@ -57,4 +57,13 @@ export function countCompanies(f: CompanyFilters, unlocked: ReadonlySet<string>)
 /** The matching companies (with an email) still locked: what "Unlock N" in a Send to block would buy. */
 export function lockedCompanies(f: CompanyFilters, unlocked: ReadonlySet<string>) {
   return matchingCompanies(f).filter((c) => !unlocked.has(c.id));
+}
+
+/** What a schedule can reach for this campaign: every matching company with an email, unlocked
+ *  or not, minus Ceased ones (no credits spent on a business that has closed). Locked ones are unlocked by the run
+ *  that reaches them. */
+export function campaignReach(c: Pick<Campaign, "countries" | "industries"> | undefined, unlocked: ReadonlySet<string>) {
+  const open = matchingCompanies(filtersFromCampaign(c)).filter((x) => x.status !== "ceased");
+  const u = open.filter((x) => unlocked.has(x.id)).length;
+  return { total: open.length, unlocked: u, locked: open.length - u };
 }

@@ -1,10 +1,10 @@
 import { WORKSPACE, members } from "@/lib/mock/workspace";
 
-// Mock rules for sign-in and sign-up (PRD-01 Authentication). In the live app the database is
+// Mock rules for sign-in and sign-up (PRD-01 Authentication, read 2026-10-28). In the live app the database is
 // the only email authority (BR-RULE-AU-01); here a short list stands in for it. Names are fictional.
 
-// Any email address is accepted, personal ones included (differs from PRD-01
-// BR-AU-01 / AC-AU-S-01 and the live app, which refuse free-mail and disposable providers).
+// Any email address is accepted, personal ones included (designer decision 2026-11-13; differs from PRD-01
+// BR-AU-01 / AC-AU-S-01 and the live app, which refuse free-mail and disposable providers; not settled yet).
 // Public mail domains are still known, so they never count as a company: no join-by-domain for them.
 const PUBLIC_DOMAINS = [
   "gmail.com", "googlemail.com", "yahoo.com", "yahoo.com.vn", "outlook.com", "hotmail.com", "live.com",

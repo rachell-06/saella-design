@@ -20,7 +20,7 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         // Saella: AI actions (Generate, Write with AI, Suggest…), always with a sparkle icon. Brand tint, never solid:
         // the page's main action keeps the only solid orange button.
-        ai: "border-brand/30 bg-primary-subtle text-primary-soft-foreground hover:bg-[color-mix(in_oklch,var(--primary-subtle),var(--brand)_14%)] aria-expanded:bg-[color-mix(in_oklch,var(--primary-subtle),var(--brand)_14%)] [&_svg]:text-brand",
+        ai: "border-transparent bg-peach text-primary-soft-foreground hover:bg-[color-mix(in_oklch,var(--peach),var(--brand)_16%)] aria-expanded:bg-[color-mix(in_oklch,var(--peach),var(--brand)_16%)] [&_svg]:text-primary-soft-foreground",
       },
       size: {
         default:

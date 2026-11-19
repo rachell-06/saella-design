@@ -51,7 +51,7 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Bộ :root/.dark mặc định của shadcn đã bỏ: giá trị nằm ở src/styles/tokens.css. Dark mode có làm, token dark sẽ thêm vào tokens.css. */
+/* Bộ :root/.dark mặc định của shadcn đã bỏ (2026-10-26): giá trị nằm ở src/styles/tokens.css. Dark mode có làm (chốt 2026-10-27), token dark sẽ thêm vào tokens.css. */
 
 @layer base {
   * {
@@ -64,7 +64,7 @@
   ::selection {
     background-color: var(--selection);
   }
-  /* Browser autofill paints inputs light blue: keep the field's own background and text.
+  /* Browser autofill paints inputs light blue (designer report 2026-11-14): keep the field's own background and text.
      The inset shadow covers the UA fill, which can't be overridden with background-color. */
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
@@ -110,7 +110,7 @@
   from { transform: rotate(-6deg); }
   to { transform: rotate(6deg); }
 }
-/* Route progress: the sidebar item the user clicked
+/* Route progress (components/saella/route-progress.tsx): the sidebar item the user clicked
    looks selected at once, before its route renders; the old one lets go. Same look as data-active in ui/sidebar. */
 [data-sidebar="menu-button"][data-nav-pending] {
   background-color: var(--sidebar-accent);

@@ -6,7 +6,7 @@ import { UnsavedGuardProvider } from "./_components/unsaved-guard";
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return (
     <UnsavedGuardProvider>
-      <PageHeader title="Settings" description="Your account, your workspace and how Saella sends." />
+      <PageHeader title="Settings" description="Manage your account, team, sending and billing." />
       <div className="grid gap-8 lg:grid-cols-[13rem_minmax(0,1fr)]">
         <aside>
           <SettingsNav />

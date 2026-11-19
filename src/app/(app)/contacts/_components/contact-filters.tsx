@@ -5,16 +5,21 @@ import { TODAY } from "@/lib/mock/constants";
 import { FilterCheckList, FilterMultiSelect, FilterPopover, FilterSelect } from "@/components/saella/filter-popover";
 import { type BookContact, isInvalid } from "./contact-book";
 
-// Self-upload's filters in the same Filter popover as Find companies: Tag and Company
-// (several, with search), Email status (Valid / Invalid) and Last sent. A contact must match every filter and any
-// value within one. All of it lives in the URL (?tag=&status=&sent=&company=) so the agent can link to it.
-// Compact: Tag and Company (long lists) are one MultiSelect row each, Last sent (4) a
-// Select, Email status (2) inline checkboxes.
+// Self-upload's filters in the same Filter popover as Find companies: Tag and Company (several, with search), Email
+// status (Valid / Invalid) and Last sent. A contact must match every filter and any value within one. All of it
+// lives in the URL (?tag=&status=&sent=&company=) so the agent can link to it.
 
 export type EmailStatus = "valid" | "invalid";
 export type SentWindow = "never" | "7d" | "30d" | "older";
 
-export type ContactFilters = { tags: string[]; status: EmailStatus[]; sent?: SentWindow; companies: string[] };
+export type ContactFilters = {
+  tags: string[];
+  /** Match any picked tag instead of all of them: a batch's audience, linked from its report (?match=any). */
+  anyTag?: boolean;
+  status: EmailStatus[];
+  sent?: SentWindow;
+  companies: string[];
+};
 
 export const NO_CONTACT_FILTERS: ContactFilters = { tags: [], status: [], companies: [] };
 
@@ -40,9 +45,9 @@ export function filterCount(f: ContactFilters) {
 export function matchesFilters(c: BookContact, f: ContactFilters) {
   const lower = (xs: string[]) => xs.map((x) => x.toLowerCase());
   const tags = lower(f.tags);
-  // Every picked tag (more tags narrow the list; it used to match any of them).
+  // Every picked tag (more tags narrow the list).
   const own = lower(c.tags);
-  if (tags.length && !tags.every((t) => own.includes(t))) return false;
+  if (tags.length && !(f.anyTag ? tags.some((t) => own.includes(t)) : tags.every((t) => own.includes(t)))) return false;
   if (f.status.length && !f.status.includes(isInvalid(c) ? "invalid" : "valid")) return false;
   if (f.companies.length && !lower(f.companies).includes(c.company.toLowerCase())) return false;
   if (f.sent) {
@@ -59,6 +64,7 @@ export function filtersFromParams(p: URLSearchParams): ContactFilters {
   const sent = SENT_WINDOWS.find((w) => w.value === p.get("sent"))?.value;
   return {
     tags: p.getAll("tag"),
+    anyTag: p.get("match") === "any" || undefined,
     status: p.getAll("status").filter((s): s is EmailStatus => s === "valid" || s === "invalid"),
     sent,
     companies: p.getAll("company"),
@@ -68,6 +74,7 @@ export function filtersFromParams(p: URLSearchParams): ContactFilters {
 export function filtersToParams(f: ContactFilters) {
   const q = new URLSearchParams();
   f.tags.forEach((t) => q.append("tag", t));
+  if (f.anyTag && f.tags.length > 1) q.set("match", "any");
   f.status.forEach((s) => q.append("status", s));
   if (f.sent) q.set("sent", f.sent);
   f.companies.forEach((c) => q.append("company", c));
@@ -77,7 +84,13 @@ export function filtersToParams(f: ContactFilters) {
 /** One chip per value, for the row under the card header. */
 export function activeChips(f: ContactFilters): { key: string; label: string; value: string; remove: ContactFilters }[] {
   return [
-    ...f.tags.map((t) => ({ key: `tag:${t}`, label: "Tag", value: t, remove: { ...f, tags: f.tags.filter((x) => x !== t) } })),
+    // "Any tag" says the chips are joined by "or" (a batch's audience); otherwise a contact carries every tag.
+    ...f.tags.map((t) => ({
+      key: `tag:${t}`,
+      label: f.anyTag && f.tags.length > 1 ? "Any tag" : "Tag",
+      value: t,
+      remove: { ...f, tags: f.tags.filter((x) => x !== t) },
+    })),
     ...f.status.map((s) => ({
       key: `status:${s}`,
       label: "Email status",

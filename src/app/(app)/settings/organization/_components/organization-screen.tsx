@@ -25,11 +25,13 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { Hint } from "@/components/saella/hint";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -51,7 +53,7 @@ import {
 import { SectionHeader } from "../../_components/section-header";
 import { Item } from "@/components/ui/item";
 
-// Settings → Organization (PRD Organization & Roles; live app components/email/UsersSection.tsx).
+// Settings → Organization (PRD Organization & Roles; read; live app components/email/UsersSection.tsx).
 // - One org per email domain; the first account to verify the domain becomes its admin (BR-ORG-01,
 //   BR-RULE-ORG-01, AC-ORG-A-01). Colleagues on the domain ask to join (BR-ORG-02).
 // - Members list is admin-only (AC-ORG-U-01); statuses Invited, Requested, Active, Disabled.
@@ -63,9 +65,54 @@ import { Item } from "@/components/ui/item";
 // - Send-as: only members with a confirmed sender on a verified org domain; the member is notified (BR-RULE-ORG-07,
 //   AC-ORG-U-05). The default sender is chosen in one place only, Settings › Sending › Senders.
 // - One admin; transfer only to an Active member, with a type-to-confirm step (BR-RULE-ORG-03, AC-ORG-U-06).
-// - Seats: 10 per org (PRD-05).
-// Preview with ?state= loading | error | member | unclaimed | no-requests
-type Preview = "loading" | "error" | "member" | "unclaimed" | "no-requests" | "";
+// - Seats: 10 per org, a seat being an active or invited member (PRD Master v1.1.7; live app lib/org/membership.ts
+//   MAX_MEMBERS_PER_ORG). Invite, Approve and Enable take a seat, so all three stop at 10 (live app checks invite and
+//   approve; Enable too here), locked with the reason.
+// - Unclaimed (nobody verified the domain): no admin, so the decisions that need one (approve, reject, invite, disable,
+//   send-as, transfer) are shown locked with the reason, under the "Verify your domain" alert.
+// - Invites keep refusing personal addresses, although sign-up takes any email.
+// - Several join requests: only the first Approve is the page's solid button (DESIGN §2).
+// Preview with ?state= loading | error | member | unclaimed | no-requests | full
+type Preview = "loading" | "error" | "member" | "unclaimed" | "no-requests" | "full" | "";
+
+/** ?state=full: six more active members (10 seats with Linh, Minh, An and the invite) and a second join request. */
+const FULL_EXTRA: OrgMember[] = [
+  ["u7", "Hanh Do", "hanh"],
+  ["u8", "Khoa Bui", "khoa"],
+  ["u9", "Mai Dang", "mai"],
+  ["u10", "Nam Ho", "nam"],
+  ["u11", "Phuong Ly", "phuong"],
+  ["u12", "Son Trinh", "son"],
+].map(([id, name, local]) => ({
+  id,
+  name,
+  email: `${local}@${ORG.domain}`,
+  role: "member" as const,
+  status: "active" as const,
+  joinedOn: "2026-09-15",
+  sendAs: false,
+  defaultSendAs: false,
+  templates: 0,
+}));
+const FULL_REQUEST: OrgMember = {
+  id: "u13",
+  name: "Tam Vu",
+  email: `tam@${ORG.domain}`,
+  role: "member",
+  status: "requested",
+  requestedOn: "2026-10-27",
+  sendAs: false,
+  defaultSendAs: false,
+  templates: 0,
+};
+
+function startMembers(preview: Preview): OrgMember[] {
+  if (preview === "no-requests") return initialMembers.filter((m) => m.status !== "requested");
+  if (preview === "full") return [...initialMembers, ...FULL_EXTRA, FULL_REQUEST];
+  // Nobody has verified the domain yet, so nobody is admin.
+  if (preview === "unclaimed") return initialMembers.map((m) => ({ ...m, role: "member" as const }));
+  return initialMembers;
+}
 
 const STATUS_VARIANT: Record<OrgMember["status"], "success" | "secondary" | "info" | "warning"> = {
   invited: "info",
@@ -73,6 +120,9 @@ const STATUS_VARIANT: Record<OrgMember["status"], "success" | "secondary" | "inf
   active: "success",
   disabled: "secondary",
 };
+
+const NO_ADMIN = "No admin yet. Verify the domain to become admin.";
+const SEATS_FULL = `All ${MAX_SEATS} seats are used.`;
 
 const STATUS_LABEL: Record<OrgMember["status"], string> = {
   invited: "Invited",
@@ -85,9 +135,7 @@ export function OrganizationScreen() {
   const preview = (useSearchParams().get("state") ?? "") as Preview;
   const [loading, setLoading] = useState(preview === "loading");
   const [loadError, setLoadError] = useState(preview === "error");
-  const [members, setMembers] = useState<OrgMember[]>(() =>
-    preview === "no-requests" ? initialMembers.filter((m) => m.status !== "requested") : initialMembers
-  );
+  const [members, setMembers] = useState<OrgMember[]>(() => startMembers(preview));
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
   const [invite, setInvite] = useState("");
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -97,11 +145,14 @@ export function OrganizationScreen() {
   const [transferOpen, setTransferOpen] = useState(false);
 
   const me = members.find((m) => m.id === CURRENT_USER_ID);
-  const isAdmin = preview !== "member" && me?.role === "admin";
   const admin = members.find((m) => m.role === "admin");
+  // No admin yet (unclaimed): the list shows, every admin decision is locked with the reason.
+  const noAdmin = !admin;
+  const isAdmin = preview !== "member" && (me?.role === "admin" || noAdmin);
   const requests = members.filter((m) => m.status === "requested");
   // Requests don't take a seat until approved; disabled members free theirs.
   const seatsUsed = members.filter((m) => m.status === "active" || m.status === "invited").length;
+  const full = seatsUsed >= MAX_SEATS;
   const update = (id: string, patch: Partial<OrgMember>) =>
     setMembers((list) => list.map((m) => (m.id === id ? { ...m, ...patch } : m)));
 
@@ -142,10 +193,12 @@ export function OrganizationScreen() {
   // ---- actions ------------------------------------------------------------------------------------------
 
   function approve(m: OrgMember) {
+    if (full) return void toast.error(SEATS_FULL, { description: "Disable a member or remove an invite first." });
     setConfirm({
       title: `Approve ${m.email}?`,
+      // State the fact: a join request comes from an account that has its own workspace.
       description:
-        "If they built a workspace of their own before asking, it is permanently deleted. Credits they purchased move to this workspace. This can't be undone.",
+        "Their own workspace is permanently deleted. Credits they purchased move to this workspace. This can't be undone.",
       confirmLabel: "Approve",
       onConfirm: () => {
         update(m.id, { status: "active", joinedOn: "2026-10-27", requestedOn: undefined });
@@ -200,7 +253,7 @@ export function OrganizationScreen() {
     // Same business-email rule as sign-up (live app api/org/members POST).
     if (FREE_MAIL.includes(email.split("@")[1])) return setInviteError("Use their work email address, not a personal one.");
     if (members.some((m) => m.email === email)) return setInviteError(`${email} is already on the list.`);
-    if (seatsUsed >= MAX_SEATS) return setInviteError(`All ${MAX_SEATS} seats are used. Disable a member or remove an invite first.`);
+    if (full) return setInviteError(`${SEATS_FULL} Disable a member or remove an invite first.`);
     setMembers((list) => [
       ...list,
       { id: `u-${Date.now()}`, name: "", email, role: "member", status: "invited", invitedOn: "2026-10-27", sendAs: false, defaultSendAs: false, templates: 0 },
@@ -275,21 +328,37 @@ export function OrganizationScreen() {
         <section className="flex flex-col gap-3" aria-labelledby="requests-title">
           <SectionHeader id="requests-title" title="Join requests" description="They can't use Saella until you decide." />
           <ul className="flex flex-col divide-y rounded-card border">
-            {requests.map((m) => (
-              <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <MemberName m={m} meta={`Asked ${m.requestedOn ? formatDay(m.requestedOn) : "recently"}`} />
-                <div className="ml-auto flex gap-2">
-                  <Button variant="outline" onClick={() => reject(m)}>
-                    <XIcon data-icon="inline-start" />
-                    Reject
-                  </Button>
-                  <Button onClick={() => approve(m)}>
-                    <UserCheckIcon data-icon="inline-start" />
-                    Approve
-                  </Button>
-                </div>
-              </li>
-            ))}
+            {requests.map((m, i) => {
+              const approveLock = noAdmin ? NO_ADMIN : full ? `${SEATS_FULL} Free one up first.` : undefined;
+              return (
+                <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                  <MemberName m={m} meta={`Asked ${m.requestedOn ? formatDay(m.requestedOn) : "recently"}`} />
+                  <div className="ml-auto flex gap-2">
+                    <Hint label={noAdmin ? NO_ADMIN : undefined}>
+                      <span tabIndex={noAdmin ? 0 : undefined} className="flex">
+                        <Button variant="outline" disabled={noAdmin} onClick={() => reject(m)}>
+                          <XIcon data-icon="inline-start" />
+                          Reject
+                        </Button>
+                      </span>
+                    </Hint>
+                    <Hint label={approveLock}>
+                      <span tabIndex={approveLock ? 0 : undefined} className="flex">
+                        {/* One solid button per page (DESIGN §2): only the first request's Approve, and never a locked one. */}
+                        <Button
+                          variant={i === 0 && !approveLock ? "default" : "outline"}
+                          disabled={Boolean(approveLock)}
+                          onClick={() => approve(m)}
+                        >
+                          <UserCheckIcon data-icon="inline-start" />
+                          Approve
+                        </Button>
+                      </span>
+                    </Hint>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
@@ -304,8 +373,8 @@ export function OrganizationScreen() {
             </span>
           }
         />
-        {/* invite + seats sit in a toolbar inside the table box, so the
-            form reads as part of the list it adds to instead of a loose field between heading and table. */}
+        {/* Invite + seats sit in a toolbar inside the table box (Studio Admin roles), so the form reads as part of the
+            list it adds to. */}
         <div className="rounded-card border">
           <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b px-4 py-3">
             <form onSubmit={sendInvite} noValidate className="w-full max-w-md">
@@ -325,11 +394,17 @@ export function OrganizationScreen() {
                     }}
                     aria-invalid={inviteError ? true : undefined}
                     aria-describedby="invite-help"
+                    // Invite is locked (no admin, or every seat used): so is the field.
+                    disabled={noAdmin || full}
                   />
-                  <Button type="submit" variant="outline">
-                    <UserPlusIcon data-icon="inline-start" />
-                    Invite
-                  </Button>
+                  <Hint label={noAdmin ? NO_ADMIN : full ? SEATS_FULL : undefined}>
+                    <span tabIndex={noAdmin || full ? 0 : undefined} className="flex">
+                      <Button type="submit" variant="outline" disabled={noAdmin || full}>
+                        <UserPlusIcon data-icon="inline-start" />
+                        Invite
+                      </Button>
+                    </span>
+                  </Hint>
                 </div>
                 {inviteError ? (
                   <FieldError id="invite-help">{inviteError}</FieldError>
@@ -352,9 +427,11 @@ export function OrganizationScreen() {
             <TableHeader>
               <TableRow>
                 <TableHead>Member</TableHead>
-                <TableHead className="w-32">Role</TableHead>
-                <TableHead className="w-28">Status</TableHead>
-                <TableHead className="w-44">
+                {/* Below 1440 (laptops) the side columns narrow and Member truncates, so Actions stays in the card
+                    at 1280. */}
+                <TableHead className="w-32 max-[1440px]:w-24">Role</TableHead>
+                <TableHead className="w-28 max-[1440px]:w-24">Status</TableHead>
+                <TableHead className="w-44 max-[1440px]:w-24">
                   <span className="flex items-center gap-1">
                     Send-as
                     <Tooltip>
@@ -369,7 +446,7 @@ export function OrganizationScreen() {
                     </Tooltip>
                   </span>
                 </TableHead>
-                <TableHead className="w-28">Joined</TableHead>
+                <TableHead className="w-28 max-[1440px]:w-24">Joined</TableHead>
                 <TableHead className="w-14">
                   <span className="sr-only">Actions</span>
                 </TableHead>
@@ -379,14 +456,14 @@ export function OrganizationScreen() {
               {members
                 .filter((m) => m.status !== "requested")
                 .map((m) => {
-                  const eligible = m.status === "active" && canSendAs(m);
+                  const eligible = !noAdmin && m.status === "active" && canSendAs(m);
                   return (
                     <TableRow key={m.id}>
-                      <TableCell>
+                      <TableCell className="max-[1440px]:max-w-56">
                         <MemberName m={m} />
                       </TableCell>
                       <TableCell>
-                        {/* Plain text for both roles: one display type per column. */}
+                        {/* Plain text for both roles: one display type per column (DESIGN §2). */}
                         {m.role === "admin" ? "Admin" : "Member"}
                       </TableCell>
                       <TableCell>
@@ -409,7 +486,7 @@ export function OrganizationScreen() {
                               </TooltipTrigger>
                               {!eligible && (
                                 <TooltipContent className="max-w-64">
-                                  Needs a confirmed sender on a verified domain first.
+                                  {noAdmin ? NO_ADMIN : "Needs a confirmed sender on a verified domain first."}
                                 </TooltipContent>
                               )}
                             </Tooltip>
@@ -429,9 +506,14 @@ export function OrganizationScreen() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {noAdmin ? (
+                                <DropdownMenuLabel>No admin yet</DropdownMenuLabel>
+                              ) : (
+                                m.status === "disabled" && full && <DropdownMenuLabel>{SEATS_FULL}</DropdownMenuLabel>
+                              )}
                               <DropdownMenuGroup>
                                 {m.status === "active" && (
-                                  <DropdownMenuItem variant="destructive" onSelect={() => disable(m)}>
+                                  <DropdownMenuItem variant="destructive" disabled={noAdmin} onSelect={() => disable(m)}>
                                     <UserXIcon />
                                     Disable
                                   </DropdownMenuItem>
@@ -439,7 +521,10 @@ export function OrganizationScreen() {
                                 {m.status === "disabled" && (
                                   <>
                                     <DropdownMenuItem
+                                      disabled={noAdmin || full}
                                       onSelect={() => {
+                                        // Enabling takes a seat back (active), so it stops at the limit too.
+                                        if (full) return void toast.error(SEATS_FULL);
                                         update(m.id, { status: "active" });
                                         toast.success(`Enabled ${m.email}`);
                                       }}
@@ -448,7 +533,7 @@ export function OrganizationScreen() {
                                       Enable
                                     </DropdownMenuItem>
                                     <DropdownMenuItem
-                                      disabled={m.templates === 0}
+                                      disabled={noAdmin || m.templates === 0}
                                       onSelect={() => setReassign({ from: m, to: activeOthers.find((x) => x.id !== m.id)?.id ?? CURRENT_USER_ID })}
                                     >
                                       <ArrowRightLeftIcon />
@@ -457,7 +542,7 @@ export function OrganizationScreen() {
                                   </>
                                 )}
                                 {m.status === "invited" && (
-                                  <DropdownMenuItem variant="destructive" onSelect={() => removeInvite(m)}>
+                                  <DropdownMenuItem variant="destructive" disabled={noAdmin} onSelect={() => removeInvite(m)}>
                                     <XIcon />
                                     Remove invitation
                                   </DropdownMenuItem>
@@ -475,9 +560,11 @@ export function OrganizationScreen() {
         </div>
       </section>
 
+      {/* No admin yet: nothing to transfer, so the section isn't shown. */}
+      {!noAdmin && (
       <section className="flex flex-col gap-4" aria-labelledby="danger-title">
         <SectionHeader id="danger-title" title="Transfer the admin role" />
-        <Item variant="outline" className="flex-col items-stretch gap-3 rounded-card px-4 py-4 text-[length:inherit]">
+        <Item variant="outline" className="flex-col items-stretch gap-3 rounded-card px-4 py-4 text-base">
           <p className="text-muted-foreground">
             Only an active member can take it over. You become a regular member and can&apos;t undo it yourself.
           </p>
@@ -502,6 +589,7 @@ export function OrganizationScreen() {
           </div>
         </Item>
       </section>
+      )}
 
       <ConfirmDialog request={confirm} onClose={() => setConfirm(null)} />
 
@@ -609,7 +697,10 @@ function MemberName({ m, meta }: { m: OrgMember; meta?: string }) {
       <div className="flex min-w-0 flex-col">
         <span className="truncate font-medium">{m.name || m.email}</span>
         {(m.name || meta) && (
-          <span className="truncate text-sm text-muted-foreground tabular-nums">
+          <span
+            className="truncate text-sm text-muted-foreground tabular-nums"
+            title={[m.name ? m.email : "", meta].filter(Boolean).join(" · ")}
+          >
             {[m.name ? m.email : "", meta].filter(Boolean).join(" · ")}
           </span>
         )}
@@ -619,9 +710,8 @@ function MemberName({ m, meta }: { m: OrgMember; meta?: string }) {
 }
 
 // Template ownership in one place (PRD-02 sharing rules as the live app states them in its notifications,
-// lib/i18n/messages.ts ntf.tpl.*, ntf.shared.*, ntf.revoked.*, ntf.owner.*; ORG-SEQ-004).
-// Shown behind ⓘ, not as a section of bullet text.
-// Cut to what decides an action.
+// lib/i18n/messages.ts ntf.tpl.*, ntf.shared.*, ntf.revoked.*, ntf.owner.*; ORG-SEQ-004). Behind ⓘ (secondary info),
+// cut to what decides an action.
 const OWNERSHIP_RULES = [
   "One owner per template.",
   "Shared people can edit and send.",

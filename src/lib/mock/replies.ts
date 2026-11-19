@@ -1,4 +1,4 @@
-// Replies by intent for the Recipients tab (and).
+// Replies by intent for the Recipients tab (ĐX R6, 2026-10-29, learned from Apollo "Recent replies" and Unify).
 // The backend does not classify replies yet: this mock spreads `metrics.replies` over recipients who opened, so the
 // Replied count always equals the batch's replies number shown elsewhere in the report.
 

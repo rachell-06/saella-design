@@ -15,18 +15,21 @@ import {
   PaletteIcon,
   LightbulbIcon,
   LockIcon,
+  MoreHorizontalIcon,
+  PowerOffIcon,
   PaperclipIcon,
-  SparklesIcon,
   PlusIcon,
   RotateCwIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CURRENT_USER, type Template, campaignStatus, sampleCampaigns } from "@/lib/mock/campaigns";
-import { useCreatedCampaigns } from "@/lib/mock/created-campaigns";
+import { applyCampaignStore, isArchived } from "@/lib/mock/campaign-store";
+import { useCampaignStore } from "@/lib/mock/created-campaigns";
 import { PageHeader } from "@/components/layout/page-header";
 import { ChipRemove } from "@/components/saella/chip-remove";
 import { Hint } from "@/components/saella/hint";
+import { AnimatedSparkles, type AnimatedSparklesHandle } from "@/components/saella/animated-sparkles";
 import { StatusBadge } from "@/components/saella/status-badge";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -45,6 +48,8 @@ import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Editor as TipTapEditor } from "@tiptap/react";
@@ -55,7 +60,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { LockedTip, ScheduleDialog } from "@/components/features/automate-dialog";
+import { formatTime } from "@/lib/time";
+import { ScheduleDialog } from "@/components/features/automate-dialog";
+import { LockedTip } from "@/components/saella/locked-tip";
+import { useAutomation } from "@/components/features/automation";
 import {
   Dialog,
   DialogClose,
@@ -66,6 +74,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useCopyTemplate } from "@/components/features/template-menu";
+import { CAMPAIGN_ARCHIVED, CAMPAIGN_ENDED } from "@/components/features/activation";
 import { UnsavedDialog } from "@/components/saella/unsaved-dialog";
 import { MERGE_TAG_MENU_CLASS, MergeTagItems } from "@/components/features/merge-tag-items";
 import { type LeaveTarget, useLeaveGuard } from "@/lib/leave-guard";
@@ -102,25 +111,24 @@ import { EmailBody } from "@/components/features/email-body";
 import { SubjectCheckButton } from "./subject-checklist";
 import { AiMark, type Draft, WriteWithSaellaDialog } from "./write-with-ai";
 
-// The email editor (live app EmailTemplateEditor), .
+// The email editor (live app EmailTemplateEditor).
 // Layout as the live editor: two panes side by side.
 // Left: the editor card: kind in its top-right corner, envelope as compact rows (name, subject, preheader, campaign,
-// from), the content check as an alert (live app lint alert), a sticky toolbar (add blocks, attach, and Write with
-// Saella, which opens its dialog) with the selected block's properties, the editable email. Right: the live preview (name, subject, preheader, then the email with sample
-// merge values), always visible. Header: Save draft + Mark active; once active, Save changes + Send batch.
+// from), a sticky toolbar (add blocks, attach, and Write with Saella, which opens its dialog), the editable email.
+// Right: the live preview (name, subject, preheader, then the email with sample merge values), always visible.
+// Header: the content check ("N to fix") + Save draft + Mark active; once active, Save changes + Send batch.
 // Simplified on purpose, to be decided with the user:
-//  - blocks instead of free rich text: no inline bold/links/fonts, no drag and drop (move up/down instead),
-//    no HTML code view, no A/B versions (hidden behind a flag in the live app) and no per-template colours yet;
+//  - a Letter is rich text (TipTap), a Design is blocks; no A/B versions (hidden behind a flag in the live app) and
+//    no per-template colours yet;
 //  - envelope as the live editor: name, campaign (movable, TPL-UPDATE-001), sender, subject, preheader and
 //    attachments (AC-EC-T-04, 10 MB each; mock keeps only the file name and size);
-//  - images are placeholders (no storage); the preview follows the app theme instead of a fixed white email;
-//  - the unsaved guard covers in-app links and closing the tab, not the browser Back button.
+//  - images are placeholders (no storage); the preview follows the app theme instead of a fixed white email.
 // Permissions (Repo template-permissions.ts): editing needs canEdit; others open it read-only with Make a copy
 // (AC-EC-TO-03). A save after access is revoked is rejected and the editor drops to read-only (AC-EC-TO-05).
 // Preview states: ?state=loading | error | member | revoked (save fails) | ai-error. `draft` = new template
 // (?campaign, ?kind, ?start = how a Design starts, ?name optional, ?return = page to go back to after the first save).
 // ?ai=subject | subject-writing opens the subject suggestions beside the Subject field (write-with-ai.tsx).
-// ?subject=…&preheader=… start the template with that text, to show the live subject checklist.
+// ?subject=…&preheader=… start the template with that text, to show the live subject checklist (R5).
 
 type Snapshot = {
   name: string;
@@ -167,9 +175,9 @@ export function TemplateEditor({ id }: { id: string }) {
 
 function Editor({ id }: { id: string }) {
   const params = useSearchParams();
-  // Campaigns made this session (newest first) + the seed list, so a just-created campaign can be picked.
-  const created = useCreatedCampaigns();
-  const allCampaigns = useMemo(() => [...created, ...sampleCampaigns], [created]);
+  // Campaigns as of now (lib/mock/campaign-store.ts): made this session (newest first), edited, archived, deleted.
+  const campaignState = useCampaignStore();
+  const allCampaigns = useMemo(() => applyCampaignStore(sampleCampaigns, campaignState), [campaignState]);
   const router = useRouter();
   const previewState = params.get("state");
   const viewer = viewerFor(previewState);
@@ -218,7 +226,7 @@ function Editor({ id }: { id: string }) {
       preheader: envelope.preheader ?? d.preheader,
       senderId: d.senderId ?? DEFAULT_SENDER_ID,
       campaignId: found?.campaign.id ?? "",
-      attachments: [],
+      attachments: d.attachments ?? [],
       blocks: d.kind === "design" ? d.blocks : [],
       ...(d.kind === "letter"
         ? (({ body, block }) => ({ html: body, htmlBlock: block }))(splitHtmlBlock(d.html ?? blocksToHtml(d.blocks)))
@@ -232,15 +240,16 @@ function Editor({ id }: { id: string }) {
   const [doc, setDoc] = useState<Snapshot>(initial);
   const [status, setStatus] = useState(template.status);
   const [revoked, setRevoked] = useState(false);
-  // A first save was refused for a missing subject: show the field as invalid even before any edit.
-  const [subjectNeeded, setSubjectNeeded] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(initial.blocks[0]?.id ?? null);
   // Write with Saella is a dialog opened from the editor toolbar (live app "Agent" modal). Like the
   // live app it opens by itself only for a blank Design (nothing to look at yet); a Letter starter or a preset doesn't.
   const [aiOpen, setAiOpen] = useState(isDraft && draftKind === "design" && (!draftStart || draftStart === "blank"));
   // After "Save and mark active": ask what's next instead of stopping here.
   const [ready, setReady] = useState(params.get("ready") === "1");
+  // "Set a schedule" opens the schedule modal.
   const [scheduling, setScheduling] = useState(false);
+  const automationState = useAutomation();
+  const scheduleRunning = automationState.schedules.some((x) => x.templateId === id && x.status === "active");
   // Fields Saella filled, marked ✨ until the user edits them.
   const [aiFilled, setAiFilled] = useState<ReadonlySet<string>>(new Set());
   const unmark = (field: string) =>
@@ -258,10 +267,14 @@ function Editor({ id }: { id: string }) {
   const [sourceText, setSourceText] = useState("");
   const [checkOpen, setCheckOpen] = useState(false);
   const [blockRequest, setBlockRequest] = useState<BlockRequest | null>(null);
+  // A Letter's image picked in the content check: the editor selects it.
+  const [letterImage, setLetterImage] = useState<{ index: number; n: number } | null>(null);
   // The Design text field being edited in place: the toolbar's Tags menu inserts at its caret.
   const [activeField, setActiveField] = useState<TipTapEditor | null>(null);
   const [pendingKind, setPendingKind] = useState<TemplateKind | null>(null);
   const [leaveTo, setLeaveTo] = useState<LeaveTarget | null>(null);
+  // Mark inactive with a running schedule asks first: the schedule then waits.
+  const [deactivating, setDeactivating] = useState(false);
 
   const access = accessFor(template, viewer);
   const readOnly = !canEdit(access) || revoked;
@@ -271,7 +284,7 @@ function Editor({ id }: { id: string }) {
   const bodyBlocks = useMemo(() => (letter ? htmlToBlocks(doc.html) : doc.blocks), [letter, doc.html, doc.blocks]);
   const { issues } = useMemo(() => {
     const r = checkContent({ ...doc, blocks: bodyBlocks, html: letter ? joinHtmlBlock(doc.html, doc.htmlBlock) : undefined });
-    // A Letter has no blocks to jump to: its problems point at nothing on the page.
+    // A Letter has no blocks to jump to: its image problems select the image in the text instead (letterImage).
     return letter ? { ...r, issues: r.issues.map((i) => ({ ...i, blockId: undefined })) } : r;
   }, [doc, bodyBlocks, letter]);
   const subjectChecks = useMemo(() => checkSubject(doc.subject, doc.preheader), [doc.subject, doc.preheader]);
@@ -279,12 +292,18 @@ function Editor({ id }: { id: string }) {
   const warnings = issues.filter((i) => i.severity === "warning");
   const issueIds = new Set(issues.filter((i) => i.blockId && i.severity !== "tip").map((i) => i.blockId!));
   const subjectRef = useRef<HTMLDivElement>(null);
+  // Write with Saella's sparkles move while the button is hovered or focused.
+  const sparklesRef = useRef<AnimatedSparklesHandle>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Ask before leaving with unsaved work, on every way out (lib/leave-guard.ts: tab close, in-app
-  // links, the top bar's Back, the browser's Back). A new template counts as unsaved until its first save: its
-  // campaign and kind are already picked, so leaving loses them.
-  const leave = useLeaveGuard(!readOnly && (dirty || isDraft), setLeaveTo);
+  // Ask before leaving with unsaved work, on every way out (lib/leave-guard.ts: tab close, in-app links, the top bar's
+  // Back, the browser's Back). A new template counts as unsaved until its first save: its campaign and kind are already
+  // picked, so leaving loses them.
+  // Making a template: until it's active, leaving also asks to mark it active, saved or not.
+  // `?new=1` follows a new template from /draft to its own URL after the first save.
+  const creating = isDraft || params.get("new") === "1";
+  const unfinished = creating && status === "inactive";
+  const leave = useLeaveGuard(!readOnly && (dirty || isDraft || unfinished), setLeaveTo);
 
   const patch = (p: Partial<Snapshot>) => setDoc((d) => ({ ...d, ...p }));
   const setBlocks = (fn: (b: Block[]) => Block[]) => setDoc((d) => ({ ...d, blocks: fn(d.blocks) }));
@@ -327,15 +346,9 @@ function Editor({ id }: { id: string }) {
       return false;
     }
     if (isDraft) {
-      // First save of a new template = the live app's create (POST /api/email/templates: "name and subject are
-      // required"). Later saves may leave the subject empty; Check then blocks Mark active.
-      if (!doc.subject.trim()) {
-        setSubjectNeeded(true);
-        toast.error("Add a subject first");
-        document.getElementById("ed-subject")?.focus();
-        return false;
-      }
-      // It now exists (same store as copies), so lists and New batch can pick it.
+      // A draft saves without a subject. The live POST needs one and pre-fills "Subject — update me"; the mock keeps it
+      // empty instead, so Check still lists "Add a subject" and blocks Mark active. Saved to the same store as copies, so
+      // lists and New batch can pick it.
       const campaign = allCampaigns.find((c) => c.id === doc.campaignId);
       if (!campaign) {
         toast.error("Pick a campaign first");
@@ -351,6 +364,7 @@ function Editor({ id }: { id: string }) {
           senderId: doc.senderId,
           blocks: bodyBlocks,
           html: letter ? joinHtmlBlock(doc.html, doc.htmlBlock) : undefined,
+          attachments: doc.attachments,
         },
         viewer.email
       );
@@ -372,22 +386,65 @@ function Editor({ id }: { id: string }) {
         kind: "href",
         href: returning
           ? `${back}${back!.includes("?") ? "&" : "?"}template=${encodeURIComponent(newId)}`
-          : `/templates/${newId}/edit${markActive ? "?ready=1" : ""}`,
+          : `/templates/${newId}/edit${markActive ? "?ready=1" : "?new=1"}`,
         // The draft URL would open a fresh empty draft on Back: the saved template takes its place in history.
         replace: !returning,
       });
       return true;
     }
+    // An existing template: name, status, content, attachments and campaign go to the shared store (live PATCH,
+    // TPL-UPDATE-001), so the lists, Campaigns, the template page, New batch and the ⋯ menu see them in this session.
+    // A reload resets the mock.
+    const nextStatus = markActive ? "active" : status;
+    const moveTo = doc.campaignId !== saved.campaignId ? allCampaigns.find((c) => c.id === doc.campaignId) : undefined;
+    templateActions.update(
+      id,
+      { name: doc.name.trim(), status: nextStatus },
+      {
+        kind: doc.kind,
+        subject: doc.subject,
+        preheader: doc.preheader,
+        senderId: doc.senderId,
+        blocks: bodyBlocks,
+        html: letter ? joinHtmlBlock(doc.html, doc.htmlBlock) : undefined,
+        attachments: doc.attachments,
+      },
+      viewer.email,
+      moveTo && { id: moveTo.id, name: moveTo.name }
+    );
     setSaved(doc);
-    setSavedAt(new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }));
-    if (markActive) setReady(true);
+    setSavedAt(formatTime(new Date()));
     if (markActive) setStatus("active");
-    // Same store as the ⋯ menu, so the list, the template page and Campaigns show the new status.
-    if (markActive) templateActions.setStatus(id, "active", viewer.email);
+    // Opened from another page with ?return= (e.g. New batch's "Fix in editor"): back there, this template picked.
+    const back = params.get("return");
+    const returning = back?.startsWith("/") && !back.startsWith("//");
     toast.success(markActive ? "Saved and marked active" : "Saved", {
-      description: markActive ? "It can be sent now." : status === "inactive" ? "Still inactive: mark it active when it's ready to send." : undefined,
+      description: returning
+        ? "Back to your batch with this template."
+        : markActive
+          ? "It can be sent now."
+          : nextStatus === "inactive"
+            ? "Still inactive: mark it active when it's ready to send."
+            : undefined,
     });
+    if (returning && !opts?.stay) {
+      const url = new URL(back!, window.location.origin);
+      url.searchParams.set("template", id);
+      leave({ kind: "href", href: url.pathname + url.search });
+      return true;
+    }
+    // Leaving through the dialog's Mark active: no "Ready to send" on the way out.
+    if (markActive && !opts?.stay) setReady(true);
     return true;
+  }
+
+  /** Status only (live PATCH status): unsaved edits stay in the editor, still unsaved. */
+  function markInactive() {
+    templateActions.setStatus(id, "inactive", viewer.email);
+    setStatus("inactive");
+    toast.success("Marked inactive", {
+      description: scheduleRunning ? "Its schedule waits until you mark it active again." : "It can't be sent until you mark it active again.",
+    });
   }
 
   function applyDraft(d: Draft) {
@@ -421,7 +478,10 @@ function Editor({ id }: { id: string }) {
   function goToIssue(issue: Issue) {
     setCheckOpen(false);
     if (issue.field === "sender") setDetailsOpen(true);
-    if (issue.blockId) {
+    if (letter && issue.image !== undefined) {
+      if (source) setView(false);
+      setLetterImage({ index: issue.image, n: Date.now() });
+    } else if (issue.blockId) {
       setSelectedId(issue.blockId);
       const action = issue.id.startsWith("img-file-") ? "file" : issue.id.startsWith("img-alt-") ? "alt" : issue.id.startsWith("btn-url-") ? "link" : null;
       if (action) setBlockRequest({ id: issue.blockId, action, n: Date.now() });
@@ -438,7 +498,7 @@ function Editor({ id }: { id: string }) {
   if (previewState === "error")
     return (
       <>
-        <PageHeader title="Edit template" description="Write the email and send yourself a test before it goes out." breadcrumbs={[{ label: "Templates", href: "/templates" }]} />
+        <PageHeader title="Edit template" description="Draft, review and get this email ready to send." breadcrumbs={[{ label: "Templates", href: "/templates" }]} />
         <Alert variant="destructive">
           <CircleAlertIcon />
           <AlertTitle>The template didn&apos;t load</AlertTitle>
@@ -457,14 +517,32 @@ function Editor({ id }: { id: string }) {
 
   const senderList = senderOptions(viewer.email);
   const currentSender = senderById(doc.senderId);
+  // Opened from New batch › Review › Edit template (?batch=): Send batch goes back to that Review, the picks kept,
+  // instead of starting a new batch.
+  const batchParam = params.get("batch");
+  const batchReturn = batchParam?.startsWith("/batches/new?") ? batchParam : undefined;
   const markReason = errors.length > 0 ? `Fix ${errors.length} ${errors.length === 1 ? "problem" : "problems"} first` : undefined;
+  // A template of an ended campaign stays off (live campaign-expiry sweep); moving it to an open campaign frees it.
+  const docCampaign = allCampaigns.find((c) => c.id === doc.campaignId);
+  // The editor says where to fix it: the campaign is changed under the summary line (Details).
+  // An archived campaign keeps it off the same way, until the campaign is unarchived.
+  const campaignOff =
+    docCampaign === undefined
+      ? undefined
+      : campaignStatus(docCampaign) === "ended"
+        ? CAMPAIGN_ENDED
+        : isArchived(docCampaign.id, campaignState)
+          ? CAMPAIGN_ARCHIVED
+          : undefined;
+  const activateReason = campaignOff ? `${campaignOff}. Move it to a running campaign in Details.` : markReason;
   const checkCount = errors.length + warnings.length;
 
   // Left of the save buttons: the page's results (existing templates) and the content check, next to the action it
   // blocks. The check disappears when there is nothing to fix.
   const leading = (
     <>
-      {found && (
+      {/* Only once it has sent: before that the results page is empty. */}
+      {found && found.template.recipients > 0 && (
         <Button variant="ghost" size="sm" className="text-muted-foreground" asChild>
           <Link href={`/templates/${id}`}>View results</Link>
         </Button>
@@ -485,8 +563,8 @@ function Editor({ id }: { id: string }) {
         <SaveIcon data-icon="inline-start" />
         Save draft
       </Button>
-      <LockedTip reason={markReason}>
-        <Button size="sm" onClick={() => save(true)} disabled={Boolean(markReason)}>
+      <LockedTip reason={activateReason}>
+        <Button size="sm" onClick={() => save(true)} disabled={Boolean(activateReason)}>
           Mark active
         </Button>
       </LockedTip>
@@ -501,9 +579,25 @@ function Editor({ id }: { id: string }) {
           Save changes
         </Button>
       </LockedTip>
-      <Hint label="Pick the audience, then queue the batch">
+      {/* Mark inactive: only here, like Mark active. */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="icon-sm" variant="outline" aria-label="More actions">
+            <MoreHorizontalIcon />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuGroup>
+            <DropdownMenuItem onSelect={() => (scheduleRunning ? setDeactivating(true) : markInactive())}>
+              <PowerOffIcon />
+              Mark inactive
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <Hint label={batchReturn ? "Back to your batch, picks kept, to send this version" : "Pick the audience, then queue the batch"}>
       <Button size="sm" asChild>
-        <Link href={`/batches/new?template=${encodeURIComponent(id)}&step=1`}>
+        <Link href={batchReturn ?? `/batches/new?template=${encodeURIComponent(id)}&step=1`}>
           <SendIcon data-icon="inline-start" />
           Send batch
         </Link>
@@ -511,10 +605,19 @@ function Editor({ id }: { id: string }) {
       </Hint>
     </>
   );
-  // Where the live app's orange "Agent" button sits. Solid orange.
+  // Where the live app's orange "Agent" button sits. Solid orange like the live app (an exception to "one solid orange
+  // per page").
   const writeButton = (
-    <Button size="sm" className="shrink-0" onClick={() => setAiOpen(true)}>
-      <SparklesIcon data-icon="inline-start" />
+    <Button
+      size="sm"
+      className="shrink-0"
+      onClick={() => setAiOpen(true)}
+      onMouseEnter={() => sparklesRef.current?.startAnimation()}
+      onMouseLeave={() => sparklesRef.current?.stopAnimation()}
+      onFocus={() => sparklesRef.current?.startAnimation()}
+      onBlur={() => sparklesRef.current?.stopAnimation()}
+    >
+      <AnimatedSparkles ref={sparklesRef} data-icon="inline-start" />
       Write with Saella
     </Button>
   );
@@ -571,25 +674,28 @@ function Editor({ id }: { id: string }) {
         <section aria-label="Editor" className="flex min-w-0 flex-col gap-3 rounded-card border p-4">
           {/* Envelope: compact rows (live app "email-page-meta"); the kind sits in the card's top-right corner. */}
           <div ref={subjectRef} className="flex flex-col">
-            {/* Campaign and sender fold into one line so the email itself shows first; name,
-                Subject and Preheader stay as rows. The kind stays in the corner. */}
+            {/* Campaign and sender fold into one line so the email itself shows first; name, Subject and Preheader stay as
+                rows. */}
             <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
-              <div className="flex items-center justify-between gap-3 pb-1">
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="group/details -ml-2 min-w-0 shrink font-normal text-muted-foreground">
-                    <ChevronRightIcon data-icon="inline-start" className="transition-transform group-data-[state=open]/details:rotate-90" />
-                    <span className="truncate">
-                      {allCampaigns.find((c) => c.id === doc.campaignId)?.name ?? "No campaign"} · From {currentSender?.name ?? "no sender"}
-                    </span>
-                  </Button>
-                </CollapsibleTrigger>
+              {/* Wraps on narrow cards (1280–1366 laptops): the campaign line keeps room for a readable name (min-w-48)
+                  and the corner controls move under it; the full line is in the hint. */}
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 pb-1">
+                {/* The campaign name gives way first, so the sender always shows; the full line is in the hint. */}
+                <Hint label={`${docCampaign?.name ?? "No campaign"} · From ${currentSender ? `${currentSender.name} (${currentSender.email})` : "no sender"}`}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="group/details -ml-2 min-w-48 shrink font-normal text-muted-foreground">
+                      <ChevronRightIcon data-icon="inline-start" className="transition-transform group-data-[state=open]/details:rotate-90" />
+                      <span className="truncate">{docCampaign?.name ?? "No campaign"}</span>
+                      <span className="shrink-0">· {currentSender?.name ?? "No sender"}</span>
+                    </Button>
+                  </CollapsibleTrigger>
+                </Hint>
                 {/* How you edit, together in the corner (live app: Letter/Design and Visual/HTML on the editor's top). */}
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="ml-auto flex shrink-0 items-center gap-2">
                   {viewToggle}
-                    {/* A dropdown, not two buttons: the kind is set once, so it shouldn't pull the eye
-                        while writing. Switching still asks first (the AlertDialog below). */}
+                    {/* A dropdown, not two buttons: the kind is set once. Switching still asks first (the AlertDialog below). */}
                     <Select value={doc.kind} onValueChange={(v) => v !== doc.kind && setPendingKind(v as TemplateKind)} disabled={readOnly}>
-                      <Hint label="Letter: write the message yourself, with an optional HTML block below it. Design: build the email from blocks, or edit its HTML.">
+                      <Hint label="Letter: an email you write. Design: a poster built from blocks.">
                         <SelectTrigger size="sm" aria-label="Template kind" className="min-w-28">
                           <SelectValue />
                         </SelectTrigger>
@@ -618,9 +724,10 @@ function Editor({ id }: { id: string }) {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
-                            {/* Ended campaigns can't send, so they're only listed when the template is already in one. */}
+                            {/* Ended and archived campaigns take no templates, so they're only listed when the template is already in one. A
+                                move is saved with the template (Save draft / Save changes). */}
                             {allCampaigns
-                              .filter((c) => campaignStatus(c) !== "ended" || c.id === doc.campaignId)
+                              .filter((c) => (campaignStatus(c) !== "ended" && !isArchived(c.id, campaignState)) || c.id === doc.campaignId)
                               .map((c) => (
                                 <SelectItem key={c.id} value={c.id}>
                                   {c.name}
@@ -679,7 +786,7 @@ function Editor({ id }: { id: string }) {
               disabled={readOnly}
               placeholder="What the recipient sees first"
               extra={doc.subject.trim() ? <SubjectCheckButton checks={subjectChecks} /> : undefined}
-              invalid={(!isDraft || dirty || subjectNeeded) && issues.some((i) => i.field === "subject" && i.severity === "error")}
+              invalid={(!isDraft || dirty) && issues.some((i) => i.field === "subject" && i.severity === "error")}
             />
             <EnvelopeTagRow
               id="ed-preheader"
@@ -699,11 +806,11 @@ function Editor({ id }: { id: string }) {
           {letter && source ? (
             // HTML view of the Letter (live app: Visual | HTML).
             <>
-              <div className="flex items-center gap-2 rounded-lg border p-1.5">
+              <div className="flex items-center gap-2 border-b pb-1.5">
                 <span className="min-w-0 flex-1 truncate px-2 text-sm text-muted-foreground">The letter as HTML</span>
                 {!readOnly && writeButton}
               </div>
-              <HtmlSource value={sourceText} onChange={editSource} disabled={readOnly} hint="Unsafe tags are removed when you switch back. Drop an .html file here to load it." />
+              <HtmlSource value={sourceText} onChange={editSource} disabled={readOnly} hint="Drop an .html file here to load it." />
             </>
           ) : letter ? (
             // Letter: rich text like the live app's EmailEditor (TipTap); toolbar on top, Write with Saella at its right.
@@ -714,6 +821,7 @@ function Editor({ id }: { id: string }) {
                 onChange={(html) => patch({ html })}
                 disabled={readOnly}
                 onAttach={() => fileRef.current?.click()}
+                focusImage={letterImage}
                 trailing={
                   <>{!readOnly && writeButton}</>
                 }
@@ -726,10 +834,11 @@ function Editor({ id }: { id: string }) {
           {/* Toolbar + the selected block's properties, kept in view while the email scrolls. */}
           {!readOnly && (
             <div className="sticky top-0 z-10 flex flex-col gap-3 bg-background">
-              <div className="flex items-start gap-2 rounded-lg border p-1.5">
+              {/* No box of its own (fewer nested outlines): a hairline under the toolbar. */}
+              <div className="flex items-start gap-2 border-b pb-1.5">
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5" role="toolbar" aria-label="Email toolbar">
-                {/* One menu: adds after the selected block, or at the end. The gaps between
-                    blocks and the block's bar add in place. */}
+                {/* One menu: adds after the selected block, or at the end. The gaps between blocks and the block's bar add in
+                    place. */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" disabled={source}>
@@ -768,7 +877,7 @@ function Editor({ id }: { id: string }) {
           {/* Editable email: text is edited in place; merge tags show as chips, the preview fills them.
               email-canvas: always the light palette recipients see, whatever the app theme (tokens.css). */}
           {source ? (
-            <HtmlSource value={sourceText} onChange={editSource} disabled={readOnly} hint="Blocks are rebuilt from this HTML; unsafe tags are removed. Drop an .html file here to load it." />
+            <HtmlSource value={sourceText} onChange={editSource} disabled={readOnly} hint="Drop an .html file here to load it." />
           ) : (
           <div className="email-canvas w-full rounded-lg border p-6 pt-8">
             {readOnly ? (
@@ -850,7 +959,7 @@ function Editor({ id }: { id: string }) {
         <section aria-label="Preview" className="flex min-w-0 flex-col gap-4 rounded-card border p-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-sm font-medium text-muted-foreground">Preview</h2>
-            <span className="truncate text-xs text-subtle-foreground">As {sampleName} sees it</span>
+            <span className="truncate text-sm text-muted-foreground">As {sampleName} sees it</span>
           </div>
           <div className="flex flex-col gap-1 border-b pb-3">
             <p className="truncate font-heading text-lg font-medium tracking-title">{doc.name || "Untitled template"}</p>
@@ -899,17 +1008,22 @@ function Editor({ id }: { id: string }) {
               <SendIcon data-icon="inline-start" />
               Send a batch now
             </Button>
-            <Button
-              variant="outline"
-              className="justify-start"
-              onClick={() => {
-                setReady(false);
-                setScheduling(true);
-              }}
-            >
-              <CalendarClockIcon data-icon="inline-start" />
-              Set a schedule
-            </Button>
+            {/* One running schedule per template. */}
+            <LockedTip reason={scheduleRunning ? "Pause the current schedule to set a new one" : undefined}>
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                disabled={scheduleRunning}
+                onClick={() => {
+                  setReady(false);
+                  if (params.get("ready")) router.replace(`/templates/${id}/edit`);
+                  setScheduling(true);
+                }}
+              >
+                <CalendarClockIcon data-icon="inline-start" />
+                Set a schedule
+              </Button>
+            </LockedTip>
           </div>
           <DialogFooter>
             <DialogClose asChild>
@@ -918,7 +1032,8 @@ function Editor({ id }: { id: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {!isDraft && <ScheduleDialog templateId={id} open={scheduling} onOpenChange={setScheduling} viewer={viewer} />}
+
+      {!isDraft && <ScheduleDialog templateId={id} scheduleId={null} open={scheduling} onOpenChange={setScheduling} />}
 
       <AlertDialog open={pendingKind !== null} onOpenChange={(o) => !o && setPendingKind(null)}>
         <AlertDialogContent>
@@ -950,9 +1065,85 @@ function Editor({ id }: { id: string }) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Leaving with unsaved work (lib/leave-guard.ts). */}
+      {/* Leaving a template still being made: save it, and mark it active so it can be sent. */}
+      <AlertDialog open={leaveTo !== null && unfinished} onOpenChange={(o) => !o && setLeaveTo(null)}>
+        <AlertDialogContent
+          tabIndex={-1}
+          className="outline-none data-[size=default]:sm:max-w-lg"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            (e.currentTarget as HTMLElement).focus();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark “{doc.name || "this template"}” active before you leave?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {dirty ? "Your changes aren't saved yet. " : isDraft ? "Not saved yet. " : "It's saved as a draft. "}
+              Only active templates can be sent{campaignOff ? `; ${campaignOff.toLowerCase()}.` : markReason ? `; ${markReason.toLowerCase()}.` : "."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            {(dirty || isDraft) && (
+              <Button
+                variant="ghost"
+                className="text-destructive-soft-foreground hover:text-destructive-soft-foreground sm:mr-auto"
+                onClick={() => {
+                  const to = leaveTo;
+                  setLeaveTo(null);
+                  if (to) leave(to);
+                }}
+              >
+                Discard
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setLeaveTo(null)}>
+              Keep editing
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const to = leaveTo;
+                setLeaveTo(null);
+                if (!to) return;
+                if (dirty || isDraft) {
+                  if (save(false, { stay: true })) leave(to);
+                } else leave(to);
+              }}
+            >
+              {dirty || isDraft ? "Save draft" : "Leave as draft"}
+            </Button>
+            <LockedTip reason={activateReason}>
+              <Button
+                disabled={Boolean(activateReason)}
+                onClick={() => {
+                  const to = leaveTo;
+                  setLeaveTo(null);
+                  if (to && save(true, { stay: true })) leave(to);
+                }}
+              >
+                Mark active
+              </Button>
+            </LockedTip>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deactivating} onOpenChange={setDeactivating}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark “{doc.name}” inactive?</AlertDialogTitle>
+            <AlertDialogDescription>Its schedule is running. It waits, and sends nothing, until you mark the template active again.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep active</AlertDialogCancel>
+            <AlertDialogAction onClick={markInactive}>Mark inactive</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Leaving with unsaved work (lib/leave-guard.ts; shared dialog). */}
       <UnsavedDialog
-        open={leaveTo !== null}
+        open={leaveTo !== null && !unfinished}
         title="Save this template?"
         description={isDraft ? `“${doc.name}” hasn't been saved yet. Leave now and it's gone.` : `Your changes to “${doc.name}” aren't saved yet.`}
         saveLabel="Save draft"
@@ -1011,13 +1202,22 @@ function CheckPopover({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-96 p-2">
+        {/* The button's count is the first group's rows; a second kind gets its own heading and count. */}
         <ItemGroup aria-label="Content check">
-          {(["error", "warning", "tip"] as const).flatMap((sev) =>
-            issues
-              .filter((i) => i.severity === sev)
-              .map((i) => {
+          {(["error", "warning", "tip"] as const).flatMap((sev) => {
+            const rows = issues.filter((i) => i.severity === sev);
+            const grouped = new Set(issues.map((i) => i.severity)).size > 1;
+            const heading =
+              grouped && rows.length > 0 ? (
+                <p key={`h-${sev}`} className="px-2 pt-1.5 pb-0.5 text-sm font-medium text-muted-foreground tabular-nums">
+                  {SEVERITY[sev].label} · {rows.length}
+                </p>
+              ) : null;
+            return [
+              heading,
+              ...rows.map((i) => {
                 const S = SEVERITY[sev];
-                const clickable = Boolean(i.blockId || i.field);
+                const clickable = Boolean(i.blockId || i.field || i.image !== undefined);
                 const body = (
                   <>
                     <ItemMedia>
@@ -1041,8 +1241,9 @@ function CheckPopover({
                     {body}
                   </Item>
                 );
-              })
-          )}
+              }),
+            ];
+          })}
         </ItemGroup>
       </PopoverContent>
     </Popover>
@@ -1056,12 +1257,20 @@ function EditorSkeleton() {
         <Skeleton className="h-4 w-40" />
         <Skeleton className="h-8 w-72" />
       </div>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex flex-col gap-4">
-          <Skeleton className="h-40" />
+      {/* As the editor: two equal panes, envelope rows + toolbar + email on the left, the preview on the right. */}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <div className="flex flex-col gap-3 rounded-card border p-4">
+          <Skeleton className="h-8" />
+          <Skeleton className="h-8" />
+          <Skeleton className="h-8" />
+          <Skeleton className="h-9" />
           <Skeleton className="h-96" />
         </div>
-        <Skeleton className="h-96" />
+        <div className="flex flex-col gap-4 rounded-card border p-4">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-16" />
+          <Skeleton className="h-96" />
+        </div>
       </div>
     </div>
   );

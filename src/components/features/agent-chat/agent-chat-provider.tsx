@@ -3,7 +3,9 @@
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { AgentStep } from "@/components/saella/agent-steps";
+import { addCredits, readCreditBalance, spendCredits } from "@/lib/mock/credits";
 import {
+  type BillableAction,
   FLOW_STEPS,
   type FlowStep,
   type Message,
@@ -14,18 +16,32 @@ import {
   type SendSplit,
   type SentFile,
   type Thread,
+  actionList,
+  creditWord,
+  creditsFor,
   planReply,
   seedThreads,
   splitOf,
   testSendRun,
+  threadTitle,
   uid,
 } from "./data";
 import type { PartHandlers } from "./message-view";
 
-// One agent engine for the whole app (PRD-03 AC-AG-C-01..05), shown in the docked side panel on every screen (the
-// full page /agent was removed). Provided by AppShell. Other screens open the
-// panel, optionally with a first message, through openAgent({ prompt }) below. Replies are scripted (data.ts planReply): steps play live, Stop cancels the turn, gated writes stop
-// at an ApprovalCard (AC-AG-G-02/03) and continue once approved (AC-AG-G-04). One turn runs at a time.
+// One agent engine for the whole app (PRD-03 AC-AG-C-01..05), shown in the docked side panel on every screen
+// (no full /agent page). Provided by AppShell. Other screens open the panel, optionally with a first
+// message, through openAgent({ prompt }) below. Mock: replies are scripted (data.ts planReply): steps play live, Stop
+// cancels the turn, gated writes stop at an ApprovalCard (AC-AG-G-02/03) and continue once approved (AC-AG-G-04).
+// One turn runs at a time.
+// Credits (PRD-05; PRD-03 AC-AG-W-01..03): 1 credit per billable action (data.ts
+// BillableAction), charged through the shared store before the turn or the approval runs, so the sidebar and Billing ›
+// Usage ("Agent actions") follow. Short of credits: nothing runs and a "Not enough credits" line opens Top up in place.
+// A failed or stopped turn is refunded with its own ledger row.
+
+/** The ledger row for an agent charge (Billing › Usage, kind "agent"). */
+const agentEntry = (actions: readonly BillableAction[]) => ({ kind: "agent", label: `Agent actions · ${actionList(actions)}` });
+/** The charges of approvals in `parts` that ran without asking (resolve() flattens what follows them into the list). */
+const autoCharges = (parts: Part[]) => parts.flatMap((p) => (p.kind === "approval" && p.auto ? (p.charges ?? []) : []));
 
 type Busy = { threadId: string; msgId: string };
 
@@ -39,7 +55,7 @@ export type AgentChat = {
   /** Sends into a thread; a new one when `threadId` is undefined or not there yet. Returns the thread's id. */
   send: (threadId: string | undefined, text: string, attachments?: SentFile[]) => string | undefined;
   stop: () => void;
-  approve: (approvalId: string) => void;
+  approve: (approvalId: string) => boolean;
   alwaysAllow: (approvalId: string) => void;
   decline: (approvalId: string) => void;
   setSplit: (approvalId: string, split: SendSplit) => void;
@@ -57,7 +73,7 @@ const OPEN_AGENT_EVENT = "saella:open-agent";
 
 /**
  * Opens the docked agent panel from any screen, e.g. the Overview checklist's "Show me". With `prompt`, a new
- * conversation starts with it as the first message (replaces the old /agent?prompt= link).
+ * conversation starts with it as the first message.
  */
 export function openAgent(request: OpenAgentRequest = {}) {
   window.dispatchEvent(new CustomEvent<OpenAgentRequest>(OPEN_AGENT_EVENT, { detail: request }));
@@ -75,7 +91,7 @@ export function AgentChatProvider({ children, onOpenRequest }: { children: React
   // Seeds have fixed ids: they render on the server too, so they must match on hydration.
   const [threads, setThreads] = useState<Thread[]>(seedThreads);
   const [busy, setBusy] = useState<Busy | null>(null);
-  // Which steps stop for approval: the live app's two (data.ts REPO_GATES). The /agent ?gates=all preview is gone.
+  // Which steps stop for approval: the live app's two (data.ts REPO_GATES).
   const gates = REPO_GATES;
   const [alwaysAllowed, setAllowed] = useState<FlowStep[]>([]);
   // The panel opens on the most recent conversation (threads are newest first); "New chat" clears it.
@@ -83,6 +99,8 @@ export function AgentChatProvider({ children, onOpenRequest }: { children: React
 
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const allowedRef = useRef(alwaysAllowed);
+  /** What the running turn was charged, so Stop can give it back. */
+  const turnCharge = useRef<BillableAction[]>([]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   // ---- state helpers ------------------------------------------------------------------------------------
@@ -111,7 +129,7 @@ export function AgentChatProvider({ children, onOpenRequest }: { children: React
 
   /**
    * Approvals for steps that don't need asking (not gated, or always allowed) run straight away. The rest of a
-   * send that went to the first few always waits: the user asked to look before it goes.
+   * send that went to the first few always waits: the user asked to look before it goes (R18).
    */
   function resolve(parts: Part[]): Part[] {
     return parts.flatMap((p) =>
@@ -124,7 +142,7 @@ export function AgentChatProvider({ children, onOpenRequest }: { children: React
     );
   }
 
-  /** Stops the running turn at the step that is running now. */
+  /** Stops the running turn at the step that is running now. Its credits come back: what it was paid for didn't run. */
   function stop() {
     if (!busy) return;
     const m = threads.find((t) => t.id === busy.threadId)?.messages.find((x) => x.id === busy.msgId);
@@ -132,16 +150,35 @@ export function AgentChatProvider({ children, onOpenRequest }: { children: React
     const i = Math.max(0, steps.findIndex((s) => s.status === "running"));
     clearTimeout(timer.current);
     setStep(busy.threadId, busy.msgId, i, { status: "error", title: "Stopped by you", duration: undefined });
+    const actions = turnCharge.current;
+    const cost = creditsFor(actions);
+    if (cost) addCredits(cost, { kind: "refund", label: "Agent prompt stopped" });
+    turnCharge.current = [];
     patchMessage(busy.threadId, busy.msgId, (msg) => ({
       ...msg,
-      parts: [...msg.parts, { kind: "notice", text: "You stopped this turn. Nothing after this step ran." }],
+      parts: [
+        ...msg.parts.map((p, pi) => (pi === 0 && p.kind === "steps" && cost ? { ...p, charge: { actions, refunded: true } } : p)),
+        { kind: "notice", text: "You stopped this turn. Nothing after this step ran." },
+      ],
     }));
     setBusy(null);
   }
 
   // ---- running a turn -----------------------------------------------------------------------------------
-  function run(threadId: string, script: Script) {
+  /** `title`: the conversation's name, given once the first answer is in (an untitled thread only). */
+  function run(threadId: string, script: Script, title?: string) {
     const msgId = uid("m");
+    // Approvals that run without asking are part of this turn, so they are paid with it (before anything runs).
+    const parts = resolve(script.parts);
+    const actions = [...script.charges, ...autoCharges(parts)];
+    const cost = creditsFor(actions);
+    // Short of credits: refused before it runs, nothing half done (AC-AG-W-01/02).
+    if (cost > readCreditBalance()) {
+      append(threadId, { id: msgId, role: "agent", at: NOW, parts: [{ kind: "credits", cost, on: "turn" }] });
+      return;
+    }
+    if (cost) spendCredits(cost, agentEntry(actions));
+    turnCharge.current = actions;
     append(threadId, {
       id: msgId,
       role: "agent",
@@ -150,13 +187,33 @@ export function AgentChatProvider({ children, onOpenRequest }: { children: React
     });
     setBusy({ threadId, msgId });
     let i = 0;
-    const total = script.steps.reduce((n, s) => n + s.ms, 0);
     const tick = () => {
       if (i >= script.steps.length) {
-        const usage = `${script.steps.length} ${script.steps.length === 1 ? "step" : "steps"} · ${(total / 1000).toFixed(1)}s · ${script.tokens.toLocaleString("en-US")} tokens`;
+        turnCharge.current = [];
+        if (title) patchThread(threadId, (t) => (t.title ? t : { ...t, title }));
+        if (script.fails) {
+          // A turn that failed gives its credits back (AC-AG-W-03), with its own ledger row. The step it broke on turns
+          // red and the error alert says what came back, so the closing line has no credits.
+          if (cost) addCredits(cost, { kind: "refund", label: "Agent prompt failed" });
+          const last = script.steps.length - 1;
+          patchMessage(threadId, msgId, (m) => ({
+            ...m,
+            parts: [
+              ...m.parts.map((p, pi) =>
+                pi === 0 && p.kind === "steps"
+                  ? { ...p, finished: true, steps: p.steps.map((s, si) => (si === last ? { ...s, status: "error" as const } : s)) }
+                  : p
+              ),
+              ...parts.map((p) => (p.kind === "error" && cost ? { ...p, refunded: cost } : p)),
+            ],
+          }));
+          setBusy(null);
+          return;
+        }
+        const charge = { actions };
         patchMessage(threadId, msgId, (m) => ({
           ...m,
-          parts: [...m.parts.map((p, pi) => (pi === 0 && p.kind === "steps" ? { ...p, usage } : p)), ...resolve(script.parts)],
+          parts: [...m.parts.map((p, pi) => (pi === 0 && p.kind === "steps" ? { ...p, finished: true, charge } : p)), ...parts],
         }));
         setBusy(null);
         return;
@@ -176,11 +233,9 @@ export function AgentChatProvider({ children, onOpenRequest }: { children: React
     if (busy) return undefined;
     const id = threadId ?? uid("th");
     if (!threads.some((t) => t.id === id)) setThreads((all) => [{ id, title: "", visibility: "private", updatedAt: NOW, messages: [] }, ...all]);
-    // The first message names the thread until it is renamed.
-    patchThread(id, (t) => (t.title ? t : { ...t, title: text.length > 48 ? `${text.slice(0, 47)}…` : text }));
     append(id, { id: uid("m"), role: "user", at: NOW, attachments, parts: [{ kind: "text", text }] });
-    // Let the user message land before the agent turn starts.
-    timer.current = setTimeout(() => run(id, planReply(text, gates)), 250);
+    // Let the user message land before the agent turn starts. The agent names the thread when it answers.
+    timer.current = setTimeout(() => run(id, planReply(text, gates), threadTitle(text)), 250);
     return id;
   }
 
@@ -202,32 +257,43 @@ export function AgentChatProvider({ children, onOpenRequest }: { children: React
       parts: m.parts.map((p) => (p.kind === "approval" && p.id === approvalId ? { ...p, ...patch } : p)),
     }));
 
+  /** Runs an approved step after paying for it. False (and nothing runs) when the balance is short. */
   function approve(approvalId: string) {
     const hit = findApproval(approvalId);
-    if (!hit) return;
-    setApproval(hit.t.id, hit.m.id, approvalId, { state: "running", error: undefined });
+    if (!hit) return false;
     const first = splitOf(hit.p) === "first";
+    // What runs after it, with any approval in there that runs without asking: paid together with this one.
+    const next = first ? [] : resolve(hit.p.after);
+    const actions = [...(hit.p.charges ?? []), ...autoCharges(next)];
+    const cost = creditsFor(actions);
+    if (cost && !spendCredits(cost, agentEntry(actions))) {
+      append(hit.t.id, { id: uid("m"), role: "agent", at: NOW, parts: [{ kind: "credits", cost, on: "approval" }] });
+      return false;
+    }
+    // The decided card's one line says what it cost.
+    const paid = cost ? ` · ${creditWord(cost)} used` : "";
+    setApproval(hit.t.id, hit.m.id, approvalId, { state: "running", error: undefined });
     timer.current = setTimeout(() => {
-      // Only the first few went out: report on them and ask again for the rest.
+      // Only the first few went out: report on them and ask again for the rest (R18).
       if (first) {
         const test = testSendRun(hit.p, uid("ap"));
-        setApproval(hit.t.id, hit.m.id, approvalId, { state: "approved", result: test.result });
+        setApproval(hit.t.id, hit.m.id, approvalId, { state: "approved", result: `${test.result}${paid}` });
         append(hit.t.id, { id: uid("m"), role: "agent", at: NOW, parts: test.parts });
         return;
       }
-      setApproval(hit.t.id, hit.m.id, approvalId, { state: "approved" });
-      if (hit.p.after.length) append(hit.t.id, { id: uid("m"), role: "agent", at: NOW, parts: resolve(hit.p.after) });
+      setApproval(hit.t.id, hit.m.id, approvalId, { state: "approved", result: `${hit.p.result}${paid}` });
+      if (next.length) append(hit.t.id, { id: uid("m"), role: "agent", at: NOW, parts: next });
     }, 1200);
+    return true;
   }
 
   function alwaysAllow(approvalId: string) {
     const hit = findApproval(approvalId);
-    if (!hit) return;
+    if (!hit || !approve(approvalId)) return;
     setAlwaysAllowed([...new Set([...allowedRef.current, hit.p.step])]);
     toast.success(`Always allowed: ${FLOW_STEPS.find((s) => s.step === hit.p.step)?.label}`, {
       description: "The agent won't ask again for this step. Undo it with “Ask me again” under the step in the chat.",
     });
-    approve(approvalId);
   }
 
   function decline(approvalId: string) {
@@ -264,7 +330,7 @@ export function AgentChatProvider({ children, onOpenRequest }: { children: React
     setSplit,
     retry,
     handlersFor: (threadId) => ({
-      onApprove: approve,
+      onApprove: (id) => void approve(id),
       onAlwaysAllow: alwaysAllow,
       onDecline: decline,
       onPrompt: (t) => void send(threadId, t),
@@ -280,7 +346,7 @@ export function AgentChatProvider({ children, onOpenRequest }: { children: React
     setPanelThreadId,
   };
 
-  // openAgent: open the panel; with a prompt, start a new conversation with it and show it there. The listener
+  // openAgent(): open the panel; with a prompt, start a new conversation with it and show it there. The listener
   // reads the latest send through a ref, so a request made while a turn runs is not lost silently.
   const sendRef = useRef(send);
   const openRef = useRef(onOpenRequest);

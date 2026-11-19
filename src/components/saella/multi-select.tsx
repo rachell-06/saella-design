@@ -16,7 +16,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-/** Lists longer than this get a search box at the top (find a country or industry fast). */
+/** Lists longer than this get a search box at the top (user request 2026-11-11: find a country or industry fast). */
 const SEARCH_FROM = 7;
 /** Option rows sized like a Select item (28px, rounded-md), so every filter dropdown lists the same way. */
 const OPTION_ROW = "rounded-md px-1.5 py-1";
@@ -42,7 +42,7 @@ export function MultiSelect({
   searchPlaceholder?: string;
   className?: string;
 }) {
-  // As many picks as fit, then "+N" for the rest (was first pick + count only, leaving the bar
+  // As many picks as fit, then "+N" for the rest (designer 2026-11-14; was first pick + count only, leaving the bar
   // half empty). Measured from hidden copies of each pick; the first one always shows and truncates if it must.
   const boxRef = useRef<HTMLSpanElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
@@ -74,7 +74,7 @@ export function MultiSelect({
   const toggle = (option: string) =>
     onChange(value.includes(option) ? value.filter((v) => v !== option) : [...value, option]);
   // A click on the field's label closes the list (outside click) and the label then forwards a click to the trigger,
-  // which would open it again; that one forwarded click is ignored.
+  // which would open it again; that one forwarded click is ignored (user report 2026-11-12).
   const [open, setOpen] = useState(false);
   const skipReopen = useRef(false);
   const onPointerDownOutside = (e: CustomEvent<{ originalEvent: PointerEvent }>) => {

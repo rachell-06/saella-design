@@ -3,12 +3,13 @@ import { KNOWN_TAGS, MERGE_TAGS, detailsFor, splitTags } from "@/lib/mock/templa
 import type { Sender } from "@/lib/mock/workspace";
 import { type AudienceSummary, SUBJECTS, summarizeAudience } from "@/lib/mock/batches";
 
-// Who a new batch really goes to, person by person.
-// "Send to" / "Don't send to": contact tags picked and left out (tags, no named lists), on top of the live app's own exclusions. summarizeAudience
+// Who a new batch really goes to, person by person (2026-10-29, Competitor.md R1–R3).
+// R1 "Send to" / "Don't send to": contact tags picked and left out (2026-11-10: tags, no named lists; HubSpot
+//    "Don't send to", Mailchimp "Do not send to"), on top of the live app's own exclusions. summarizeAudience
 //    (lib/mock/batches.ts) works person by person over the contact book.
-// per-recipient check: for each merge tag the template really uses, who has no value for it, so a greeting
-//    never goes out as "Hi ,".
-// preview values: the merge tag values one recipient gets, with the chosen fallbacks.
+// R2 per-recipient check: for each merge tag the template really uses, who has no value for it, so a greeting
+//    never goes out as "Hi ," (Clay's lesson: a bad substitution reached the email with no warning).
+// R3 preview values: the merge tag values one recipient gets, with the chosen fallbacks.
 // The live app needs the server to apply exclusions, count overlap and return the recipient rows.
 
 export type Recipient = {
@@ -70,7 +71,7 @@ export function tagsIn(book: Contact[], tags: string[]) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// per-recipient check against the merge tags the template uses
+// R2: per-recipient check against the merge tags the template uses
 // ---------------------------------------------------------------------------------------------------------------
 
 /** The subject the batch sends: the batch mock's subject line, else the template's. */

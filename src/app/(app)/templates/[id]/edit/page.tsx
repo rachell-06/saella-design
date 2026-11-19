@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { allTemplates, findTemplate, isSessionTemplateId } from "@/lib/mock/templates";
 import { TemplateEditor } from "../../_components/editor/template-editor";
 
-// Known ids are prerendered, so the shared sidebar's usePathname has a value at build time (cacheComponents).
+// Known ids are prerendered, so the shared sidebar's usePathname() has a value at build time (cacheComponents).
 export function generateStaticParams() {
   return [...allTemplates().map((t) => ({ id: t.id })), { id: "draft" }];
 }

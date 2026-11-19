@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
-// Ask before leaving a page with unsaved work ("when the user leaves or presses back while
-// working, Saella asks first"). One hook covers every way out:
+// Ask before leaving a page with unsaved work. One hook covers every way out:
 //   - closing or reloading the tab: the browser's own prompt (beforeunload)
 //   - in-app links (sidebar, crumbs, any <a>): caught in the capture phase, before Next's Link
-//   - the top bar's "← Back" (TopbarCrumbs calls requestBack)
+//   - the top bar's "← Back" (TopbarCrumbs calls requestBack())
 //   - the browser's Back button: while guarded, the page keeps one extra history entry of itself, so Back lands
 //     on the same URL and we ask instead of leaving
 // The page shows its own dialog (Save / Discard / Keep editing) from onBlock, then calls leave(target).
@@ -19,6 +18,8 @@ export type LeaveTarget =
 
 const LEAVE_EVENT = "saella:leave";
 const SENTINEL = "__saellaGuard";
+/** Fired just before a leave with `replace`: the top bar's page stack (topbar-crumbs.tsx) swaps its top entry too. */
+export const REPLACE_EVENT = "saella:replace-visit";
 
 /** The top bar's Back: false when a page with unsaved work took over (it will ask, then leave itself). */
 export function requestBack(): boolean {
@@ -31,15 +32,18 @@ export function useLeaveGuard(active: boolean, onBlock: (target: LeaveTarget) =>
   const blockRef = useRef(onBlock);
   // Whether this page pushed its extra history entry (see above).
   const sentinel = useRef(false);
-  // leave with replace while the extra entry exists: step back over it first, then replace (see popstate).
+  // leave() with replace while the extra entry exists: step back over it first, then replace (see popstate).
   const pendingReplace = useRef<string | null>(null);
+  // Set by leave(): the page is on its way out, so it neither asks nor re-adds its extra entry (a save right before
+  // leave() re-renders the page while it is still guarded, which would push a second extra entry).
+  const left = useRef(false);
   const routerRef = useRef(router);
 
   useEffect(() => {
-    activeRef.current = active;
+    activeRef.current = active && !left.current;
     blockRef.current = onBlock;
     routerRef.current = router;
-    if (active && !sentinel.current) {
+    if (activeRef.current && !sentinel.current) {
       // Keep Next's own state on the entry so its router treats it as one of its own.
       window.history.pushState({ ...window.history.state, [SENTINEL]: true }, "", window.location.href);
       sentinel.current = true;
@@ -99,6 +103,7 @@ export function useLeaveGuard(active: boolean, onBlock: (target: LeaveTarget) =>
   /** Leave without asking again (after Save or Discard in the page's dialog). */
   const leave = useCallback(
     (target: LeaveTarget) => {
+      left.current = true;
       activeRef.current = false;
       const extra = sentinel.current;
       sentinel.current = false;
@@ -106,6 +111,7 @@ export function useLeaveGuard(active: boolean, onBlock: (target: LeaveTarget) =>
         if (extra) window.history.go(-2);
         else router.back();
       } else if (target.replace) {
+        window.dispatchEvent(new Event(REPLACE_EVENT));
         if (extra) {
           pendingReplace.current = target.href;
           window.history.back();

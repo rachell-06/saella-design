@@ -17,6 +17,8 @@ export type Issue = {
   /** Block to select when the issue is clicked; or the field to focus. */
   blockId?: string;
   field?: "subject" | "preheader" | "sender";
+  /** Which image it is, counted among images only (a Letter selects that image in its text). */
+  image?: number;
 };
 
 // Words spam filters and readers both distrust in cold B2B email (illustrative list).
@@ -36,17 +38,15 @@ function unknownTagsIn(texts: string[]) {
   return [...unknown];
 }
 
-// Live subject checklist (after 's best-practice list next to the subject field).
-// Graded on every keystroke; never blocks saving. Each rule is the one checkContent uses, so the checklist
-// and the Check tab can't disagree: `inCheck: false` rules are reported there by the body-wide pass instead
-// (unknown tags as an error, spam words across subject and body), not twice.
+// Live subject checklist (R5; after Mailchimp's best-practice list next to the subject field).
+// Graded on every keystroke; never blocks saving. The content check doesn't repeat these: it only
+// lists what blocks Mark active (no subject, an unknown merge tag).
 export type SubjectCheck = {
   id: "length" | "emoji" | "shouting" | "spam" | "tags" | "preheader";
   state: "ok" | Issue["severity"];
   label: string;
   detail: string;
   field: "subject" | "preheader";
-  inCheck: boolean;
 };
 
 export function checkSubject(subject: string, preheader: string): SubjectCheck[] {
@@ -67,7 +67,6 @@ export function checkSubject(subject: string, preheader: string): SubjectCheck[]
           label: `Subject is ${shown.length} characters`,
           detail: `Most inboxes cut it off after about ${SUBJECT_MAX}, phones sooner.`,
           field: "subject",
-          inCheck: true,
         }
       : {
           id: "length",
@@ -75,17 +74,15 @@ export function checkSubject(subject: string, preheader: string): SubjectCheck[]
           label: `${shown.length} characters, ${words} ${words === 1 ? "word" : "words"}`,
           detail: "Short enough to show in full in most inboxes.",
           field: "subject",
-          inCheck: true,
         },
     emoji > EMOJI_MAX
-      ? { id: "emoji", state: "warning", label: `${emoji} emoji`, detail: "More than one reads like a promotion.", field: "subject", inCheck: true }
+      ? { id: "emoji", state: "warning", label: `${emoji} emoji`, detail: "More than one reads like a promotion.", field: "subject" }
       : {
           id: "emoji",
           state: "ok",
           label: emoji ? "1 emoji" : "No emoji",
           detail: "One at most keeps it friendly, not promotional.",
           field: "subject",
-          inCheck: true,
         },
     caps || bangs
       ? {
@@ -94,9 +91,8 @@ export function checkSubject(subject: string, preheader: string): SubjectCheck[]
           label: caps ? `Words in capitals: ${caps.join(", ")}` : "Repeated exclamation marks",
           detail: caps && bangs ? "Also “!!”. Filters and buyers read it as shouting." : "Filters and buyers read it as shouting.",
           field: "subject",
-          inCheck: true,
         }
-      : { id: "shouting", state: "ok", label: "No capitals or “!!”", detail: "Reads calm, the way you'd say it.", field: "subject", inCheck: true },
+      : { id: "shouting", state: "ok", label: "No capitals or “!!”", detail: "Reads calm, the way you'd say it.", field: "subject" },
     spam.length
       ? {
           id: "spam",
@@ -104,9 +100,8 @@ export function checkSubject(subject: string, preheader: string): SubjectCheck[]
           label: `Spam-like: ${spam.map((w) => `“${w}”`).join(", ")}`,
           detail: "Spam filters and buyers both distrust these words.",
           field: "subject",
-          inCheck: false,
         }
-      : { id: "spam", state: "ok", label: "No spam-like words", detail: "Nothing filters usually flag.", field: "subject", inCheck: false },
+      : { id: "spam", state: "ok", label: "No spam-like words", detail: "Nothing filters usually flag.", field: "subject" },
     unknown.length
       ? {
           id: "tags",
@@ -114,7 +109,6 @@ export function checkSubject(subject: string, preheader: string): SubjectCheck[]
           label: `Unknown merge tag ${unknown.map((t) => `{{${t}}}`).join(", ")}`,
           detail: "Recipients would see it as typed. Fix it before marking active.",
           field: "subject",
-          inCheck: false,
         }
       : {
           id: "tags",
@@ -122,17 +116,15 @@ export function checkSubject(subject: string, preheader: string): SubjectCheck[]
           label: tags ? "Merge tags are valid" : "No merge tags",
           detail: tags ? "Each one fills in from the contact." : "Optional. A first name makes it personal.",
           field: "subject",
-          inCheck: false,
         },
     preheader.trim()
-      ? { id: "preheader", state: "ok", label: "Has a preheader", detail: "Inboxes show it next to the subject.", field: "preheader", inCheck: true }
+      ? { id: "preheader", state: "ok", label: "Has a preheader", detail: "Inboxes show it next to the subject.", field: "preheader" }
       : {
           id: "preheader",
           state: "tip",
           label: "No preheader",
           detail: "Inboxes show the first line of the body instead.",
           field: "preheader",
-          inCheck: true,
         },
   ];
 }
@@ -164,11 +156,9 @@ export function checkContent(input: {
   const passed: string[] = [];
   const { subject, preheader, blocks } = input;
 
-  // Subject and preheader: the same rules the live checklist under the fields shows (checkSubject).
+  // Subject and preheader advice (length, capitals, spam words, preheader) lives in the Subject check only
+  // (checkSubject): here only what blocks Mark active (no subject, an unknown tag below).
   if (!subject.trim()) issues.push({ id: "subject-empty", severity: "error", title: "Add a subject", field: "subject" });
-  for (const c of checkSubject(subject, preheader))
-    if (c.state !== "ok" && c.inCheck)
-      issues.push({ id: `subject-${c.id}`, severity: c.state, title: c.label, detail: c.detail, field: c.field });
 
   // Sender
   const sender = senderById(input.senderId);
@@ -194,7 +184,8 @@ export function checkContent(input: {
   }
   if (unknown.length === 0) passed.push("Merge tags are valid");
 
-  const spam = spamWordsIn(tagged.join(" "));
+  // The body only: the subject's spam words are in the Subject check.
+  const spam = spamWordsIn(blocks.map(textOf).join(" "));
   if (spam.length)
     issues.push({
       id: "spam",
@@ -209,17 +200,23 @@ export function checkContent(input: {
   if (placeholder)
     issues.push({ id: "placeholder", severity: "error", title: "Replace the text in [brackets]", blockId: placeholder.id });
 
-  blocks.forEach((b, i) => {
+  // Images are counted among images ("Image 2"), and "The image" when there is only one.
+  const imageCount = blocks.filter((b) => b.type === "image").length;
+  let image = 0;
+  blocks.forEach((b) => {
     if (b.type === "image") {
-      if (!b.file) issues.push({ id: `img-file-${b.id}`, severity: "error", title: `Image ${i + 1} has no file`, blockId: b.id });
+      const name = imageCount === 1 ? "The image" : `Image ${image + 1}`;
+      if (!b.file) issues.push({ id: `img-file-${b.id}`, severity: "error", title: `${name} has no file`, blockId: b.id, image });
       if (!b.alt.trim())
         issues.push({
           id: `img-alt-${b.id}`,
           severity: "warning",
-          title: `Image ${i + 1} has no alt text`,
+          title: `${name} has no alt text`,
           detail: "Many inboxes block images; the alt text is what people see instead.",
           blockId: b.id,
+          image,
         });
+      image++;
     }
     if (b.type === "button") {
       if (!b.label.trim()) issues.push({ id: `btn-label-${b.id}`, severity: "error", title: "A button has no label", blockId: b.id });

@@ -5,7 +5,7 @@ import { cn } from "cn"
 import { Separator as SeparatorPrimitive } from "radix-ui"
 
 // A vertical separator stretches to the row by default. Given a fixed height (h-5), it stops stretching and sits at
-// the top, so pair it with self-center: `data-vertical:h-5 data-vertical:self-center`.
+// the top, so pair it with self-center: `data-vertical:h-5 data-vertical:self-center` (designer 2026-11-14).
 function Separator({
   className,
   orientation = "horizontal",

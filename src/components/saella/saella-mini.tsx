@@ -2,10 +2,10 @@ import { useId } from "react";
 
 import { cn } from "@/lib/utils";
 
-// Saella mini: the agent's face, a compact form of the brand character.
+// Saella mini (user request 2026-10-28): the agent's face, a compact form of the brand character.
 // Every look keeps her marks: the heart bun (same shape, brand color), dot eyes with 2 lashes, small smile,
 // flat ink line + white + brand only (no grey shading, no gradient, LP visual-direction §9).
-// Looks under review; the one picked becomes the only one:
+// Looks under review (compare 03 Brand/saella-mini-*.png); the one picked becomes the only one:
 //   classic: head-and-shoulders crop of the character (first version)
 //   visor:   small robot after the user's refs: white round head, ink visor, light eyes, ink ear pods, bun antenna
 //   hood:    ink gumdrop shell with a white face window, bun on top (ref: hooded bot)
@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 //   blob:    one-piece white mascot body with a thin ink outline, brand heart bun as its tuft, big round glasses,
 //            line arms with round hands as in the cheer pose, stub legs (refs: blob mascots).
 // Colors follow the theme like the onboarding art: ink = currentColor, fill = background, bun = brand,
-// disc = primary-soft.
+// disc = primary-soft. Brand files: 03 Brand/saella-mini-<variant>.png.
 // Small sizes get thicker lines so the face still reads at 20–24px.
 
 export type SaellaMiniVariant = "classic" | "visor" | "hood" | "helmet" | "orb" | "blob";

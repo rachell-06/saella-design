@@ -20,10 +20,10 @@ import { AuthFrame } from "../../_components/auth-frame";
 import { SaellaCharacter } from "../../_components/saella-character";
 
 // First run after sign-up (PRD Onboarding US-ONB-G/W; live app app/onboarding/page.tsx + OnboardingFlow.tsx on
-// origin/development).
+// origin/development 2026-11-12).
 // - Sign-in first, as the live app: nobody signed in → /login; a workspace already onboarded → Overview
 //   (AC-ONB-G-01/02). Mocked with the session that /login writes (auth-data.ts).
-// - No company questions. The live wizard asks for website,
+// - No company questions (user decision 2026-11-12). The live wizard asks for website,
 //   name, logo and targeting; all of it lives in Settings › Company, so asking twice is dropped. Language is the
 //   header picker (the live welcome screen's flag pick). What is left: a welcome naming the workspace, one pointer
 //   to Company, and one button into the app.

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-// Full-height table area: wrap a DataTable in this
+// Full-height table area (2026-10-28, learned from Studio Admin /dashboard/products): wrap a DataTable in this
 // and give the wrapper a bounded height (e.g. `flex-1 min-h-0` inside a full-height screen). The table body
 // scrolls inside its border with the header row stuck on top, while the selection bar above and the paging row
 // below stay in view. Fixes long lists (50–100 rows) where the bulk actions and column names scrolled away.
